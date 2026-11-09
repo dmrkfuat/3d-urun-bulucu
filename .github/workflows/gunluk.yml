@@ -31,14 +31,9 @@ jobs:
 
       - name: Analizi çalıştır
         env:
-          THINGIVERSE_TOKEN: ${{ secrets.THINGIVERSE_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          if [ -z "$THINGIVERSE_TOKEN" ]; then
-            echo "::warning::THINGIVERSE_TOKEN secret'ı tanımlı değil; yalnızca MakerWorld kullanılacak."
-          fi
-          python -m urun_bulucu
+        run: python -m urun_bulucu
 
       - name: Raporu depoya kaydet
         env:

@@ -10,13 +10,8 @@ if not exist ".venv\Scripts\python.exe" (
     ".venv\Scripts\python.exe" -m pip install -q -r requirements.txt
 )
 
-if not exist ".env" (
-    copy ".env.example" ".env" >nul
-    echo .env dosyasi olusturuldu. Icine THINGIVERSE_TOKEN yazip tekrar calistirin.
-    notepad ".env"
-    pause
-    exit /b 1
-)
+rem .env istege bagli (yalnizca Supabase anahtarlari icin); yoksa sablondan bos olusturulur.
+if not exist ".env" copy ".env.example" ".env" >nul
 
 ".venv\Scripts\python.exe" -m urun_bulucu
 echo.

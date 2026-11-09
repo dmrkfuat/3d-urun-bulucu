@@ -46,11 +46,11 @@ def test_ozet_kategori_siniri_ve_icerik():
     assert len(secimler) == 8  # 4 fidget + 4 saksı (kategori sınırı)
     metin = ozet.markdown(BUGUN, secimler, len(urunler), "SQLite")
     assert "Satılamaz (NC / kişisel kullanım)" in metin
-    assert "| Kaynak |" in metin and "| Thingiverse |" in metin
+    assert "Kaynak: MakerWorld" in metin
     # Başlıktaki "|" tabloyu bozmamalı
     boru = ozet.sec(puanlama.puanla([urun(1, "Embosser | Hinged", 10, 100)], {}, BUGUN))
     tablo = [s for s in ozet.markdown(BUGUN, boru, 1, "SQLite").splitlines() if s.startswith("| 1 |")]
-    assert tablo[0].count("|") == 7
+    assert tablo[0].count("|") == 6
     assert "Video fikri" in metin and "Neden seçildi" in metin
 
 
@@ -71,7 +71,7 @@ def test_sqlite_ayni_model_tekrar_eklenmez(tmp_path):
     satir = depo.con.execute("select count(*) c, max(likes) l from products").fetchone()
     assert (satir["c"], satir["l"]) == (1, 20)
 
-    pid = idler1[("thingiverse", u["external_id"])]
+    pid = idler1[("makerworld", u["external_id"])]
     u2["id"] = pid
     depo.anliklari_kaydet(date(2026, 11, 2), [{**u2, "downloads": 50}])
     depo.anliklari_kaydet(BUGUN, [u2])

@@ -86,11 +86,11 @@ def test_bicim_degisirse_hata_verir():
 
 
 def test_populerlik_kaynak_icinde_olceklenir():
-    # MakerWorld'deki büyük sayılar Thingiverse'in en iyisini ezmemeli.
+    # Sayıları çok büyük bir kaynak, küçük bir kaynağın en iyisini ezmemeli.
     urunler = [
-        urun(1, "TV en iyi", 100, 1000),
-        urun(2, "MW en iyi", 50000, 500000, source_id="makerworld", external_id="2"),
-        urun(3, "MW orta", 500, 5000, source_id="makerworld", external_id="3"),
+        urun(1, "Küçük kaynak en iyi", 100, 1000, source_id="baska"),
+        urun(2, "MW en iyi", 50000, 500000),
+        urun(3, "MW orta", 500, 5000),
     ]
     puanli = {u["id"]: u for u in puanlama.puanla(urunler, {}, date(2026, 11, 9))}
     assert puanli[1]["score_detail"]["populerlik"] == 1.0

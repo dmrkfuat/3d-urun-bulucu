@@ -12,10 +12,10 @@ link, kapak görseli, neden seçildiği, tahmini baskı süresi, lisans durumu v
 
 | Kaynak | Durum | Not |
 |---|---|---|
-| **Thingiverse** | ✅ Çalışıyor | Resmi API ile. Ücretsiz bir anahtar gerekir (aşağıda 2. adım). |
-| Printables | ⏸ Beklemede | Resmi API yok; site otomatik erişime Cloudflare bot kontrolü uyguluyor. |
 | **MakerWorld** | ✅ Çalışıyor | Anahtar gerekmez. Sitenin kendi JSON uçlarıyla (resmi/belgelenmiş API değil). robots.txt izinli; kullanım şartlarında otomatik erişim yasağı yok (Kasım 2026). Baskı süresi P1S profilinden gelir. |
-| Etsy | ✍️ Elle liste | Etsy API'si satış adedi vermiyor ve analiz amaçlı kullanımı kısıtlıyor. Gördüğünüz çok satanları `talep/etsy_talep.csv` dosyasına yazarsınız (6. adım). |
+| Thingiverse | ✖ Kaldırıldı | Kasım 2026'da API'nin önüne Cloudflare bot kontrolü geldi (403). Eski kayıtlar veritabanında duruyor. |
+| Printables | ⏸ Beklemede | Resmi API yok; site otomatik erişime Cloudflare bot kontrolü uyguluyor. |
+| Etsy | ✍️ Elle liste | Etsy API'si satış adedi vermiyor ve analiz amaçlı kullanımı kısıtlıyor. Gördüğünüz çok satanları `talep/etsy_talep.csv` dosyasına yazarsınız (4. adım). |
 | Google Trends | ✖ Kapalı | Sizin tercihinizle atlandı. |
 
 Veritabanı: `.env` içinde Supabase anahtarları varsa **Supabase**, yoksa bilgisayardaki
@@ -32,40 +32,25 @@ Aynı model iki kez eklenmez; tekrar görüldüğünde sayıları güncellenir.
 Bu bilgisayarda Python 3.13 zaten kurulu. Başka bir bilgisayarda: <https://www.python.org/downloads/>
 adresinden indirip kurun; kurulumda **"Add python.exe to PATH"** kutusunu işaretleyin.
 
-### 2. Thingiverse anahtarı (bir kerelik, ~2 dakika)
+### 2. Çalıştırın
 
-1. <https://www.thingiverse.com> adresinde hesabınızla giriş yapın.
-2. <https://www.thingiverse.com/apps/create> adresine gidin.
-3. Uygulama türü olarak **Web App** seçin. Ad: `3d-urun-bulucu`, açıklama: `Kişisel araştırma`.
-   (Ekrandaki isimler biraz farklı olabilir.)
-4. Kaydedin. Açılan sayfada **App Token** yazan değeri kopyalayın.
-
-### 3. Anahtarı programa verin
-
-1. Proje klasöründeki **`calistir.bat`** dosyasına çift tıklayın.
-2. İlk seferde gerekli paketleri kurar ve Not Defteri'nde `.env` dosyasını açar.
-3. `THINGIVERSE_TOKEN=` satırının sonuna kopyaladığınız anahtarı yapıştırın, kaydedip kapatın.
-
-`.env` dosyası gizlidir ve GitHub'a **gönderilmez**.
-
-### 4. Çalıştırın
-
-`calistir.bat` dosyasına tekrar çift tıklayın. Program yaklaşık 2-3 dakikada
-(istekleri yavaş ve az sayıda yaparak) modelleri toplar, puanlar ve özeti yazar.
+Proje klasöründeki **`calistir.bat`** dosyasına çift tıklayın. İlk seferde gerekli paketleri kurar.
+Program yaklaşık 2-3 dakikada (istekleri yavaş ve az sayıda yaparak) MakerWorld'den modelleri
+toplar, puanlar ve özeti yazar. Anahtar gerekmez.
 Bitince `raporlar` klasöründeki bugünün tarihli dosyayı açın.
 
 > İpucu: `.md` dosyalarını VS Code'da açıp sağ üstteki "Önizleme" düğmesiyle görsellerle birlikte okuyabilirsiniz.
 
-### 5. (İsteğe bağlı) Supabase
+### 3. (İsteğe bağlı) Supabase
 
 1. <https://supabase.com> panelinde projenizi açın.
 2. **SQL Editor** → `supabase/schema.sql` dosyasının içeriğini yapıştırıp **Run**.
-3. **Project Settings → API** bölümünden `Project URL` ve **secret / service_role** anahtarını
+3. **Project Settings → API Keys** bölümünden `Project URL` ve **secret** (`sb_secret_...`) anahtarını
    `.env` içindeki `SUPABASE_URL=` ve `SUPABASE_KEY=` satırlarına yazın.
 
-Bundan sonra veriler Supabase'e yazılır.
+Bundan sonra veriler Supabase'e yazılır. `.env` dosyası gizlidir ve GitHub'a **gönderilmez**.
 
-### 6. Etsy talep listesi (isteğe bağlı)
+### 4. Etsy talep listesi (isteğe bağlı)
 
 Etsy'de (ABD veya Türkiye) çok satan 3D baskı ürünleri gördükçe `talep/etsy_talep.csv`
 dosyasına (Excel veya Not Defteri ile) satır ekleyin:
@@ -78,13 +63,13 @@ kablo düzenleyici,TR,
 
 Adında bu kelimeler geçen modeller **+5 puan** alır ve özette "Etsy talep listenizle eşleşiyor" yazar.
 
-### 7. Her gün otomatik çalışma (GitHub)
+### 5. Her gün otomatik çalışma (GitHub)
 
 Depoda `.github/workflows/gunluk.yml` her gün **20:00 (Türkiye)** saatinde çalışır,
 özeti `raporlar/` klasörüne kaydeder. Bilgisayarınızın açık olması gerekmez.
-Bunun için anahtarların GitHub'a da girilmesi gerekir:
+Supabase kullanıyorsanız anahtarların GitHub'a da girilmesi gerekir:
 GitHub'da depo → **Settings → Secrets and variables → Actions → New repository secret**:
-`THINGIVERSE_TOKEN` (ve Supabase kullanıyorsanız `SUPABASE_URL`, `SUPABASE_KEY`).
+`SUPABASE_URL`, `SUPABASE_KEY`.
 
 Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → Run workflow**.
 
@@ -94,7 +79,7 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 
 | Bileşen | Ağırlık | Açıklama |
 |---|---:|---|
-| Popülerlik | 30 | Beğeni, indirme ve "make" sayısı (logaritmik, o günkü en iyiye göre) |
+| Popülerlik | 30 | Beğeni, indirme ve baskı sayısı (logaritmik, o günkü en iyiye göre) |
 | Son 7 gündeki artış | 25 | Bir hafta önceki kayda göre günlük artış. İlk hafta henüz kayıt olmadığı için "yayından beri günlük ortalama" kullanılır. |
 | Görsel çekicilik | 20 | Hareketli parça / print-in-place (en yüksek), çok renkli (AMS), "satisfying", ışık efekti |
 | Kısa baskı | 15 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
@@ -118,14 +103,10 @@ Bu işaretler bilgilendirme amaçlıdır, hukuki görüş değildir.
 
 ### Bilinen sınırlar
 
-- Thingiverse baskı süresini ayrı bir alan olarak vermez; süre yalnızca tasarımcı açıklamaya
-  yazdıysa bulunur, yoksa "bilinmiyor" görünür.
-- Thingiverse'in indirme sayıları bazen şişkin olabilir; bu yüzden beğeni daha ağır sayılır.
-- MakerWorld'ün sayıları Thingiverse'ten çok büyüktür; popülerlik ve artış her sitenin kendi
-  içinde ölçeklenir. Yine de MakerWorld modellerinin baskı süresi bilindiği için sık öne çıkarlar.
-- MakerWorld uçları haber verilmeden değişebilir veya GitHub sunucularından gelen isteği
-  engelleyebilir. O gün MakerWorld atlanır ve özet Thingiverse ile yazılır (`config.py` →
-  `MAKERWORLD_AKTIF = False` ile tamamen kapatılabilir).
+- Baskı süresi modelin P1S profilinden gelir; P1S profili yoksa varsayılan profil kullanılır
+  (başka yazıcı için hazırlanmış olabilir). Profil hiç yoksa "bilinmiyor" görünür.
+- Tek kaynak MakerWorld olduğu için, MakerWorld uçları değişir veya istekleri engellerse
+  o gün özet yazılamaz ("MakerWorld'den veri alınamadı" hatası).
 - Popüler modellerin bir kısmı marka/karakter içerir (Minecraft, Coraline vb.); lisans
   🟢 olsa bile bunların baskısını satmak marka hakkı sorunu doğurabilir.
 
@@ -143,7 +124,6 @@ raporlar/                 ← günlük özetler
 urun_bulucu/
   __main__.py             ← ana akış
   config.py               ← ayarlar (kategoriler, süreler)
-  kaynaklar/thingiverse.py← Thingiverse API
   kaynaklar/makerworld.py ← MakerWorld
   analiz.py               ← baskı süresi, malzeme, görsel özellikler
   lisans.py               ← lisans sınıflandırma
@@ -159,6 +139,5 @@ Geliştirici notu: testler `.venv\Scripts\python -m pytest -q` ile çalışır.
 
 | Mesaj | Çözüm |
 |---|---|
-| `THINGIVERSE_TOKEN bulunamadı` | 2. ve 3. adım: `.env` içine anahtarı yazın. |
-| `anahtarı geçersiz (401)` | Thingiverse'te uygulama sayfasından App Token'ı tekrar kopyalayın. |
+| `MakerWorld'den veri alınamadı` | Birkaç saat sonra tekrar deneyin; sürerse MakerWorld'ün site yapısı değişmiş olabilir. |
 | `Python bulunamadı` | 1. adım; kurulumda "Add to PATH" işaretli olmalı. |

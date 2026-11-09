@@ -15,7 +15,6 @@ from typing import Any
 import httpx
 
 from .. import analiz, config, lisans
-from .thingiverse import _kategoriye_dengeli, _sayi
 
 API = "https://makerworld.com/api/v1"
 SITE = "https://makerworld.com/en/models"
@@ -102,6 +101,26 @@ class MakerWorldKaynak:
                 continue
             urunler.append(urune_cevir(tasarim, kategori))
         return urunler
+
+
+def _kategoriye_dengeli(sirali: list[tuple[str, dict]], limit: int) -> list[tuple[str, dict]]:
+    """Her kategoriden sırayla alarak limit kadar aday seçer."""
+    gruplar: dict[str, list[tuple[str, dict]]] = {}
+    for oge in sirali:
+        gruplar.setdefault(oge[0], []).append(oge)
+    secilen: list[tuple[str, dict]] = []
+    while len(secilen) < limit and any(gruplar.values()):
+        for grup in gruplar.values():
+            if grup and len(secilen) < limit:
+                secilen.append(grup.pop(0))
+    return secilen
+
+
+def _sayi(deger: Any) -> int:
+    try:
+        return int(deger or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _atlanacak(d: dict) -> bool:

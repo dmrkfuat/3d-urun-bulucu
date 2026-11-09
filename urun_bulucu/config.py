@@ -20,7 +20,7 @@ OZET_ADET = 10
 # Özette aynı kategoriden en fazla kaç ürün olsun (çeşitlilik için).
 KATEGORI_BASINA_EN_FAZLA = 4
 
-# Kategori -> Thingiverse'te aranacak İngilizce terimler.
+# Kategori -> MakerWorld'de aranacak İngilizce terimler.
 KATEGORILER: dict[str, list[str]] = {
     "Fidget ve oyuncak": ["fidget", "print in place toy"],
     "Eklemli figür": ["articulated", "flexi"],
@@ -30,18 +30,11 @@ KATEGORILER: dict[str, list[str]] = {
     "Telefon ve kablo aksesuarı": ["phone stand", "cable organizer"],
 }
 
-# Yalnızca bu süre içinde yüklenen modeller aranır (trend). None = tüm zamanlar.
-ARAMA_DONEMI: str | None = "now-30d"
-
-# Her terim için kaç arama sonucu alınacak ve kaç modelin detayı çekilecek.
+# Her terim için kaç arama sonucu alınacak.
 ARAMA_ADET = 30
-DETAY_LIMITI = 80
-
-# MakerWorld (anahtar gerekmez). False yapılırsa yalnızca Thingiverse kullanılır.
-MAKERWORLD_AKTIF = True
-# Aynı 30 günlük dönem, gün sayısı olarak.
+# Yalnızca son kaç günde yüklenen modeller aranır (trend). None = tüm zamanlar.
 MAKERWORLD_GUN = 30
-# MakerWorld detay yanıtları büyük (~0,5 MB); siteyi yormamak için daha az detay çekilir.
+# Kaç modelin detayı çekilecek. Detay yanıtları büyük (~0,5 MB); siteyi yormamak için sınırlı.
 MAKERWORLD_DETAY_LIMITI = 60
 # Kullanıcı tercihi: MakerWorld modellerinin hepsi lisansına bakılmadan 🟢 satılabilir sayılır.
 # Asıl lisans metni raporda yine gösterilir. False yapılırsa lisansa göre sınıflandırılır.
@@ -53,7 +46,6 @@ TALEP_DOSYASI = KOK / "talep" / "etsy_talep.csv"
 
 @dataclass(frozen=True)
 class Ayarlar:
-    thingiverse_token: str
     supabase_url: str
     supabase_key: str
     veritabani_yolu: Path
@@ -65,7 +57,6 @@ class Ayarlar:
 
 def ayarlari_oku() -> Ayarlar:
     return Ayarlar(
-        thingiverse_token=os.getenv("THINGIVERSE_TOKEN", "").strip(),
         supabase_url=os.getenv("SUPABASE_URL", "").strip(),
         supabase_key=os.getenv("SUPABASE_KEY", "").strip(),
         veritabani_yolu=Path(os.getenv("VERITABANI_YOLU", KOK / "data" / "urunler.db")),

@@ -15,7 +15,7 @@ from .config import Ayarlar
 
 KAYNAKLAR = [
     {"id": "thingiverse", "name": "Thingiverse", "base_url": "https://www.thingiverse.com",
-     "access_method": "resmi API", "notes": "App Token ile"},
+     "access_method": "kaldırıldı", "notes": "Kasım 2026'da Cloudflare bot kontrolü nedeniyle çıkarıldı; eski kayıtlar duruyor"},
     {"id": "printables", "name": "Printables", "base_url": "https://www.printables.com",
      "access_method": "beklemede", "notes": "Resmi API yok; Cloudflare bot kontrolü var"},
     {"id": "makerworld", "name": "MakerWorld", "base_url": "https://makerworld.com",
