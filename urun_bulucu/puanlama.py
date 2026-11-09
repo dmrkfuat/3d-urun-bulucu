@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime
 
-from . import analiz, lisans, talep
+from . import analiz, lisans, sezon, talep
 from .config import KISA_BASKI_SAAT, TREND_BONUS
 
 AGIRLIK = {"populerlik": 30, "artis": 25, "gorsel": 20, "sure": 15, "lisans": 10}
@@ -50,6 +50,7 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
     if not urunler:
         return []
     talepler = talepler or []
+    aktif_sezonlar = sezon.aktif_sezonlar(bugun)
 
     pop_ham, artis_ham, artis_tipi = {}, {}, {}
     for u in urunler:
@@ -89,6 +90,9 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             puan += ETSY_BONUS
         if u.get("trend_rank"):
             puan += TREND_BONUS
+        sezon_eslesme = sezon.eslesen(u, aktif_sezonlar)
+        if sezon_eslesme:
+            puan += sezon.SEZON_BONUS
         u["score"] = round(min(100.0, puan), 1)
         u["score_detail"] = {
             **{k: round(v, 3) for k, v in bilesen.items()},
@@ -96,5 +100,6 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             "artis_tipi": artis_tipi[u["id"]],
             "etsy_talep": etsy["anahtar_kelime"] if etsy else None,
             "trend_sirasi": u.get("trend_rank"),
+            "sezon": sezon.yazi(*sezon_eslesme) if sezon_eslesme else None,
         }
     return sorted(urunler, key=lambda x: x["score"], reverse=True)

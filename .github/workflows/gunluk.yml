@@ -3,7 +3,12 @@ name: Günlük ürün analizi
 on:
   schedule:
     - cron: "0 17 * * *"   # her gün 20:00 (Türkiye saati)
-  workflow_dispatch: {}     # GitHub'da "Run workflow" ile elle de çalıştırılabilir
+  workflow_dispatch:        # GitHub'da "Run workflow" ile elle de çalıştırılabilir
+    inputs:
+      hata_testi:
+        description: "Hata uyarısını denemek için görevi kasıtlı olarak durdur"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -24,6 +29,12 @@ jobs:
           python-version: "3.13"
           cache: pip
 
+      - name: Hata testi (yalnızca elle istenirse)
+        if: ${{ inputs.hata_testi }}
+        run: |
+          echo "Bu, hata uyarısını denemek için kasıtlı bir durdurmadır." | tee "$RUNNER_TEMP/cikti.log"
+          exit 1
+
       - run: pip install -r requirements.txt
 
       - name: Testler
@@ -35,7 +46,10 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -m urun_bulucu
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+        run: |
+          set -o pipefail
+          python -m urun_bulucu 2>&1 | tee "$RUNNER_TEMP/cikti.log"
 
       - name: Raporu depoya kaydet
         env:
@@ -48,3 +62,20 @@ jobs:
           if [ -z "$SUPABASE_URL" ] && [ -f data/urunler.db ]; then git add -f data/urunler.db; fi
           git diff --cached --quiet || git commit -m "Günlük özet: $(date -u +%F)"
           git push
+
+      # Herhangi bir adım başarısız olursa Telegram'a uyarı gönderilir.
+      - name: Hata uyarısı (Telegram)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CALISMA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          SON=$(tail -n 6 "$RUNNER_TEMP/cikti.log" 2>/dev/null | cut -c1-300 || true)
+          METIN=$(printf '⚠️ Bugünkü 3D ürün analizi çalışmadı.\n\n%s\n\nAyrıntı: %s' "${SON:-Analiz adımına gelmeden durdu (kurulum veya testler).}" "$CALISMA")
+          curl -s -o /dev/null -w "telegram: %{http_code}\n" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${METIN}" \
+            --data-urlencode "disable_web_page_preview=true"

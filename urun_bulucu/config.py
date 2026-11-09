@@ -52,6 +52,21 @@ FIRE_ORANI = 0.10           # hatalı baskı ve renk değişimi atığı için f
 FIYAT_CARPANI = 3           # önerilen satış fiyatı = maliyet × bu sayı
 EN_DUSUK_FIYAT_TL = 50      # önerilen fiyat bunun altına inmez
 
+# --- E-ticaret araştırması (SerpApi: Google Lens + Google Alışveriş; ücretsiz plan ayda 250 arama) ---
+PAZAR_GUNLUK_ADET = 3        # günde kaç ürün (ürün başına 2 arama: 3 × 2 × 30 = 180 < 250)
+PAZAR_YENILEME_GUN = 14      # aynı ürün bu kadar gün geçmeden tekrar aranmaz
+# Yalnızca bu sitelerden gelen sonuçlar tutulur (alan adı veya Google'daki satıcı adında geçen parça → ad).
+PAZAR_SITELERI = {
+    "trendyol": "Trendyol",
+    "hepsiburada": "Hepsiburada",
+    "n11.com": "n11",
+    "amazon.com.tr": "Amazon TR",
+    "ciceksepeti": "Çiçeksepeti",
+    "pazarama": "Pazarama",
+    "pttavm": "PttAVM",
+    "etsy": "Etsy",
+}
+
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"
 
@@ -67,6 +82,7 @@ class Ayarlar:
     telegram_token: str = ""
     telegram_chat_id: str = ""
     panel_url: str = ""
+    serpapi_key: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -81,4 +97,5 @@ def ayarlari_oku() -> Ayarlar:
         telegram_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
         panel_url=os.getenv("PANEL_URL", "").strip() or PANEL_URL,
+        serpapi_key=os.getenv("SERPAPI_KEY", "").strip(),
     )

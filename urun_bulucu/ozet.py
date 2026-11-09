@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from . import analiz, lisans, maliyet, video
+from . import analiz, lisans, maliyet, pazar, sezon, video
 from .config import KATEGORI_BASINA_EN_FAZLA, MAKERWORLD_HEPSI_SATILABILIR, OZET_ADET, YAZICI
 
 
@@ -37,6 +37,8 @@ def neden(urun: dict) -> str:
         nedenler.append(f"Etsy talep listenizle eşleşiyor (\"{d['etsy_talep']}\")")
     if urun.get("trend_rank"):
         nedenler.append(f"MakerWorld trend listesinde #{urun['trend_rank']}")
+    if d.get("sezon"):
+        nedenler.append(f"sezon ürünü ({d['sezon']})")
     if (urun.get("hourly_profit_tl") or 0) >= 50:
         nedenler.append(f"saat başına ~{urun['hourly_profit_tl']:.0f} TL kazanç")
     if not nedenler:
@@ -63,12 +65,20 @@ def sec(puanli_urunler: list[dict], adet: int = OZET_ADET) -> list[dict]:
     ]
 
 
-def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str:
+def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str,
+             pazar_sonuclari: dict[int, dict] | None = None) -> str:
+    pazar_sonuclari = pazar_sonuclari or {}
     satirlar = [
         f"# 3D Ürün Özeti — {gun.isoformat()}",
         "",
         f"Yazıcı: {YAZICI} · İncelenen model: {toplam} · Kaynak: MakerWorld · Veritabanı: {depo_adi}",
         "",
+    ]
+    aktif = sezon.aktif_sezonlar(gun)
+    if aktif:
+        satirlar += ["**Yaklaşan sezon:** " + " · ".join(sezon.yazi(s, k) for s, k in aktif)
+                     + f" (temaya uyan modeller +{sezon.SEZON_BONUS} puan)", ""]
+    satirlar += [
         "Lisans işaretleri: 🟢 satılabilir · 🟡 NC / kişisel kullanım: satılamaz, içerikte gösterilebilir · "
         "🔴 kontrol et. (Bilgilendirme amaçlıdır, hukuki görüş değildir.)",
         "",
@@ -101,6 +111,12 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str
             f"- **Tahmini baskı süresi:** {analiz.sure_yazi(u.get('print_time_min'))}"
             + (f" · **Malzeme:** {u['material']}" if u.get("material") else ""),
             f"- **Maliyet:** {maliyet.yazi(u)}",
+            *([f"- **Türk pazar yerlerinde:** {pazar.fiyat_yazi(pazar_sonuclari[s['product_id']], u.get('price_tl'))}"]
+              + [f"  - {r['site']}: [{(r.get('title') or 'ürün')[:60].replace(']', ')')}]({r['link']})"
+                 + (f" — {r['price']:.0f} TL" if r.get("price") is not None else "")
+                 + (" (görsel eşleşme)" if r.get("kaynak") == "görsel" else "")
+                 for r in pazar_sonuclari[s["product_id"]]["results"][:6]]
+              if s["product_id"] in pazar_sonuclari else []),
             f"- **Lisans:** {u.get('license') or 'belirtilmemiş'} → {lisans.ETIKET[u['license_flag']]}"
             + (" (ayar: MakerWorld modelleri satılabilir sayılıyor)" if MAKERWORLD_HEPSI_SATILABILIR else ""),
             "- **Video fikri:**",

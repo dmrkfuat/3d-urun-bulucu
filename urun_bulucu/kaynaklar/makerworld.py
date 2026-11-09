@@ -79,6 +79,13 @@ class MakerWorldKaynak:
     def detay(self, design_id: int | str) -> dict:
         return self._get(f"/design-service/design/{design_id}")
 
+    def tasarimci_modelleri(self, uid: int | str, adet: int = 5) -> list[dict]:
+        """Bir tasarımcının yayınladığı modeller, en yenisi önce."""
+        veri = self._get(f"/design-service/published/{uid}/design", {"limit": adet, "offset": 0})
+        if not isinstance(veri, dict) or "hits" not in veri:
+            raise MakerWorldHatasi("MakerWorld tasarımcı yanıtının biçimi değişmiş.")
+        return [h for h in veri.get("hits") or [] if h.get("id") and not _atlanacak(h)]
+
     # --- toplama ---
     def topla(
         self,
@@ -194,6 +201,19 @@ def _malzeme(profil: dict | None) -> str | None:
     return ", ".join(turler[:3]) or None
 
 
+def filament_listesi(profil: dict | None) -> list[dict]:
+    """Profildeki filamentler: [{"type": "PLA", "color": "#5E43B7", "grams": 21.0}]"""
+    sonuc = []
+    for f in (profil or {}).get("instanceFilaments") or []:
+        try:
+            gram = round(float(f.get("usedG") or 0), 1)
+        except (TypeError, ValueError):
+            gram = 0.0
+        sonuc.append({"type": (f.get("type") or "?").strip(), "color": (f.get("color") or "").upper() or None,
+                      "grams": gram})
+    return sonuc
+
+
 def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -> dict:
     etiketler = [str(t) for t in tasarim.get("tags") or [] if t][:30]
     metin = analiz.temiz_metin(tasarim.get("summary"))
@@ -240,4 +260,7 @@ def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -
         "price_tl": tahmin.get("fiyat_tl"),
         "hourly_profit_tl": tahmin.get("saatlik_kazanc_tl"),
         "trend_rank": trend_sirasi,
+        "creator_uid": _sayi((tasarim.get("designCreator") or {}).get("uid")) or None,
+        "creator_handle": (tasarim.get("designCreator") or {}).get("handle") or None,
+        "filaments": filament_listesi(profil),
     }

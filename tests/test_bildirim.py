@@ -14,7 +14,7 @@ def _secimler(n=5):
     for i in range(1, n + 1):
         u = urun(i, f"Model <{i}>", 10, 100, image_url=f"https://cdn.example/{i}.png" if i != 2 else None,
                  print_time_min=60, weight_g=20, cost_tl=20.6, price_tl=65, trend_rank=3 if i == 1 else None)
-        sonuc.append({"rank": i, "score": 90 - i, "urun": u})
+        sonuc.append({"rank": i, "score": 90 - i, "product_id": i, "urun": u})
     return sonuc
 
 

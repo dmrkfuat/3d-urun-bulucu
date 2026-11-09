@@ -10,7 +10,7 @@ from datetime import date
 
 import httpx
 
-from . import analiz, video
+from . import analiz, pazar, sezon, video
 
 API = "https://api.telegram.org"
 FOTOGRAFLI_ADET = 3  # ilk kaç ürün kapak görseliyle gönderilsin
@@ -30,7 +30,7 @@ def _fiyat(u: dict) -> str:
     return f" · ~{u['cost_tl']:.0f} → {u['price_tl']:.0f} TL"
 
 
-def urun_yazisi(s: dict) -> str:
+def urun_yazisi(s: dict, pazar_ozeti: dict | None = None) -> str:
     """Bir ürünün Telegram metni (HTML). Fotoğraf altı sınırı 1024 karakter."""
     u = s["urun"]
     satirlar = [
@@ -40,28 +40,50 @@ def urun_yazisi(s: dict) -> str:
     ]
     if u.get("trend_rank"):
         satirlar.append(f"🔥 MakerWorld trend #{u['trend_rank']}")
+    sezon_notu = (u.get("score_detail") or {}).get("sezon")
+    if sezon_notu:
+        satirlar.append(_e(sezon_notu))
+    if pazar_ozeti is not None:
+        satirlar.append(f"🛒 {_e(pazar.fiyat_yazi(pazar_ozeti, u.get('price_tl')))}")
     satirlar.append(f"🎬 {_e(video.kancalar(u)[0])}")
     satirlar.append(f"🔗 {_e(u['url'])}")
     return "\n".join(satirlar)[:1024]
 
 
-def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None) -> list[dict]:
-    """Gönderilecek Telegram istekleri: ilk 3 ürün fotoğraflı, kalanlar tek mesajda."""
+def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
+             pazar_sonuclari: dict[int, dict] | None = None, yeni_modeller: list[dict] | None = None,
+             yeni_takip: list[str] | None = None) -> list[dict]:
+    """Gönderilecek Telegram istekleri: ilk 3 ürün fotoğraflı, kalanlar tek mesajda,
+    varsa takip edilen tasarımcıların yeni modelleri ayrı mesajda."""
+    pazar_sonuclari = pazar_sonuclari or {}
     sonuc: list[dict] = []
     for s in secimler[:FOTOGRAFLI_ADET]:
-        yazi = urun_yazisi(s)
+        yazi = urun_yazisi(s, pazar_sonuclari.get(s["product_id"]))
         if s["urun"].get("image_url"):
             sonuc.append({"metot": "sendPhoto", "veri": {"photo": s["urun"]["image_url"], "caption": yazi}})
         else:
             sonuc.append({"metot": "sendMessage", "veri": {"text": yazi}})
     kalan = [f"{s['rank']}. <a href=\"{_e(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
+             + (" 🛒" if pazar_sonuclari.get(s["product_id"], {}).get("found_count") else "")
              for s in secimler[FOTOGRAFLI_ADET:]]
     ozet = [f"<b>3D Ürün Özeti — {gun.isoformat()}</b>"]
+    aktif = sezon.aktif_sezonlar(gun)
+    if aktif:
+        ozet.append(_e(" · ".join(sezon.yazi(sz, k) for sz, k in aktif)))
     if kalan:
         ozet += ["", *kalan]
+    if yeni_takip:
+        ozet += ["", f"👤 Takibe alındı: {_e(', '.join(yeni_takip))}"]
     if panel_url:
         ozet += ["", f"📊 Panel: {_e(panel_url)}"]
     sonuc.append({"metot": "sendMessage", "veri": {"text": "\n".join(ozet), "disable_web_page_preview": True}})
+
+    if yeni_modeller:
+        satirlar = ["<b>🆕 Takip ettiğin tasarımcılardan yeni modeller</b>", ""]
+        satirlar += [f"• {_e(m['tasarimci'])}: <a href=\"{_e(m['url'])}\">{_e(m['ad'])}</a>"
+                     for m in yeni_modeller[:15]]
+        sonuc.append({"metot": "sendMessage", "veri": {"text": "\n".join(satirlar),
+                                                       "disable_web_page_preview": True}})
     return sonuc
 
 

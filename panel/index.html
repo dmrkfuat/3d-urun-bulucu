@@ -31,8 +31,9 @@
   .kap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; margin: 0; flex: 1; min-width: 160px; }
-  .sekmeler { display: flex; gap: 4px; background: var(--chip); padding: 4px; border-radius: 10px; }
-  .sekmeler button { border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 7px; font: inherit; cursor: pointer; }
+  .sekmeler { display: flex; gap: 4px; background: var(--chip); padding: 4px; border-radius: 10px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .sekmeler button { border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 7px; font: inherit; cursor: pointer; white-space: nowrap; flex: none; }
+  .planDugme { align-self: flex-start; }
   .sekmeler button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
   .arac { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
   select, input[type=email], input[type=text], textarea {
@@ -101,6 +102,9 @@
       <h1>3D Ürün Paneli</h1>
       <div class="sekmeler" role="tablist">
         <button role="tab" data-sekme="liste" aria-selected="true">Günlük liste</button>
+        <button role="tab" data-sekme="tum" aria-selected="false">Tüm ürünler</button>
+        <button role="tab" data-sekme="plan" aria-selected="false">Plan</button>
+        <button role="tab" data-sekme="tasarimci" aria-selected="false">Tasarımcılar</button>
         <button role="tab" data-sekme="performans" aria-selected="false">İşaretlerim</button>
       </div>
       <button class="ikincil" id="cikis">Çıkış</button>
@@ -113,6 +117,38 @@
         <label><input type="checkbox" id="isaretsiz"> Sadece işaretlenmemiş</label>
       </div>
       <div id="kartlar" class="kartlar"></div>
+    </div>
+
+    <div id="tumSekmesi" hidden>
+      <div class="arac">
+        <input id="tumAra" type="text" placeholder="Ara (ör. dragon, vase)" aria-label="Ara">
+        <label>Son <select id="tumGun"><option value="7">7 gün</option><option value="30">30 gün</option><option value="3650">tümü</option></select></label>
+        <label>Sırala <select id="tumSira">
+          <option value="score">Puan</option><option value="hourly_profit_tl">Saatlik kazanç</option>
+          <option value="print_time_min">En kısa baskı</option><option value="downloads">İndirme</option>
+          <option value="cost_tl">En düşük maliyet</option><option value="last_seen">En yeni görülen</option>
+        </select></label>
+        <label>Kategori <select id="tumKategori"><option value="">Hepsi</option></select></label>
+      </div>
+      <p id="tumBilgi" class="muted"></p>
+      <div class="tablo-kap"><table id="tumTablo"></table></div>
+    </div>
+
+    <div id="planSekmesi" hidden>
+      <div class="arac">
+        <label>Günde kaç saat baskı? <input id="gunlukSaat" type="number" min="1" max="24" value="8" style="width:70px"></label>
+        <label><input type="checkbox" id="bitenleriGoster"> Basılanları da göster</label>
+      </div>
+      <div id="planOzet" class="rakamlar" style="margin-bottom:14px"></div>
+      <h2>Filament listesi</h2>
+      <div class="tablo-kap"><table id="filamentTablo"></table></div>
+      <h2>Basılacaklar</h2>
+      <div class="tablo-kap"><table id="planTablo"></table></div>
+    </div>
+
+    <div id="tasarimciSekmesi" hidden>
+      <p class="muted">Günlük ilk 10'a en az 2 farklı günde giren tasarımcılar otomatik takip edilir; takip edilenlerin yeni modelleri Telegram'dan bildirilir.</p>
+      <div class="tablo-kap"><table id="tasarimciTablo"></table></div>
     </div>
 
     <div id="performansSekmesi" hidden>
@@ -166,6 +202,35 @@
 
   let secimler = [];
   let isaretler = new Map();
+  let pazar = new Map();
+  let planIdleri = new Set();
+
+  async function planIdleriYukle() {
+    const { data, error } = await sb.from("print_plan").select("product_id").eq("done", false);
+    planIdleri = new Set(error ? [] : data.map((r) => r.product_id));
+  }
+  async function planaEkleCikar(pid, dugme) {
+    const varMi = planIdleri.has(pid);
+    const { error } = varMi
+      ? await sb.from("print_plan").delete().eq("product_id", pid)
+      : await sb.from("print_plan").upsert({ product_id: pid, quantity: 1, done: false, updated_at: new Date().toISOString() });
+    if (error) { alert("Plan güncellenemedi: " + error.message); return; }
+    varMi ? planIdleri.delete(pid) : planIdleri.add(pid);
+    if (dugme) dugme.textContent = planIdleri.has(pid) ? "✓ Planda" : "📋 Plana ekle";
+  }
+  const pazarYazi = (o, onerilen) => {
+    if (!o) return "";
+    if (!o.found_count) return "🛒 Türk pazar yerlerinde benzeri bulunamadı";
+    const sayac = {};
+    (o.results || []).forEach((r) => { sayac[r.site] = (sayac[r.site] || 0) + 1; });
+    const siteler = Object.entries(sayac).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([s, n]) => `${s} ${n}`).join(", ");
+    if (o.min_price == null) return `🛒 ${siteler}`;
+    const metin = (o.results || []).filter((r) => r.price != null && r.kaynak === "metin").map((r) => r.price);
+    const kume = (metin.length ? metin : (o.results || []).filter((r) => r.price != null).map((r) => r.price)).sort((a, b) => a - b);
+    const orta = kume.length % 2 ? kume[(kume.length - 1) / 2] : (kume[kume.length / 2 - 1] + kume[kume.length / 2]) / 2;
+    return `🛒 ${siteler} · ${Math.round(o.min_price)}–${Math.round(o.max_price)} TL (ortanca ${Math.round(orta)} TL)` +
+      (onerilen ? ` · senin fiyatın ${Math.round(onerilen)} TL` : "");
+  };
   const grafikler = new Map();
 
   // ------------------------------------------------------------ giriş
@@ -184,11 +249,14 @@
   $("#cikis").addEventListener("click", async () => { await sb.auth.signOut(); goster("#girisEkrani"); });
 
   // ------------------------------------------------------------ sekmeler
+  const SEKME_YUKLE = { liste: () => kartlariCiz(), tum: () => tumYukle(), plan: () => planYukle(),
+                        tasarimci: () => tasarimciYukle(), performans: () => performansYukle() };
   document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => {
-    document.querySelectorAll("[data-sekme]").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
-    $("#listeSekmesi").hidden = b.dataset.sekme !== "liste";
-    $("#performansSekmesi").hidden = b.dataset.sekme !== "performans";
-    if (b.dataset.sekme === "performans") performansYukle();
+    document.querySelectorAll("[data-sekme]").forEach((x) => {
+      x.setAttribute("aria-selected", String(x === b));
+      $(`#${x.dataset.sekme}Sekmesi`).hidden = x !== b;
+    });
+    Promise.resolve(SEKME_YUKLE[b.dataset.sekme]()).catch((e) => durumYaz("Veri alınamadı: " + (e.message || e), true));
   }));
 
   // ------------------------------------------------------------ veri
@@ -212,6 +280,10 @@
     const im = ids.length ? await sb.from("product_marks").select("*").in("product_id", ids) : { data: [] };
     if (im.error) throw im.error;
     isaretler = new Map(im.data.map((m) => [m.product_id, m]));
+    // Bu tablolar SQL güncellemesi çalıştırılmadıysa yoktur; panel yine çalışsın.
+    const pz = ids.length ? await sb.from("market_checks").select("*").in("product_id", ids) : { data: [] };
+    pazar = new Map((pz.data || []).map((m) => [m.product_id, m]));
+    await planIdleriYukle();
     const kategoriler = [...new Set(secimler.map((r) => r.products.category).filter(Boolean))];
     const secili = $("#kategori").value;
     $("#kategori").innerHTML = `<option value="">Hepsi</option>` + kategoriler.map((k) => `<option ${k === secili ? "selected" : ""}>${esc(k)}</option>`).join("");
@@ -244,6 +316,7 @@
           <span class="cip">${esc(p.category || "-")}</span>
           <span class="cip">${LISANS[p.license_flag] || "-"}</span>
           ${p.trend_rank ? `<span class="cip trend">🔥 trend #${p.trend_rank}</span>` : ""}
+          ${p.score_detail && p.score_detail.sezon ? `<span class="cip">${esc(p.score_detail.sezon)}</span>` : ""}
           ${p.color_count > 1 ? `<span class="cip">${p.color_count} renk</span>` : ""}
         </div>
         <div class="rakamlar">
@@ -252,7 +325,12 @@
           <div>Saatlik kazanç<b>${tl(p.hourly_profit_tl)}</b></div>
         </div>
         <p class="neden">${esc(r.reason)}</p>
+        ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
+          <ul style="margin:6px 0 0;padding-left:18px">${(pazar.get(r.product_id).results || []).slice(0, 10).map((x) =>
+            `<li>${esc(x.site)}: <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
+          ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
+        <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>
         <details class="grafikAc"><summary>İndirme geçmişi</summary><div class="grafik"><canvas></canvas></div></details>
         <div class="isaret">
           <label><input type="checkbox" name="printed" ${m.printed ? "checked" : ""}> Bastım</label>
@@ -295,6 +373,125 @@
     }));
     kart.querySelector(".not").addEventListener("input", () => { clearTimeout(zaman); zaman = setTimeout(kaydet, 800); });
     kart.querySelector(".grafikAc").addEventListener("toggle", (e) => { if (e.target.open) grafikCiz(pid, kart); }, { once: true });
+    kart.querySelector(".planDugme").addEventListener("click", (e) => planaEkleCikar(pid, e.currentTarget));
+  }
+
+  // ------------------------------------------------------------ tüm ürünler
+  let tumZaman;
+  async function tumYukle() {
+    const gun = Number($("#tumGun").value), sira = $("#tumSira").value, ara = $("#tumAra").value.trim();
+    const artan = ["print_time_min", "cost_tl"].includes(sira);
+    let q = sb.from("products").select("id,name,url,category,score,print_time_min,cost_tl,price_tl,hourly_profit_tl,downloads,likes,trend_rank,image_url,last_seen")
+      .gte("last_seen", new Date(Date.now() - gun * 864e5).toISOString())
+      .order(sira, { ascending: artan, nullsFirst: false }).limit(200);
+    if (ara) q = q.ilike("name", `%${ara.replace(/[%_]/g, "")}%`);
+    if ($("#tumKategori").value) q = q.eq("category", $("#tumKategori").value);
+    const { data, error } = await q;
+    if (error) throw error;
+    await planIdleriYukle();
+    if ($("#tumKategori").options.length === 1) {
+      const kats = await sb.from("products").select("category").not("category", "is", null).limit(1000);
+      [...new Set((kats.data || []).map((r) => r.category))].sort().forEach((k) => $("#tumKategori").add(new Option(k, k)));
+    }
+    $("#tumBilgi").textContent = `${data.length} ürün${data.length === 200 ? " (ilk 200)" : ""}`;
+    $("#tumTablo").innerHTML = `<tr><th>Ürün</th><th>Kategori</th><th class="sayi">Puan</th><th class="sayi">Baskı</th><th class="sayi">Maliyet → fiyat</th><th class="sayi">Saatlik</th><th class="sayi">İndirme</th><th></th></tr>` +
+      data.map((p) => `<tr>
+        <td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>${p.trend_rank ? " 🔥" : ""}</td>
+        <td>${esc(p.category || "-")}</td><td class="sayi">${p.score ?? "-"}</td><td class="sayi">${sure(p.print_time_min)}</td>
+        <td class="sayi">${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</td>
+        <td class="sayi">${tl(p.hourly_profit_tl)}</td><td class="sayi">${(p.downloads || 0).toLocaleString("tr-TR")}</td>
+        <td><button type="button" class="ikincil" data-plan="${p.id}">${planIdleri.has(p.id) ? "✓ Planda" : "📋 Plana ekle"}</button></td></tr>`).join("");
+    $("#tumTablo").querySelectorAll("[data-plan]").forEach((b) => b.addEventListener("click", () => planaEkleCikar(Number(b.dataset.plan), b)));
+  }
+  $("#tumAra").addEventListener("input", () => { clearTimeout(tumZaman); tumZaman = setTimeout(() => tumYukle().catch((e) => alert(e.message)), 400); });
+  ["#tumGun", "#tumSira", "#tumKategori"].forEach((s) => $(s).addEventListener("change", () => tumYukle().catch((e) => alert(e.message))));
+
+  // ------------------------------------------------------------ baskı planı
+  try { const s = localStorage.getItem("gunlukSaat"); if (s) $("#gunlukSaat").value = s; } catch (e) { /* tarayıcı depolaması kapalı */ }
+  $("#gunlukSaat").addEventListener("change", () => { try { localStorage.setItem("gunlukSaat", $("#gunlukSaat").value); } catch (e) { /* yok say */ } planYukle(); });
+  $("#bitenleriGoster").addEventListener("change", () => planYukle());
+
+  async function planYukle() {
+    let q = sb.from("print_plan").select("product_id, quantity, done, products(name, url, print_time_min, weight_g, cost_tl, price_tl, filaments)").order("added_at");
+    if (!$("#bitenleriGoster").checked) q = q.eq("done", false);
+    const { data, error } = await q;
+    if (error) { $("#planTablo").innerHTML = `<tr><td class="hata">${esc(error.message)}</td></tr>`; return; }
+    const satirlar = data.filter((r) => r.products);
+    const bekleyen = satirlar.filter((r) => !r.done);
+    const dk = bekleyen.reduce((t, r) => t + (r.products.print_time_min || 0) * r.quantity, 0);
+    const gram = bekleyen.reduce((t, r) => t + (r.products.weight_g || 0) * r.quantity, 0);
+    const maliyet = bekleyen.reduce((t, r) => t + (r.products.cost_tl || 0) * r.quantity, 0);
+    const ciro = bekleyen.reduce((t, r) => t + (r.products.price_tl || 0) * r.quantity, 0);
+    const gunluk = Math.max(1, Number($("#gunlukSaat").value) || 8);
+    const sureBilinmeyen = bekleyen.filter((r) => r.products.print_time_min == null).length;
+    $("#planOzet").innerHTML = `
+      <div>Toplam baskı<b>${sure(dk)}</b></div>
+      <div>Kaç gün<b>~${Math.ceil(dk / 60 / gunluk) || 0} gün</b></div>
+      <div>Filament<b>${Math.round(gram).toLocaleString("tr-TR")} g</b></div>
+      <div>Maliyet<b>${tl(maliyet)}</b></div>
+      <div>Satılırsa ciro<b>${tl(ciro)}</b></div>
+      <div>Ürün adedi<b>${bekleyen.reduce((t, r) => t + r.quantity, 0)}</b></div>`;
+    if (sureBilinmeyen) $("#planOzet").insertAdjacentHTML("beforeend", `<div style="grid-column:1/-1">${sureBilinmeyen} ürünün baskı süresi bilinmiyor; toplam eksik olabilir.</div>`);
+
+    const filament = new Map();
+    for (const r of bekleyen) for (const f of r.products.filaments || []) {
+      const k = `${f.type}|${f.color || "-"}`;
+      filament.set(k, { type: f.type, color: f.color, grams: (filament.get(k)?.grams || 0) + (f.grams || 0) * r.quantity });
+    }
+    const filamentler = [...filament.values()].sort((a, b) => b.grams - a.grams);
+    $("#filamentTablo").innerHTML = filamentler.length
+      ? `<tr><th>Renk</th><th>Tür</th><th class="sayi">Gram (fire hariç)</th></tr>` + filamentler.map((f) => `<tr>
+          <td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--line);vertical-align:-2px;background:${/^#[0-9A-F]{6}$/i.test(f.color || "") ? f.color : "transparent"}"></span> ${esc(f.color || "belirtilmemiş")}</td>
+          <td>${esc(f.type)}</td><td class="sayi">${Math.round(f.grams).toLocaleString("tr-TR")} g</td></tr>`).join("")
+      : `<tr><td class="muted">Planda filament bilgisi olan ürün yok.</td></tr>`;
+
+    $("#planTablo").innerHTML = satirlar.length
+      ? `<tr><th>Ürün</th><th class="sayi">Adet</th><th class="sayi">Süre</th><th>Basıldı</th><th></th></tr>` + satirlar.map((r) => `<tr data-pid="${r.product_id}">
+          <td><a href="${esc(r.products.url)}" target="_blank" rel="noopener">${esc(r.products.name)}</a></td>
+          <td class="sayi"><span class="sayac"><button type="button" data-adet="-1" aria-label="Azalt">−</button><output>${r.quantity}</output><button type="button" data-adet="1" aria-label="Artır">+</button></span></td>
+          <td class="sayi">${sure(r.products.print_time_min == null ? null : r.products.print_time_min * r.quantity)}</td>
+          <td><input type="checkbox" data-bitti ${r.done ? "checked" : ""} aria-label="Basıldı"></td>
+          <td><button type="button" class="ikincil" data-sil>Çıkar</button></td></tr>`).join("")
+      : `<tr><td class="muted">Plan boş. Günlük listede veya Tüm ürünler sekmesinde "📋 Plana ekle"ye bas.</td></tr>`;
+
+    $("#planTablo").querySelectorAll("tr[data-pid]").forEach((tr) => {
+      const pid = Number(tr.dataset.pid);
+      const guncelle = async (degisim) => {
+        const { error } = await sb.from("print_plan").update({ ...degisim, updated_at: new Date().toISOString() }).eq("product_id", pid);
+        if (error) alert("Kaydedilemedi: " + error.message);
+        if (!error && degisim.done) {
+          // Basıldı işaretlenince "Bastım" işareti de konur (varsa diğer işaretler korunur).
+          const m = isaretler.get(pid) || {};
+          await sb.from("product_marks").upsert({ product_id: pid, printed: true, video: !!m.video, sold_count: m.sold_count || 0, note: m.note || null, updated_at: new Date().toISOString() });
+        }
+        planYukle();
+      };
+      tr.querySelectorAll("[data-adet]").forEach((b) => b.addEventListener("click", () => {
+        const yeni = Math.min(100, Math.max(1, Number(tr.querySelector("output").textContent) + Number(b.dataset.adet)));
+        guncelle({ quantity: yeni });
+      }));
+      tr.querySelector("[data-bitti]").addEventListener("change", (e) => guncelle({ done: e.target.checked }));
+      tr.querySelector("[data-sil]").addEventListener("click", async () => {
+        const { error } = await sb.from("print_plan").delete().eq("product_id", pid);
+        if (error) alert(error.message); else { planIdleri.delete(pid); planYukle(); }
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ tasarımcılar
+  async function tasarimciYukle() {
+    const { data, error } = await sb.from("designers").select("*").order("followed", { ascending: false }).order("hit_days", { ascending: false }).limit(200);
+    if (error) { $("#tasarimciTablo").innerHTML = `<tr><td class="hata">${esc(error.message)}</td></tr>`; return; }
+    $("#tasarimciTablo").innerHTML = data.length
+      ? `<tr><th>Tasarımcı</th><th class="sayi">İlk 10'da (gün)</th><th>Son</th><th>Takip</th></tr>` + data.map((t) => `<tr>
+          <td><a href="https://makerworld.com/en/@${encodeURIComponent(t.handle || "")}" target="_blank" rel="noopener">${esc(t.name || t.handle || t.uid)}</a></td>
+          <td class="sayi">${t.hit_days}</td><td>${esc(t.last_hit_date || "-")}</td>
+          <td><label><input type="checkbox" data-uid="${t.uid}" data-kaynak="${esc(t.source_id)}" ${t.followed ? "checked" : ""}> takip</label></td></tr>`).join("")
+      : `<tr><td class="muted">Henüz tasarımcı kaydı yok; günlük analiz çalıştıkça dolar.</td></tr>`;
+    $("#tasarimciTablo").querySelectorAll("[data-uid]").forEach((c) => c.addEventListener("change", async () => {
+      const { error } = await sb.from("designers").update({ followed: c.checked }).eq("source_id", c.dataset.kaynak).eq("uid", Number(c.dataset.uid));
+      if (error) { alert("Kaydedilemedi: " + error.message); c.checked = !c.checked; }
+    }));
   }
 
   async function grafikCiz(pid, kart) {

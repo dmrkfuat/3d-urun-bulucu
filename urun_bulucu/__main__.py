@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import bildirim, config, ozet, puanlama, talep
+from . import bildirim, config, ozet, pazar, puanlama, talep, tasarimci
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -46,16 +46,35 @@ def calistir(bugun: date | None = None) -> int:
 
     secimler = ozet.sec(puanli)
     depo.secimleri_kaydet(bugun, secimler)
+
+    # --- İsteğe bağlı ekler: biri hata verirse uyarı yazılır, analiz durmaz ---
+    yeni_takip, yeni_modeller, pazar_sonuclari = [], [], {}
+    try:
+        yeni_takip = tasarimci.isabetleri_isle(depo, bugun, secimler)
+        yeni_modeller = tasarimci.yeni_modelleri_bul(depo, kaynak)
+        print(f"Tasarımcı takibi: {len(yeni_modeller)} yeni model"
+              + (f"; yeni takip: {', '.join(yeni_takip)}" if yeni_takip else ""))
+    except Exception as e:  # noqa: BLE001 — isteğe bağlı özellik
+        print(f"UYARI: Tasarımcı takibi atlandı: {e}")
+    if ayarlar.serpapi_key:
+        try:
+            pazar_sonuclari = pazar.calistir(depo, secimler, ayarlar.serpapi_key)
+            print(f"E-ticaret araması: {len(pazar_sonuclari)} ürün arandı.")
+        except Exception as e:  # noqa: BLE001
+            print(f"UYARI: E-ticaret araması atlandı: {e}")
+
     yol = ozet.rapor_yaz(config.RAPOR_KLASORU, bugun,
-                         ozet.markdown(bugun, secimler, len(urunler), depo.ad))
+                         ozet.markdown(bugun, secimler, len(urunler), depo.ad, pazar_sonuclari))
     print(f"Özet hazır: {yol}")
     for s in secimler:
         print(f"  {s['rank']:>2}. {s['score']:>5}  {s['urun']['name']}")
 
     if ayarlar.telegram_token and ayarlar.telegram_chat_id:
         try:
-            adet = bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id,
-                                   bildirim.mesajlar(bugun, secimler, ayarlar.panel_url or None))
+            istekler = bildirim.mesajlar(bugun, secimler, ayarlar.panel_url or None,
+                                         pazar_sonuclari=pazar_sonuclari, yeni_modeller=yeni_modeller,
+                                         yeni_takip=yeni_takip)
+            adet = bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id, istekler)
             print(f"Telegram'a {adet} mesaj gönderildi.")
         except (bildirim.BildirimHatasi, httpx.HTTPError) as e:
             print(f"UYARI: Telegram bildirimi gönderilemedi: {e}")

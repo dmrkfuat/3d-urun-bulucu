@@ -57,6 +57,9 @@ def kancalar(urun: dict) -> list[str]:
         sonuc.append("Bunu elinden bırakamayacaksın 🌀")
     if ISIK in ozellik:
         sonuc.append("Işığı açınca bak 💡")
+    sezon_notu = (urun.get("score_detail") or {}).get("sezon")
+    if sezon_notu:
+        sonuc.append(f"{sezon_notu}, şimdiden hazırla")
     if urun.get("trend_rank"):
         sonuc.append("Şu an MakerWorld'de trend olan model 🔥")
     if urun.get("category") == "Hediyelik":
@@ -91,7 +94,11 @@ def cekim_plani(urun: dict) -> list[str]:
     if renk >= 2:
         orta += " Renk geçişlerini kesmeden göster."
 
-    kapanis = KAPANIS.get(urun.get("category"), VARSAYILAN_KAPANIS)
+    sezon_notu = (urun.get("score_detail") or {}).get("sezon")
+    if sezon_notu:
+        kapanis = f"Sezona uygun ortamda göster ({sezon_notu.split(':')[0]} süsleri/hediye paketi arasında)."
+    else:
+        kapanis = KAPANIS.get(urun.get("category"), VARSAYILAN_KAPANIS)
     return [acilis, orta, kapanis]
 
 

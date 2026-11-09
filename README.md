@@ -7,10 +7,18 @@ her birine **içerik puanı** verir ve her gün **en iyi 10 ürünün özetini**
 link, kapak görseli, neden seçildiği, tahmini baskı süresi, **maliyet → önerilen fiyat**, lisans durumu
 ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hashtag) bulunur.
 
-- **Telegram:** her gün ilk 3 ürün kapak görseliyle telefona gelir.
-- **Web paneli:** <https://dmrkfuat.github.io/3d-urun-bulucu/> — günlük listeler, indirme grafiği ve
-  "bastım / videosunu çektim / sattım" işaretleri; "İşaretlerim" sekmesinde kategoriye göre satış ve kâr.
-  Yalnızca izinli e-postayla giriş yapılır.
+- **Telegram:** her gün ilk 3 ürün kapak görseliyle telefona gelir; analiz çalışmazsa hata uyarısı,
+  takip edilen tasarımcılar yeni model yüklerse bildirim gelir.
+- **Sezon takvimi:** Yılbaşı, Sevgililer Günü, Anneler/Babalar Günü, bayramlar, Cadılar Bayramı,
+  okula dönüş ve Öğretmenler Günü'nden 4-8 hafta önce temaya uyan modeller +5 puan alır (`sezon.py`).
+- **E-ticaret araştırması (isteğe bağlı):** trend ürünlerin kapak görseliyle Google Lens (SerpApi)
+  ve Türkçe Google Alışveriş araması; yalnızca Trendyol, Hepsiburada, n11, Amazon TR, Çiçeksepeti, Pazarama,
+  PttAVM ve Etsy sonuçları tutulur (`config.PAZAR_SITELERI`). Siteler doğrudan taranmaz (Trendyol
+  robots.txt aramayı yasaklıyor, Hepsiburada/n11 otomatik isteği engelliyor). `SERPAPI_KEY` gerekir.
+- **Web paneli:** <https://dmrkfuat.github.io/3d-urun-bulucu/> — günlük listeler, indirme grafiği,
+  "bastım / videosunu çektim / sattım" işaretleri, **tüm ürünlerde arama/sıralama**, **baskı planı**
+  (toplam süre, kaç gün, renk renk filament listesi), **tasarımcı takibi** ve "İşaretlerim"de
+  kategoriye göre satış ve kâr. Yalnızca izinli e-postayla giriş yapılır.
 
 ---
 
@@ -85,6 +93,14 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 2. Verilen anahtarı `.env` içine `TELEGRAM_BOT_TOKEN=` olarak yazın.
 3. Kendi botunuzu açıp **Başlat**'a basın; sohbet numarasını (`TELEGRAM_CHAT_ID`) bulmak için gerekir.
 4. GitHub Secrets'a `TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID` ekleyin.
+
+### 6b. E-ticaret araştırması (isteğe bağlı)
+
+1. <https://serpapi.com> adresinde ücretsiz hesap açın (ayda 250 arama).
+2. **Dashboard → API Key** değerini `.env` içine `SERPAPI_KEY=` olarak yazın ve GitHub Secrets'a
+   `SERPAPI_KEY` adıyla ekleyin.
+3. Günde en fazla 3 ürün aranır (ürün başına 2 arama; `config.py` → `PAZAR_GUNLUK_ADET`), aynı ürün 14 gün içinde tekrar
+   aranmaz. Görsel benzerliği kesin eşleşme değildir; sonuçlar "benzer ürün" olarak okunmalıdır.
 
 ### 7. Web paneli
 
@@ -163,6 +179,9 @@ urun_bulucu/
   puanlama.py             ← içerik puanı
   maliyet.py              ← maliyet, önerilen fiyat, saatlik kazanç
   video.py                ← modele özel video planı
+  sezon.py                ← sezon takvimi
+  tasarimci.py            ← tasarımcı takibi
+  pazar.py                ← e-ticaret araştırması (SerpApi Google Lens)
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
   db.py                   ← Supabase / SQLite

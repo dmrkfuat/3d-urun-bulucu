@@ -30,13 +30,15 @@ URUN_ALANLARI = [
     "makes", "views", "published_at", "license", "license_flag", "print_time_min", "material",
     "image_url", "tags", "features",
     "weight_g", "color_count", "cost_tl", "price_tl", "hourly_profit_tl", "trend_rank",
+    "creator_uid", "creator_handle", "filaments",
 ]
 # Sonradan eklenen sütunlar (eski SQLite dosyalarına otomatik eklenir).
 YENI_SUTUNLAR = {
     "weight_g": "integer", "color_count": "integer", "cost_tl": "real", "price_tl": "real",
     "hourly_profit_tl": "real", "trend_rank": "integer",
+    "creator_uid": "integer", "creator_handle": "text", "filaments": "text",
 }
-JSON_ALANLARI = {"tags", "features", "score_detail"}
+JSON_ALANLARI = {"tags", "features", "score_detail", "filaments"}
 
 
 class Depo(Protocol):
@@ -47,6 +49,18 @@ class Depo(Protocol):
     def onceki_anliklar(self, ids: list[int], en_gec: date, en_erken: date) -> dict[int, dict]: ...
     def puanlari_kaydet(self, urunler: list[dict]) -> None: ...
     def secimleri_kaydet(self, gun: date, secimler: list[dict]) -> None: ...
+    # tasarımcılar
+    def tasarimcilar(self, source_id: str, uids: list[int]) -> dict[int, dict]: ...
+    def tasarimcilari_kaydet(self, satirlar: list[dict]) -> None: ...
+    def takip_edilenler(self, limit: int) -> list[dict]: ...
+    # e-ticaret araması
+    def pazar_kontrol_tarihleri(self, ids: list[int]) -> dict[int, str]: ...
+    def pazar_kaydet(self, satirlar: list[dict]) -> None: ...
+
+
+TASARIMCI_ALANLARI = ["source_id", "uid", "name", "handle", "hit_days", "last_hit_date", "followed",
+                      "auto_followed", "last_design_id", "last_checked"]
+PAZAR_ALANLARI = ["product_id", "checked_at", "found_count", "min_price", "max_price", "currency", "results"]
 
 
 def _simdi() -> str:
@@ -83,6 +97,23 @@ create table if not exists weekly_picks (
   product_id integer not null references products(id),
   score real, reason text, video_idea text,
   unique (pick_date, rank)
+);
+create table if not exists designers (
+  source_id text not null, uid integer not null, name text, handle text,
+  hit_days integer not null default 0, last_hit_date text,
+  followed integer not null default 0, auto_followed integer not null default 0,
+  last_design_id integer, last_checked text,
+  primary key (source_id, uid)
+);
+create table if not exists print_plan (
+  product_id integer primary key references products(id) on delete cascade,
+  quantity integer not null default 1, done integer not null default 0,
+  added_at text, updated_at text
+);
+create table if not exists market_checks (
+  product_id integer primary key references products(id) on delete cascade,
+  checked_at text not null, found_count integer not null default 0,
+  min_price real, max_price real, currency text, results text not null default '[]'
 );
 """
 
@@ -171,6 +202,55 @@ class SqliteDepo:
         )
         self.con.commit()
 
+    # --- tasarımcılar ---
+    def tasarimcilar(self, source_id: str, uids: list[int]) -> dict[int, dict]:
+        if not uids:
+            return {}
+        yer = ",".join("?" * len(uids))
+        satirlar = self.con.execute(
+            f"select * from designers where source_id=? and uid in ({yer})", [source_id, *uids]).fetchall()
+        return {r["uid"]: _bool(dict(r), "followed", "auto_followed") for r in satirlar}
+
+    def tasarimcilari_kaydet(self, satirlar: list[dict]) -> None:
+        alanlar = ", ".join(TASARIMCI_ALANLARI)
+        yer = ", ".join(f":{a}" for a in TASARIMCI_ALANLARI)
+        self.con.executemany(
+            f"insert or replace into designers ({alanlar}) values ({yer})",
+            [{a: s.get(a) for a in TASARIMCI_ALANLARI} for s in satirlar],
+        )
+        self.con.commit()
+
+    def takip_edilenler(self, limit: int) -> list[dict]:
+        satirlar = self.con.execute(
+            "select * from designers where followed=1 order by last_checked is not null, last_checked limit ?",
+            (limit,)).fetchall()
+        return [_bool(dict(r), "followed", "auto_followed") for r in satirlar]
+
+    # --- e-ticaret araması ---
+    def pazar_kontrol_tarihleri(self, ids: list[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        yer = ",".join("?" * len(ids))
+        return {r["product_id"]: r["checked_at"] for r in self.con.execute(
+            f"select product_id, checked_at from market_checks where product_id in ({yer})", ids)}
+
+    def pazar_kaydet(self, satirlar: list[dict]) -> None:
+        alanlar = ", ".join(PAZAR_ALANLARI)
+        yer = ", ".join(f":{a}" for a in PAZAR_ALANLARI)
+        self.con.executemany(
+            f"insert or replace into market_checks ({alanlar}) values ({yer})",
+            [{**{a: s.get(a) for a in PAZAR_ALANLARI}, "results": json.dumps(s.get("results") or [],
+                                                                             ensure_ascii=False)}
+             for s in satirlar],
+        )
+        self.con.commit()
+
+
+def _bool(satir: dict, *alanlar: str) -> dict:
+    for a in alanlar:
+        satir[a] = bool(satir.get(a))
+    return satir
+
 
 # ---------------------------------------------------------------- Supabase
 class SupabaseDepo:
@@ -228,6 +308,37 @@ class SupabaseDepo:
             self.sb.table("weekly_picks").insert(
                 [{"pick_date": gun.isoformat(), **{k: s[k] for k in
                   ("rank", "product_id", "score", "reason", "video_idea")}} for s in secimler]
+            ).execute()
+
+    # --- tasarımcılar ---
+    def tasarimcilar(self, source_id: str, uids: list[int]) -> dict[int, dict]:
+        if not uids:
+            return {}
+        yanit = self.sb.table("designers").select("*").eq("source_id", source_id).in_("uid", uids).execute()
+        return {r["uid"]: r for r in yanit.data}
+
+    def tasarimcilari_kaydet(self, satirlar: list[dict]) -> None:
+        if satirlar:
+            self.sb.table("designers").upsert(
+                [{a: s.get(a) for a in TASARIMCI_ALANLARI} for s in satirlar], on_conflict="source_id,uid"
+            ).execute()
+
+    def takip_edilenler(self, limit: int) -> list[dict]:
+        yanit = (self.sb.table("designers").select("*").eq("followed", True)
+                 .order("last_checked", desc=False, nullsfirst=True).limit(limit).execute())
+        return list(yanit.data)
+
+    # --- e-ticaret araması ---
+    def pazar_kontrol_tarihleri(self, ids: list[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        yanit = self.sb.table("market_checks").select("product_id,checked_at").in_("product_id", ids).execute()
+        return {r["product_id"]: r["checked_at"] for r in yanit.data}
+
+    def pazar_kaydet(self, satirlar: list[dict]) -> None:
+        if satirlar:
+            self.sb.table("market_checks").upsert(
+                [{a: s.get(a) for a in PAZAR_ALANLARI} for s in satirlar], on_conflict="product_id"
             ).execute()
 
 
