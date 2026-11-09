@@ -145,7 +145,7 @@ def test_secilecekler_ve_eski_kural(monkeypatch):
     secimler[1]["urun"]["image_url"] = None
     tarihler = {1: "2026-11-10T00:00:00+00:00",      # yeni kuralla arandı → atlanır
                 3: "2026-11-09T17:05:00+00:00"}      # eski kuralla arandı → yeniden aranır
-    assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3)] == [4, 3, 5]
+    assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3)] == [3, 4, 5]   # sıraya göre; 1 yakında arandı, 2 görselsiz
 
 
 def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):

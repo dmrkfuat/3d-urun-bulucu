@@ -370,7 +370,7 @@ def gecerli_mi(o: dict | None) -> bool:
 # ---------------------------------------------------------------- akış
 def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi: datetime | None = None,
                  adet: int | None = None) -> list[dict]:
-    """Bugün aranacak ürünler: önce trend listesindekiler, sonra puan sırası; yakında aranmışlar atlanır.
+    """Bugün aranacak ürünler: özetteki sıraya göre (1. ürün önce); yakında aranmışlar atlanır.
     PAZAR_KURAL_TARIHI'nden önceki aramalar (eski kurallarla yapılmış) eskimiş sayılır."""
     simdi = simdi or datetime.now(timezone.utc)
     adet = config.PAZAR_GUNLUK_ADET if adet is None else adet
@@ -382,7 +382,7 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
         return bool(t) and datetime.fromisoformat(str(t).replace("Z", "+00:00")) >= sinir
 
     adaylar = [s for s in secimler if s["urun"].get("image_url") and not taze(s["product_id"])]
-    adaylar.sort(key=lambda s: (s["urun"].get("trend_rank") is None, s["rank"]))
+    adaylar.sort(key=lambda s: s["rank"])
     return adaylar[:adet]
 
 
