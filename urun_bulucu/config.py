@@ -73,7 +73,7 @@ PAZAR_SITELERI = {
 PAZAR_BAGIMSIZ_MAGAZALAR = True
 PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) sayılmaz
 # Bu tarihten önce yapılmış aramalar eski kurallarla (3D şartı yokken) yapıldı; yeniden aranır.
-PAZAR_KURAL_TARIHI = "2026-11-09T17:30:00+00:00"
+PAZAR_KURAL_TARIHI = "2026-11-09T17:10:00+00:00"
 
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"
