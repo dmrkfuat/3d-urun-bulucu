@@ -1,12 +1,14 @@
-"""E-ticaret araştırması: ürün Türk pazar yerlerinde (Trendyol, Hepsiburada, n11, Amazon TR…)
-satılıyor mu, kaça satılıyor?
+"""E-ticaret araştırması: bu modelin 3D BASKI benzerleri Türkiye'de satılıyor mu, kaça?
 
-Bu siteler otomatik aramaya kapalıdır (Trendyol robots.txt aramayı yasaklıyor, Hepsiburada/n11
-otomatik istekleri engelliyor). Bu yüzden siteler doğrudan taranmaz; Google'ın bu sitelerdeki
-ürünleri SerpApi üzerinden aranır ve sonuçlar yalnızca PAZAR_SITELERI'ne göre süzülür:
+Karşılaştırma birebir olsun diye yalnızca 3D baskı ürünler sayılır (fabrika üretimi oyuncaklar,
+dijital model dosyaları elenir; bkz. uc_d_mi).
 
-1) Google Lens: modelin kapak görseliyle (country=tr) — görsel benzerlik, fiyat bazen var.
-2) Google Alışveriş (gl=tr): model adından üretilen Türkçe arama metniyle — fiyat hep var.
+Pazar yerleri otomatik aramaya kapalıdır (Trendyol robots.txt aramayı yasaklıyor, Hepsiburada/n11
+otomatik istekleri engelliyor). Bu yüzden siteler doğrudan taranmaz; Google SerpApi üzerinden aranır:
+
+1) Google Lens: kapak görseliyle (country=tr) — yalnızca PAZAR_SITELERI'ndeki 3D baskı ürünler.
+2) Google Alışveriş (gl=tr): "<Türkçe ad> 3d baskı" metniyle — pazar yerleri ve (PAZAR_BAGIMSIZ_MAGAZALAR
+   açıksa) 3D baskı satan bağımsız Türk mağazaları; fiyat hep var.
 
 SerpApi ücretsiz planı ayda 250 arama verir; ürün başına 2 arama yapıldığından günde en fazla
 PAZAR_GUNLUK_ADET ürüne bakılır ve aynı ürün PAZAR_YENILEME_GUN gün içinde tekrar aranmaz.
@@ -167,32 +169,63 @@ def alisveris_ara(api_key: str, sorgu: str, client: httpx.Client | None = None) 
     return _istek(api_key, {"engine": "google_shopping", "q": sorgu, "gl": "tr", "hl": "tr"}, client)
 
 
+# ---------------------------------------------------------------- 3D baskı şartı
+# Karşılaştırma birebir olsun diye yalnızca 3D baskı ürünler sayılır: başlıkta veya satıcı adında
+# 3D baskı işareti olmalı; dijital model dosyaları (STL/3MF, "baskı modeli") fiziksel ürün değildir.
+UC_D = re.compile(
+    r"3\s?d\s?(?:bask[ıi]|print|printed|printing|yaz[ıi]c[ıi])|3\s?boyutlu|üç\s?boyutlu|3d-printed"
+    r"|\bpla\b|\bpetg\b|filament",
+    re.I,
+)
+UC_D_SATICI = re.compile(r"3\s?d|bask[ıi]|print", re.I)
+DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|digital|download", re.I)
+
+
+def uc_d_mi(baslik: str | None, satici: str | None = None) -> bool:
+    baslik = baslik or ""
+    if DIJITAL.search(baslik):
+        return False
+    return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
+
+
 # ---------------------------------------------------------------- ayıklama
 def lens_sonuclari(yanit: dict) -> list[dict]:
+    """Görsel eşleşmeler dünya çapındadır: yalnızca PAZAR_SITELERI'ndeki 3D baskı ürünler tutulur."""
     sonuc = []
     for x in (yanit.get("visual_matches") or []) + (yanit.get("exact_matches") or []):
         site = site_bul(x.get("link"), x.get("source"))
-        if not site:
+        if not site or not uc_d_mi(x.get("title")):
             continue
         f = x.get("price") if isinstance(x.get("price"), dict) else {}
         fiyat = f.get("extracted_value")
-        sonuc.append({"site": site, "title": x.get("title"), "link": guvenli_link(x.get("link")),
+        sonuc.append({"site": site, "pazar_yeri": True, "title": x.get("title"),
+                      "link": guvenli_link(x.get("link")),
                       "price": float(fiyat) if fiyat is not None and _tl_mi(f.get("currency")) else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "görsel"})
     return sonuc
 
 
 def alisveris_sonuclari(yanit: dict) -> list[dict]:
+    """Google Alışveriş (Türkiye, TL): 3D baskı ürünler; pazar yerleri ve (ayara göre) bağımsız
+    3D baskı mağazaları tutulur."""
     sonuc = []
     for x in yanit.get("shopping_results") or []:
-        site = site_bul(x.get("link") or x.get("product_link"), x.get("source"))
-        if not site:
+        link = guvenli_link(x.get("link")) or guvenli_link(x.get("product_link"))
+        satici = (x.get("source") or "").strip()
+        if not link or not uc_d_mi(x.get("title"), satici):
             continue
+        site = site_bul(x.get("link") or x.get("product_link"), satici)
+        if not site:
+            if not config.PAZAR_BAGIMSIZ_MAGAZALAR or not satici:
+                continue
+            site = satici[:40]
         fiyat = x.get("extracted_price")
         if fiyat is None:
             fiyat = _fiyat_metinden(x.get("price"))
-        sonuc.append({"site": site, "title": x.get("title"),
-                      "link": guvenli_link(x.get("link")) or guvenli_link(x.get("product_link")),
+        if fiyat is not None and float(fiyat) < config.PAZAR_EN_DUSUK_FIYAT_TL:
+            continue  # dosya satışı veya hatalı fiyat
+        sonuc.append({"site": site, "pazar_yeri": site in config.PAZAR_SITELERI.values(),
+                      "title": x.get("title"), "link": link,
                       "price": float(fiyat) if fiyat is not None else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "metin"})
     return sonuc
@@ -212,10 +245,12 @@ def birlestir(*listeler: list[dict], en_fazla: int = 15) -> list[dict]:
 
 
 def _fiyat_kumesi(sonuclar: list[dict]) -> list[float]:
-    """Fiyat istatistiği için: metin (Alışveriş) sonuçları varsa yalnız onlar; görsel eşleşmeler
-    daha gevşek olduğundan yalnızca başka fiyat yoksa kullanılır."""
-    metin = [r["price"] for r in sonuclar if r.get("price") is not None and r.get("kaynak") == "metin"]
-    return metin or [r["price"] for r in sonuclar if r.get("price") is not None]
+    """Fiyat istatistiği: tüm fiyatlı 3D baskı sonuçlar; ortancadan 5 kat uzak uç değerler atılır."""
+    fiyatlar = [r["price"] for r in sonuclar if r.get("price") is not None]
+    if len(fiyatlar) < 3:
+        return fiyatlar
+    orta = statistics.median(fiyatlar)
+    return [f for f in fiyatlar if orta / 5 <= f <= orta * 5]
 
 
 def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None) -> dict:
@@ -239,10 +274,12 @@ def medyan(o: dict) -> float | None:
 # ---------------------------------------------------------------- akış
 def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi: datetime | None = None,
                  adet: int | None = None) -> list[dict]:
-    """Bugün aranacak ürünler: önce trend listesindekiler, sonra puan sırası; yakında aranmışlar atlanır."""
+    """Bugün aranacak ürünler: önce trend listesindekiler, sonra puan sırası; yakında aranmışlar atlanır.
+    PAZAR_KURAL_TARIHI'nden önceki aramalar (eski kurallarla yapılmış) eskimiş sayılır."""
     simdi = simdi or datetime.now(timezone.utc)
     adet = config.PAZAR_GUNLUK_ADET if adet is None else adet
-    sinir = simdi - timedelta(days=config.PAZAR_YENILEME_GUN)
+    sinir = max(simdi - timedelta(days=config.PAZAR_YENILEME_GUN),
+                datetime.fromisoformat(config.PAZAR_KURAL_TARIHI))
 
     def taze(pid: int) -> bool:
         t = kontrol_tarihleri.get(pid)
@@ -256,6 +293,7 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
 def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
     gorsel = lens_sonuclari(lens_ara(api_key, urun["image_url"], client)) if urun.get("image_url") else []
     sorgu = sorgu_olustur(urun.get("name"))
+    sorgu = f"{sorgu} 3d baskı" if sorgu else None
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
     return birlestir(gorsel, metin), sorgu
 
@@ -273,12 +311,12 @@ def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | No
 
 def fiyat_yazi(o: dict, onerilen_fiyat: float | None = None) -> str:
     if not o or not o.get("found_count"):
-        return "Türk pazar yerlerinde benzeri bulunamadı"
+        return "3D baskı benzeri satışta bulunamadı"
     sayac: dict[str, int] = {}
     for r in o["results"]:
         sayac[r["site"]] = sayac.get(r["site"], 0) + 1
     siteler = ", ".join(f"{s} {n}" for s, n in sorted(sayac.items(), key=lambda x: -x[1])[:4])
-    metin = f"{siteler}"
+    metin = f"3D baskı benzeri: {siteler}"
     if o.get("min_price") is not None:
         md = medyan(o)
         metin += f" · {o['min_price']:.0f}–{o['max_price']:.0f} TL (ortanca {md:.0f} TL)"

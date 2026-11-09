@@ -222,15 +222,15 @@
   }
   const pazarYazi = (o, onerilen) => {
     if (!o) return "";
-    if (!o.found_count) return "🛒 Türk pazar yerlerinde benzeri bulunamadı";
+    if (!o.found_count) return "🛒 3D baskı benzeri satışta bulunamadı";
     const sayac = {};
     (o.results || []).forEach((r) => { sayac[r.site] = (sayac[r.site] || 0) + 1; });
     const siteler = Object.entries(sayac).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([s, n]) => `${s} ${n}`).join(", ");
-    if (o.min_price == null) return `🛒 ${siteler}`;
-    const metin = (o.results || []).filter((r) => r.price != null && r.kaynak === "metin").map((r) => r.price);
-    const kume = (metin.length ? metin : (o.results || []).filter((r) => r.price != null).map((r) => r.price)).sort((a, b) => a - b);
-    const orta = kume.length % 2 ? kume[(kume.length - 1) / 2] : (kume[kume.length / 2 - 1] + kume[kume.length / 2]) / 2;
-    return `🛒 ${siteler} · ${Math.round(o.min_price)}–${Math.round(o.max_price)} TL (ortanca ${Math.round(orta)} TL)` +
+    if (o.min_price == null) return `🛒 3D baskı benzeri: ${siteler}`;
+    const ortanca = (d) => { const k = [...d].sort((a, b) => a - b); return k.length % 2 ? k[(k.length - 1) / 2] : (k[k.length / 2 - 1] + k[k.length / 2]) / 2; };
+    let kume = (o.results || []).filter((r) => r.price != null).map((r) => r.price);
+    if (kume.length >= 3) { const m = ortanca(kume); kume = kume.filter((f) => f >= m / 5 && f <= m * 5); }  // uç değerler (sunucuyla aynı kural)
+    return `🛒 3D baskı benzeri: ${siteler} · ${Math.round(o.min_price)}–${Math.round(o.max_price)} TL (ortanca ${Math.round(ortanca(kume))} TL)` +
       (onerilen ? ` · senin fiyatın ${Math.round(onerilen)} TL` : "");
   };
   const grafikler = new Map();
@@ -329,7 +329,7 @@
         <p class="neden">${esc(r.reason)}</p>
         ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
           <ul style="margin:6px 0 0;padding-left:18px">${(pazar.get(r.product_id).results || []).slice(0, 10).map((x) =>
-            `<li>${esc(x.site)}: <a href="${url(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
+            `<li>${esc(x.site)}: <a href="${url(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.pazar_yeri === false ? ' <span class="muted">(bağımsız mağaza)</span>' : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
           ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
         <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>

@@ -68,6 +68,12 @@ PAZAR_SITELERI = {
     "pttavm.com": "PttAVM",
     "etsy.com": "Etsy",
 }
+# Birebir karşılaştırma: yalnızca 3D baskı ürünler sayılır. Google Alışveriş'te 3D baskı satan
+# bağımsız Türk mağazaları (ör. kendi sitesi olan atölyeler) da tutulsun mu? False: yalnız PAZAR_SITELERI.
+PAZAR_BAGIMSIZ_MAGAZALAR = True
+PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) sayılmaz
+# Bu tarihten önce yapılmış aramalar eski kurallarla (3D şartı yokken) yapıldı; yeniden aranır.
+PAZAR_KURAL_TARIHI = "2026-11-09T17:30:00+00:00"
 
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"

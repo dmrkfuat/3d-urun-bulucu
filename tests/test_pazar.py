@@ -11,25 +11,32 @@ from urun_bulucu.db import SqliteDepo
 from .ornek_veri import urun
 
 LENS = {"visual_matches": [
-    {"title": "Print Forge 3D Baskı Yüzük", "link": "https://www.trendyol.com/x/y-p-1", "source": "Trendyol"},
-    {"title": "Squishy", "link": "https://www.trendyol.com/x/z-p-2", "source": "Trendyol",
+    {"title": "Print Forge 3D Baskı Katlanabilir Yüzük", "link": "https://www.trendyol.com/x/y-p-1",
+     "source": "Trendyol"},
+    {"title": "Dumpling Squishy", "link": "https://www.trendyol.com/x/z-p-2", "source": "Trendyol",   # 3D değil
      "price": {"value": "₺1.200*", "extracted_value": 1200.0, "currency": "₺"}},
-    {"title": "Reddit", "link": "https://www.reddit.com/r/x", "source": "Reddit"},
-    {"title": "Etsy US", "link": "https://www.etsy.com/listing/9", "source": "Etsy",
-     "price": {"value": "$12*", "extracted_value": 12.0, "currency": "$"}},           # TL değil: fiyat alınmaz
-    {"title": "Amazon US", "link": "https://www.amazon.com/dp/1", "source": "Amazon"},   # TR değil: elenir
-    {"title": "Hepsiburada", "link": "https://www.hepsiburada.com/a-p-3", "source": "Hepsiburada"},
+    {"title": "3D Printed Flexy Ring", "link": "https://www.reddit.com/r/x", "source": "Reddit"},     # pazar yeri değil
+    {"title": "3D Printed Flexi Ring", "link": "https://www.etsy.com/listing/9", "source": "Etsy",
+     "price": {"value": "$12*", "extracted_value": 12.0, "currency": "$"}},                         # TL değil
+    {"title": "3D printed ring", "link": "https://www.amazon.com/dp/1", "source": "Amazon"},          # TR değil
 ]}
 ALISVERIS = {"shopping_results": [
-    {"title": "Manyetik Stres Yüzüğü", "source": "Trendyol", "price": "₺599,00", "extracted_price": 599.0,
-     "product_link": "https://www.google.com/search?ibp=oshop&prds=productid:1"},
-    {"title": "Fidget Yüzük", "source": "Amazon.com.tr - Amazon.com.tr – pazaryeri", "price": "₺499,00",
-     "extracted_price": 499.0, "product_link": "https://www.google.com/search?prds=2"},
-    {"title": "Fidget Set", "source": "hepsiburada.com", "price": "₺2.348,59",
-     "product_link": "https://www.google.com/search?prds=3"},                            # extracted_price yok
-    {"title": "Yurt dışı", "source": "Stress zéro", "price": "₺300,00", "extracted_price": 300.0},
-    {"title": "Print Forge 3D Baskı Yüzük", "source": "Trendyol", "price": "₺350", "extracted_price": 350.0,
-     "product_link": "https://www.google.com/search?prds=5"},
+    {"title": "Fidget Parmak Yüzüğü 3D Baski", "source": "Trendyol", "price": "₺134,99", "extracted_price": 134.99,
+     "product_link": "https://www.google.com/search?prds=1"},
+    {"title": "Fidget Yüzük 3D Baskı", "source": "Pixu3D", "price": "₺179,00", "extracted_price": 179.0,
+     "product_link": "https://www.google.com/search?prds=2"},
+    {"title": "Fidget Yüzük", "source": "Pixu3D", "price": "₺229,00",                              # satıcı adı 3D
+     "product_link": "https://www.google.com/search?prds=3"},
+    {"title": "Manyetik Stres Yüzüğü", "source": "trendyol.com", "price": "₺542,23", "extracted_price": 542.23,
+     "product_link": "https://www.google.com/search?prds=4"},                                        # 3D değil
+    {"title": "Fidget Rings 3D Baskı Modeli — Fidget Oyuncak", "source": "3D Yazdıralım", "price": "₺1,00",
+     "extracted_price": 1.0, "product_link": "https://www.google.com/search?prds=5"},                # dijital dosya
+    {"title": "Gyro Ring 3D Baskı", "source": "Atölye", "price": "₺10,00", "extracted_price": 10.0,
+     "product_link": "https://www.google.com/search?prds=6"},                                        # 20 TL altı
+    {"title": "Jiro Fidget 3D Baskı", "source": "Pixu3D", "price": "₺65.918,87", "extracted_price": 65918.87,
+     "product_link": "https://www.google.com/search?prds=7"},                                        # uç değer
+    {"title": "PLA Fidget Yıldızı", "source": "hepsiburada.com", "price": "₺279,00", "extracted_price": 279.0,
+     "product_link": "https://www.google.com/search?prds=8"},
 ]}
 
 
@@ -37,8 +44,8 @@ def test_site_suzgeci():
     assert pazar.site_bul("https://www.trendyol.com/a-p-1", "Trendyol") == "Trendyol"
     assert pazar.site_bul("https://www.google.com/search?prds=2",
                           "Amazon.com.tr - Amazon.com.tr – pazaryeri") == "Amazon TR"
-    assert pazar.site_bul(None, "Trendyol") is None   # bağlantısız sonuç kabul edilmez
     assert pazar.site_bul("https://www.google.com/search?prds=1", "trendyol.com") == "Trendyol"
+    assert pazar.site_bul(None, "Trendyol") is None   # bağlantısız sonuç kabul edilmez
     assert pazar.site_bul("https://www.amazon.com/dp/1", "Amazon") is None
     assert pazar.site_bul("https://www.reddit.com/r/x", "Reddit") is None
     # Sahte alan adları ve başka sitedeki "Trendyol" yazısı kabul edilmez
@@ -55,8 +62,22 @@ def test_guvenli_link():
     assert pazar.guvenli_link(None) is None
     assert pazar.guvenli_link("https://www.google.com/search?q=teleferik yılbaşı") == \
         "https://www.google.com/search?q=teleferik%20yılbaşı"
-    zararli = {"visual_matches": [{"title": "x", "link": "javascript:alert(1)", "source": "Trendyol"}]}
-    assert pazar.lens_sonuclari(zararli) == []   # alan adı yok → site eşleşmez → elenir
+    zararli = {"visual_matches": [{"title": "3D baskı", "link": "javascript:alert(1)", "source": "Trendyol"}]}
+    assert pazar.lens_sonuclari(zararli) == []
+
+
+def test_uc_d_sarti():
+    assert pazar.uc_d_mi("Fidget Yüzük 3D Baskı")
+    assert pazar.uc_d_mi("Fidget Parmak Yuzugu 3D Baski")
+    assert pazar.uc_d_mi("3D Printed Flexi Dragon")
+    assert pazar.uc_d_mi("3 Boyutlu Yazıcı ile Basılmış Vazo")
+    assert pazar.uc_d_mi("PLA Kalemlik")
+    assert pazar.uc_d_mi("Fidget Yüzük", "Pixu3D")            # satıcı 3D baskı mağazası
+    assert not pazar.uc_d_mi("Manyetik Stres Yüzüğü", "Trendyol")
+    assert not pazar.uc_d_mi("Fidget Rings 3D Baskı Modeli — Fidget Oyuncak", "3D Yazdıralım")
+    assert not pazar.uc_d_mi("Flexi Dragon STL dosyası")
+    assert not pazar.uc_d_mi("3D puzzle ahşap")                # "3D" tek başına yetmez
+    assert pazar.uc_d_mi("İndirimli 3D Baskı Vazo")            # "indirim" dijital sayılmaz
 
 
 def test_fiyat_metinden():
@@ -66,23 +87,27 @@ def test_fiyat_metinden():
     assert pazar._fiyat_metinden(None) is None
 
 
-def test_ayikla_birlestir_ozetle():
+def test_ayikla_ve_ozetle(monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_BAGIMSIZ_MAGAZALAR", True)
     g = pazar.lens_sonuclari(LENS)
+    assert [(r["site"], r["price"]) for r in g] == [("Trendyol", None), ("Etsy", None)]
     m = pazar.alisveris_sonuclari(ALISVERIS)
-    assert [(r["site"], r["price"]) for r in g] == [("Trendyol", None), ("Trendyol", 1200.0), ("Etsy", None),
-                                                    ("Hepsiburada", None)]
-    assert [(r["site"], r["price"]) for r in m] == [("Trendyol", 599.0), ("Amazon TR", 499.0),
-                                                    ("Hepsiburada", 2348.59), ("Trendyol", 350.0)]
-    b = pazar.birlestir(g, m)
-    assert len(b) == 7          # "Print Forge 3D Baskı Yüzük" iki aramada da geldi, bir kez sayılır
-    o = pazar.ozetle(5, b, "fidget yüzük")
-    # Fiyat istatistiği metin (Alışveriş) sonuçlarından: 499, 599, 2348.59 (350'li tekrar görsel tarafta kaldı)
-    assert (o["min_price"], o["max_price"], o["currency"]) == (499.0, 2348.59, "TL")
-    assert pazar.medyan(o) == 599.0
-    assert o["results"][0]["sorgu"] == "fidget yüzük"
-    assert pazar.fiyat_yazi(o, 65) == ("Trendyol 3, Hepsiburada 2, Etsy 1, Amazon TR 1 · 499–2349 TL "
-                                       "(ortanca 599 TL) · senin önerilen fiyatın 65 TL")
-    assert pazar.fiyat_yazi(pazar.ozetle(5, [])) == "Türk pazar yerlerinde benzeri bulunamadı"
+    assert [(r["site"], r["price"], r["pazar_yeri"]) for r in m] == [
+        ("Trendyol", 134.99, True), ("Pixu3D", 179.0, False), ("Pixu3D", 229.0, False),
+        ("Pixu3D", 65918.87, False), ("Hepsiburada", 279.0, True)]
+    o = pazar.ozetle(5, pazar.birlestir(g, m), "fidget yüzük 3d baskı")
+    # 65.918 TL uç değer istatistikten atılır (ortancanın 5 katından fazla)
+    assert (o["min_price"], o["max_price"], o["currency"]) == (134.99, 279.0, "TL")
+    assert pazar.medyan(o) == 204.0
+    assert o["results"][0]["sorgu"] == "fidget yüzük 3d baskı"
+    assert pazar.fiyat_yazi(o, 65) == ("3D baskı benzeri: Pixu3D 3, Trendyol 2, Etsy 1, Hepsiburada 1 · "
+                                       "135–279 TL (ortanca 204 TL) · senin önerilen fiyatın 65 TL")
+    assert pazar.fiyat_yazi(pazar.ozetle(5, [])) == "3D baskı benzeri satışta bulunamadı"
+
+
+def test_yalniz_pazar_yerleri_ayari(monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_BAGIMSIZ_MAGAZALAR", False)
+    assert [r["site"] for r in pazar.alisveris_sonuclari(ALISVERIS)] == ["Trendyol", "Hepsiburada"]
 
 
 def test_turkce_sorgu():
@@ -93,18 +118,21 @@ def test_turkce_sorgu():
     assert pazar.sorgu_olustur("") is None
 
 
-def test_secilecekler(monkeypatch):
+def test_secilecekler_ve_eski_kural(monkeypatch):
     monkeypatch.setattr(config, "PAZAR_YENILEME_GUN", 14)
-    simdi = datetime(2026, 11, 9, tzinfo=timezone.utc)
+    monkeypatch.setattr(config, "PAZAR_KURAL_TARIHI", "2026-11-09T17:30:00+00:00")
+    simdi = datetime(2026, 11, 12, tzinfo=timezone.utc)
     secimler = [{"rank": i, "product_id": i, "urun": urun(i, f"M{i}", 1, 1, image_url=f"u{i}",
                                                           trend_rank=(9 if i == 4 else None))}
                 for i in range(1, 6)]
     secimler[1]["urun"]["image_url"] = None
-    tarihler = {1: "2026-11-01T00:00:00+00:00", 3: "2026-10-01T00:00:00+00:00"}
+    tarihler = {1: "2026-11-10T00:00:00+00:00",      # yeni kuralla arandı → atlanır
+                3: "2026-11-09T17:05:00+00:00"}      # eski kuralla arandı → yeniden aranır
     assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3)] == [4, 3, 5]
 
 
-def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path):
+def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_KURAL_TARIHI", "2026-01-01T00:00:00+00:00")
     depo = SqliteDepo(tmp_path / "t.db")
     u = urun(None, "Fidget Flexy Ring", 1, 1, image_url="https://cdn.example/r.png")
     pid = depo.urunleri_kaydet([u])[("makerworld", u["external_id"])]
@@ -118,7 +146,7 @@ def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path):
         if p["engine"] == "google_lens":
             assert (p["url"], p["country"]) == (u["image_url"], "tr")
             return httpx.Response(200, json=LENS)
-        assert (p["q"], p["gl"]) == ("fidget yüzük", "tr")
+        assert (p["q"], p["gl"]) == ("fidget yüzük 3d baskı", "tr")
         return httpx.Response(200, json=ALISVERIS)
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -145,7 +173,8 @@ def test_rapor_ve_telegram():
     o = {secimler[0]["product_id"]: pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS),
                                                                     pazar.alisveris_sonuclari(ALISVERIS)))}
     md = ozet.markdown(date(2026, 11, 9), secimler, 1, "SQLite", o)
-    assert "**Türk pazar yerlerinde:** Trendyol 3" in md and "senin önerilen fiyatın 65 TL" in md
-    assert "  - Trendyol: [Squishy](https://www.trendyol.com/x/z-p-2) — 1200 TL (görsel eşleşme)" in md
+    assert "**Türkiye'de satışta:** 3D baskı benzeri: Pixu3D 3" in md and "senin önerilen fiyatın 65 TL" in md
+    assert "  - Trendyol: [Print Forge Studio 3D Baskı Katlanabilir Yüzük](https://www.trendyol.com/x/y-p-1)" \
+           " (görsel eşleşme)" in md or "  - Trendyol: [Print Forge 3D Baskı Katlanabilir Yüzük]" in md
     m = bildirim.mesajlar(date(2026, 11, 9), secimler, pazar_sonuclari=o)
-    assert "🛒 Trendyol 3" in m[0]["veri"]["caption"]
+    assert "🛒 3D baskı benzeri: Pixu3D 3" in m[0]["veri"]["caption"]

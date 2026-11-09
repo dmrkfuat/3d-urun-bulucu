@@ -111,9 +111,10 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str,
             f"- **Tahmini baskı süresi:** {analiz.sure_yazi(u.get('print_time_min'))}"
             + (f" · **Malzeme:** {u['material']}" if u.get("material") else ""),
             f"- **Maliyet:** {maliyet.yazi(u)}",
-            *([f"- **Türk pazar yerlerinde:** {pazar.fiyat_yazi(pazar_sonuclari[s['product_id']], u.get('price_tl'))}"]
+            *([f"- **Türkiye'de satışta:** {pazar.fiyat_yazi(pazar_sonuclari[s['product_id']], u.get('price_tl'))}"]
               + [f"  - {r['site']}: [{(r.get('title') or 'ürün')[:60].replace(']', ')')}]({r['link']})"
                  + (f" — {r['price']:.0f} TL" if r.get("price") is not None else "")
+                 + (" (bağımsız mağaza)" if r.get("pazar_yeri") is False else "")
                  + (" (görsel eşleşme)" if r.get("kaynak") == "görsel" else "")
                  for r in pazar_sonuclari[s["product_id"]]["results"][:6]]
               if s["product_id"] in pazar_sonuclari else []),
