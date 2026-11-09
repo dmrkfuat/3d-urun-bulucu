@@ -20,6 +20,12 @@ class BildirimHatasi(RuntimeError):
     pass
 
 
+def _href(link: object) -> str:
+    """href için güvenli değer: yalnızca https bağlantı, tırnak dahil HTML kaçışlı; değilse '#'."""
+    temiz = pazar.guvenli_link(str(link) if link else None)
+    return html.escape(temiz, quote=True) if temiz else "#"
+
+
 def _e(metin: object) -> str:
     return html.escape(str(metin), quote=False)
 
@@ -34,7 +40,7 @@ def satis_link_html(y: dict) -> str:
     """Bir satış yeri: <a href="...">Trendyol</a> 135 TL (bağımsız mağaza ise işaretli)."""
     fiyat = f" {y['price']:.0f} TL" if y.get("price") is not None else ""
     etiket = "" if y.get("pazar_yeri", True) else " (mağaza)"
-    return f"<a href=\"{_e(y['link'])}\">{_e(y['site'])}</a>{fiyat}{etiket}"
+    return f"<a href=\"{_href(y['link'])}\">{_e(y['site'])}</a>{fiyat}{etiket}"
 
 
 def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> str:
@@ -77,7 +83,7 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
             sonuc.append({"metot": "sendMessage", "veri": {"text": yazi}})
     kalan = []
     for s in secimler[FOTOGRAFLI_ADET:]:
-        satir = f"{s['rank']}. <a href=\"{_e(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
+        satir = f"{s['rank']}. <a href=\"{_href(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
         yerler = pazar.satis_yerleri(pazar_sonuclari.get(s["product_id"]), en_fazla=2)
         if yerler:
             satir += "\n   🛒 " + " · ".join(satis_link_html(y) for y in yerler)
@@ -96,7 +102,7 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
 
     if yeni_modeller:
         satirlar = ["<b>🆕 Takip ettiğin tasarımcılardan yeni modeller</b>", ""]
-        satirlar += [f"• {_e(m['tasarimci'])}: <a href=\"{_e(m['url'])}\">{_e(m['ad'])}</a>"
+        satirlar += [f"• {_e(m['tasarimci'])}: <a href=\"{_href(m['url'])}\">{_e(m['ad'])}</a>"
                      for m in yeni_modeller[:15]]
         sonuc.append({"metot": "sendMessage", "veri": {"text": "\n".join(satirlar),
                                                        "disable_web_page_preview": True}})

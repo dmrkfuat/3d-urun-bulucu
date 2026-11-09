@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from . import bildirim, config, pazar
-from .bildirim import _e
+from .bildirim import _e, _href
 
 TR_SAATI = timezone(timedelta(hours=3))  # Türkiye yaz saati uygulamıyor (UTC+3)
 
@@ -49,7 +49,7 @@ def mesaj(gun: str | None, secimler: list[dict], panel_url: str | None, simdi: d
         for s in secimler[:5]:
             p = s["products"]
             fiyat = f" · {p['cost_tl']:.0f}→{p['price_tl']:.0f} TL" if p.get("cost_tl") is not None else ""
-            satirlar.append(f"{s['rank']}. <a href=\"{_e(p['url'])}\">{_e(p['name'])}</a> — {s['score']}"
+            satirlar.append(f"{s['rank']}. <a href=\"{_href(p['url'])}\">{_e(p['name'])}</a> — {s['score']}"
                             + ("🔥" if p.get("trend_rank") else "") + _e(fiyat))
             yerler = pazar.satis_yerleri(pazar_sonuclari.get(s["product_id"]), en_fazla=3)
             if yerler:

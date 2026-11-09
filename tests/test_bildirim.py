@@ -51,3 +51,12 @@ def test_gonder_hata_verir():
         lambda r: httpx.Response(401, json={"ok": False, "description": "Unauthorized"})))
     with pytest.raises(bildirim.BildirimHatasi, match="Unauthorized"):
         bildirim.gonder("KOTU", "42", [{"metot": "sendMessage", "veri": {"text": "x"}}], client)
+
+
+def test_href_kacisi():
+    assert bildirim._href('https://shop.example/a"onmouseover="x') == "https://shop.example/a%22onmouseover=%22x"
+    assert bildirim._href("javascript:alert(1)") == "#"
+    assert bildirim._href(None) == "#"
+    y = {"site": "Mağaza <b>", "link": 'https://x.example/"><script>', "price": 10.0, "pazar_yeri": False}
+    assert bildirim.satis_link_html(y) == \
+        '<a href="https://x.example/%22%3E%3Cscript%3E">Mağaza &lt;b&gt;</a> 10 TL (mağaza)'

@@ -40,7 +40,9 @@ def guvenli_link(link: str | None) -> str | None:
     u = urlparse(str(link).strip())
     if u.scheme != "https" or not u.hostname:
         return None
-    return u.geturl().replace(" ", "%20")  # Google bağlantılarındaki boşluklar Markdown bağlantısını bozuyordu
+    # Boşluk Markdown bağlantısını, tırnak ve açılı ayraç HTML özniteliğini bozar: yüzde kodlanır.
+    return (u.geturl().replace(" ", "%20").replace('"', "%22").replace("'", "%27")
+            .replace("<", "%3C").replace(">", "%3E"))
 
 
 def _alan_eslesir(host: str, alan: str) -> bool:
@@ -181,9 +183,20 @@ UC_D_SATICI = re.compile(r"3\s?d|bask[ıi]|print", re.I)
 DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|digital|download", re.I)
 
 
-def uc_d_mi(baslik: str | None, satici: str | None = None) -> bool:
+# Dijital model dosyası satan/paylaşan siteler: fiziksel ürün satmazlar, karşılaştırmaya girmez.
+DIJITAL_SITELER = ("cults3d", "thingiverse", "printables", "makerworld", "cgtrader", "myminifactory",
+                   "thangs", "3dexport", "turbosquid", "stlfinder", "yeggi", "crealitycloud", "creality cloud",
+                   "3dgo", "makeronline", "free3d", "sketchfab")
+
+
+def dijital_site_mi(link: str | None, satici: str | None = None) -> bool:
+    metin = ((urlparse(link or "").hostname or "") + " " + (satici or "")).lower().replace(" ", "")
+    return any(d.replace(" ", "") in metin for d in DIJITAL_SITELER)
+
+
+def uc_d_mi(baslik: str | None, satici: str | None = None, link: str | None = None) -> bool:
     baslik = baslik or ""
-    if DIJITAL.search(baslik):
+    if DIJITAL.search(baslik) or dijital_site_mi(link, satici):
         return False
     return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
 
@@ -222,8 +235,8 @@ def satis_yerleri(o: dict | None, en_fazla: int = 3) -> list[dict]:
     secilen, siteler = [], set()
     for r in adaylar:
         link = satis_linki(r)
-        if not link or r["site"] in siteler:
-            continue
+        if not link or r["site"] in siteler or dijital_site_mi(r.get("link"), r.get("site")):
+            continue  # dijital dosya siteleri (eski kayıtlarda kalmış olabilir) gösterilmez
         siteler.add(r["site"])
         secilen.append({"site": r["site"], "price": r.get("price"), "link": link,
                         "pazar_yeri": r.get("pazar_yeri", True)})
@@ -262,7 +275,7 @@ def lens_sonuclari(yanit: dict) -> list[dict]:
     sonuc = []
     for x in (yanit.get("visual_matches") or []) + (yanit.get("exact_matches") or []):
         site = site_bul(x.get("link"), x.get("source"))
-        if not site or not uc_d_mi(x.get("title")):
+        if not site or not uc_d_mi(x.get("title"), x.get("source"), x.get("link")):
             continue
         f = x.get("price") if isinstance(x.get("price"), dict) else {}
         fiyat = f.get("extracted_value")
@@ -280,7 +293,7 @@ def alisveris_sonuclari(yanit: dict) -> list[dict]:
     for x in yanit.get("shopping_results") or []:
         link = guvenli_link(x.get("link")) or guvenli_link(x.get("product_link"))
         satici = (x.get("source") or "").strip()
-        if not link or not uc_d_mi(x.get("title"), satici):
+        if not link or not uc_d_mi(x.get("title"), satici, x.get("link") or x.get("product_link")):
             continue
         site = site_bul(x.get("link") or x.get("product_link"), satici)
         pazar_yeri = site is not None   # yalnızca alan adı / Google satıcı eşleşmesi pazar yeri sayılır

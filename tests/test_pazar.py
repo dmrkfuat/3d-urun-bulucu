@@ -243,3 +243,20 @@ def test_gecerli_mi(monkeypatch):
     assert not pazar.gecerli_mi({"checked_at": "2026-11-09T14:33:34+00:00"})
     assert not pazar.gecerli_mi({})
     assert not pazar.gecerli_mi(None)
+
+
+def test_dijital_dosya_siteleri_elenir():
+    assert pazar.dijital_site_mi("https://cults3d.com/en/3d-model/x", None)
+    assert pazar.dijital_site_mi(None, "cults3d.com")
+    assert pazar.dijital_site_mi(None, "Creality Cloud")
+    assert not pazar.dijital_site_mi("https://www.trendyol.com/x", "Trendyol")
+    yanit = {"shopping_results": [
+        {"title": "Grinch 3D Baskı", "source": "cults3d.com", "extracted_price": 90.0,
+         "product_link": "https://www.google.com/search?prds=1"},
+        {"title": "Grinch 3D Baskı", "source": "Deniz 3D Studio", "extracted_price": 65.0,
+         "product_link": "https://www.google.com/search?prds=2"}]}
+    assert [r["site"] for r in pazar.alisveris_sonuclari(yanit)] == ["Deniz 3D Studio"]
+    # Eski kayıtta kalmış dijital site bağlantı olarak gösterilmez
+    eski = {"results": [{"site": "cults3d.com", "pazar_yeri": False, "title": "x", "price": 90.0,
+                         "link": "https://www.google.com/search?prds=1"}]}
+    assert pazar.satis_yerleri(eski) == []
