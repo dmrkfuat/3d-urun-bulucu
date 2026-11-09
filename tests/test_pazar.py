@@ -53,6 +53,8 @@ def test_guvenli_link():
     assert pazar.guvenli_link("http://www.trendyol.com/a") is None
     assert pazar.guvenli_link("data:text/html,x") is None
     assert pazar.guvenli_link(None) is None
+    assert pazar.guvenli_link("https://www.google.com/search?q=teleferik yılbaşı") == \
+        "https://www.google.com/search?q=teleferik%20yılbaşı"
     zararli = {"visual_matches": [{"title": "x", "link": "javascript:alert(1)", "source": "Trendyol"}]}
     assert pazar.lens_sonuclari(zararli) == []   # alan adı yok → site eşleşmez → elenir
 

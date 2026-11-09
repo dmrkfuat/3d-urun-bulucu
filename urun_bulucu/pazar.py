@@ -36,7 +36,9 @@ def guvenli_link(link: str | None) -> str | None:
     if not link:
         return None
     u = urlparse(str(link).strip())
-    return u.geturl() if u.scheme == "https" and u.hostname else None
+    if u.scheme != "https" or not u.hostname:
+        return None
+    return u.geturl().replace(" ", "%20")  # Google bağlantılarındaki boşluklar Markdown bağlantısını bozuyordu
 
 
 def _alan_eslesir(host: str, alan: str) -> bool:
