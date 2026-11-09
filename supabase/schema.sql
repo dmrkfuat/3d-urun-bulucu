@@ -28,6 +28,12 @@ create table if not exists products (
   print_time_min integer,
   material text,
   image_url text,
+  weight_g integer,
+  color_count smallint,
+  cost_tl numeric(8,1),
+  price_tl numeric(8,1),
+  hourly_profit_tl numeric(8,1),
+  trend_rank integer,
   tags jsonb default '[]'::jsonb,
   features jsonb default '[]'::jsonb,
   score numeric(5,1),
@@ -65,3 +71,5 @@ alter table sources enable row level security;
 alter table products enable row level security;
 alter table product_snapshots enable row level security;
 alter table weekly_picks enable row level security;
+
+-- Panel, işaretler ve izinler için: guncelleme_2026-11-09_panel.sql dosyasını da çalıştırın.

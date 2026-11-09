@@ -4,30 +4,8 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from . import analiz, lisans
+from . import analiz, lisans, maliyet, video
 from .config import KATEGORI_BASINA_EN_FAZLA, MAKERWORLD_HEPSI_SATILABILIR, OZET_ADET, YAZICI
-
-# Özelliğe göre hazır video/paylaşım fikirleri (sıra önemli: ilk eşleşen kullanılır).
-VIDEO_SABLONLARI: list[tuple[str, str]] = [
-    ("hareketli parça",
-     "Tabladan tek parça çıkarıp ilk kez hareket ettirdiğin an — yakın çekim, sesli. "
-     "Kanca yazısı: \"Bu tek parça basıldı 🤯\""),
-    ("çok renkli (AMS)",
-     "AMS renk değişimlerinin hızlandırılmış timelapse'i, sonunda ürünün 360° dönüşü. "
-     "Kanca: \"4 renk, tek baskı\""),
-    ("satisfying",
-     "10-15 sn'lik sessiz \"satisfying\" döngü: ürünü elde tekrar tekrar oynat, "
-     "sonu başına bağlansın (loop)."),
-    ("ışık/şeffaf efekt",
-     "Karanlık oda: ışık yanınca ortaya çıkan efekt. Önce kapalı, sonra açık — tek geçiş."),
-]
-KATEGORI_SABLONLARI = {
-    "Masa ve ofis düzenleyici": "Öncesi/sonrası: dağınık masa → düzenli masa, 15 sn, hızlı kesmeler.",
-    "Ev dekorasyonu ve saksı": "Timelapse + bitkiyi/ürünü yerine koyduğun sakin bir son sahne.",
-    "Telefon ve kablo aksesuarı": "Günlük kullanım POV: telefonu/kabloyu yerleştirme anı, \"bunu bilmiyordum\" tadında.",
-    "Hediyelik": "\"Sevgiliye/arkadaşa 3D baskı hediye\" kurgusu: baskı → paketleme → veriliş.",
-}
-VARSAYILAN_VIDEO = "Baskı timelapse'i + elde gösterim; açıklamaya baskı süresi ve filament miktarını yaz."
 
 
 def _kisa_sayi(n: int) -> str:
@@ -39,11 +17,7 @@ def _kisa_sayi(n: int) -> str:
 
 
 def video_fikri(urun: dict) -> str:
-    ozellikler = urun.get("features") or []
-    for ozellik, fikir in VIDEO_SABLONLARI:
-        if ozellik in ozellikler:
-            return fikir
-    return KATEGORI_SABLONLARI.get(urun.get("category"), VARSAYILAN_VIDEO)
+    return video.metin(video.fikir(urun))
 
 
 def neden(urun: dict) -> str:
@@ -61,6 +35,10 @@ def neden(urun: dict) -> str:
         nedenler.append(f"kısa baskı ({analiz.sure_yazi(urun['print_time_min'])})")
     if d.get("etsy_talep"):
         nedenler.append(f"Etsy talep listenizle eşleşiyor (\"{d['etsy_talep']}\")")
+    if urun.get("trend_rank"):
+        nedenler.append(f"MakerWorld trend listesinde #{urun['trend_rank']}")
+    if (urun.get("hourly_profit_tl") or 0) >= 50:
+        nedenler.append(f"saat başına ~{urun['hourly_profit_tl']:.0f} TL kazanç")
     if not nedenler:
         nedenler.append("puan bileşenlerinin dengeli toplamı yüksek")
     metin = "; ".join(nedenler)
@@ -94,14 +72,18 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str
         "Lisans işaretleri: 🟢 satılabilir · 🟡 NC / kişisel kullanım: satılamaz, içerikte gösterilebilir · "
         "🔴 kontrol et. (Bilgilendirme amaçlıdır, hukuki görüş değildir.)",
         "",
-        "| # | Ürün | Puan | Baskı süresi | Lisans |",
-        "|---|------|-----:|--------------|--------|",
+        "Maliyet ve fiyat kaba tahmindir (config.py: filament TL/kg, saat maliyeti, fiyat çarpanı).",
+        "",
+        "| # | Ürün | Puan | Baskı süresi | Maliyet → Fiyat | Lisans |",
+        "|---|------|-----:|--------------|-----------------|--------|",
     ]
     for s in secimler:
         u = s["urun"]
+        fiyat = (f"~{u['cost_tl']:.0f} → {u['price_tl']:.0f} TL" if u.get("cost_tl") is not None else "-")
         satirlar.append(
             f"| {s['rank']} | [{u['name'].replace('|', '/')}]({u['url']}) | {s['score']} | "
-            f"{analiz.sure_yazi(u.get('print_time_min'))} | {lisans.ETIKET[u['license_flag']].split(' ')[0]} |"
+            f"{analiz.sure_yazi(u.get('print_time_min'))} | {fiyat} | "
+            f"{lisans.ETIKET[u['license_flag']].split(' ')[0]} |"
         )
     satirlar.append("")
     for s in secimler:
@@ -118,9 +100,11 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str
             f"- **Neden seçildi:** {s['reason']}",
             f"- **Tahmini baskı süresi:** {analiz.sure_yazi(u.get('print_time_min'))}"
             + (f" · **Malzeme:** {u['material']}" if u.get("material") else ""),
+            f"- **Maliyet:** {maliyet.yazi(u)}",
             f"- **Lisans:** {u.get('license') or 'belirtilmemiş'} → {lisans.ETIKET[u['license_flag']]}"
             + (" (ayar: MakerWorld modelleri satılabilir sayılıyor)" if MAKERWORLD_HEPSI_SATILABILIR else ""),
-            f"- **Video fikri:** {s['video_idea']}",
+            "- **Video fikri:**",
+            *[f"  - {satir}" for satir in s["video_idea"].splitlines()],
             "",
         ]
     return "\n".join(satirlar)

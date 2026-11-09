@@ -29,7 +29,13 @@ URUN_ALANLARI = [
     "source_id", "external_id", "name", "url", "category", "creator", "downloads", "likes",
     "makes", "views", "published_at", "license", "license_flag", "print_time_min", "material",
     "image_url", "tags", "features",
+    "weight_g", "color_count", "cost_tl", "price_tl", "hourly_profit_tl", "trend_rank",
 ]
+# Sonradan eklenen sütunlar (eski SQLite dosyalarına otomatik eklenir).
+YENI_SUTUNLAR = {
+    "weight_g": "integer", "color_count": "integer", "cost_tl": "real", "price_tl": "real",
+    "hourly_profit_tl": "real", "trend_rank": "integer",
+}
 JSON_ALANLARI = {"tags", "features", "score_detail"}
 
 
@@ -60,6 +66,8 @@ create table if not exists products (
   downloads integer default 0, likes integer default 0, makes integer default 0, views integer default 0,
   published_at text, license text, license_flag text, print_time_min integer, material text,
   image_url text, tags text default '[]', features text default '[]',
+  weight_g integer, color_count integer, cost_tl real, price_tl real, hourly_profit_tl real,
+  trend_rank integer,
   score real, score_detail text,
   first_seen text not null, last_seen text not null,
   unique (source_id, external_id)
@@ -88,6 +96,10 @@ class SqliteDepo:
         self.con = sqlite3.connect(yol)
         self.con.row_factory = sqlite3.Row
         self.con.executescript(SQLITE_SEMA)
+        mevcut = {r["name"] for r in self.con.execute("pragma table_info(products)")}
+        for sutun, tur in YENI_SUTUNLAR.items():
+            if sutun not in mevcut:
+                self.con.execute(f"alter table products add column {sutun} {tur}")
         self.con.executemany(
             "insert or ignore into sources (id, name, base_url, access_method, notes) "
             "values (:id, :name, :base_url, :access_method, :notes)",

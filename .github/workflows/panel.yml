@@ -1,0 +1,39 @@
+name: Paneli yayınla
+
+on:
+  push:
+    branches: [main]
+    paths: ["panel/**", ".github/workflows/panel.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  yayinla:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.dagit.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gizli anahtar kontrolü
+        run: |
+          if grep -rqE 'sb_secret_|service_role' panel/; then
+            echo "::error::panel/ içinde gizli anahtar var; yayınlanmadı."
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: panel
+      - id: dagit
+        uses: actions/deploy-pages@v4

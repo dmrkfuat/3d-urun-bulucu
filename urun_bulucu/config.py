@@ -40,6 +40,21 @@ MAKERWORLD_DETAY_LIMITI = 60
 # Asıl lisans metni raporda yine gösterilir. False yapılırsa lisansa göre sınıflandırılır.
 MAKERWORLD_HEPSI_SATILABILIR = True
 
+# Trend listesinden (MakerWorld "Trending") kaç modelin detayı çekilecek.
+MAKERWORLD_TREND_ADET = 15
+# Trend listesindeki modellere verilen bonus puan.
+TREND_BONUS = 5
+
+# --- Maliyet tahmini (rapor ve panelde gösterilir) ---
+FILAMENT_TL_KG = 800        # 1 kg filament fiyatı
+SAAT_MALIYETI_TL = 3        # baskının 1 saati: elektrik (~0,1 kWh) + nozul/tabla yıpranması
+FIRE_ORANI = 0.10           # hatalı baskı ve renk değişimi atığı için filamente eklenen pay
+FIYAT_CARPANI = 3           # önerilen satış fiyatı = maliyet × bu sayı
+EN_DUSUK_FIYAT_TL = 50      # önerilen fiyat bunun altına inmez
+
+# Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
+PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"
+
 RAPOR_KLASORU = KOK / "raporlar"
 TALEP_DOSYASI = KOK / "talep" / "etsy_talep.csv"
 
@@ -49,6 +64,9 @@ class Ayarlar:
     supabase_url: str
     supabase_key: str
     veritabani_yolu: Path
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
+    panel_url: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -60,4 +78,7 @@ def ayarlari_oku() -> Ayarlar:
         supabase_url=os.getenv("SUPABASE_URL", "").strip(),
         supabase_key=os.getenv("SUPABASE_KEY", "").strip(),
         veritabani_yolu=Path(os.getenv("VERITABANI_YOLU", KOK / "data" / "urunler.db")),
+        telegram_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
+        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
+        panel_url=os.getenv("PANEL_URL", "").strip() or PANEL_URL,
     )

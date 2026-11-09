@@ -50,7 +50,7 @@ def test_ozet_kategori_siniri_ve_icerik():
     # Başlıktaki "|" tabloyu bozmamalı
     boru = ozet.sec(puanlama.puanla([urun(1, "Embosser | Hinged", 10, 100)], {}, BUGUN))
     tablo = [s for s in ozet.markdown(BUGUN, boru, 1, "SQLite").splitlines() if s.startswith("| 1 |")]
-    assert tablo[0].count("|") == 6
+    assert tablo[0].count("|") == 7
     assert "Video fikri" in metin and "Neden seçildi" in metin
 
 

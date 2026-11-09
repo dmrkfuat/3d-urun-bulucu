@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import config, ozet, puanlama, talep
+from . import bildirim, config, ozet, puanlama, talep
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -21,8 +21,10 @@ def calistir(bugun: date | None = None) -> int:
     kaynak = MakerWorldKaynak()
     print("MakerWorld'den son 30 günün modelleri toplanıyor (yavaş ve az istekle, birkaç dakika sürebilir)...")
     try:
-        urunler = kaynak.topla(config.KATEGORILER, config.ARAMA_ADET, config.MAKERWORLD_DETAY_LIMITI,
-                               config.MAKERWORLD_GUN)
+        # Toplam detay isteği MAKERWORLD_DETAY_LIMITI civarında kalsın: önce trend, kalanı aramadan.
+        urunler = kaynak.topla(config.KATEGORILER, config.ARAMA_ADET,
+                               config.MAKERWORLD_DETAY_LIMITI - config.MAKERWORLD_TREND_ADET,
+                               config.MAKERWORLD_GUN, trend_adet=config.MAKERWORLD_TREND_ADET)
     except (MakerWorldHatasi, httpx.HTTPError) as e:
         print(f"HATA: MakerWorld'den veri alınamadı: {e}")
         return 1
@@ -49,6 +51,14 @@ def calistir(bugun: date | None = None) -> int:
     print(f"Özet hazır: {yol}")
     for s in secimler:
         print(f"  {s['rank']:>2}. {s['score']:>5}  {s['urun']['name']}")
+
+    if ayarlar.telegram_token and ayarlar.telegram_chat_id:
+        try:
+            adet = bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id,
+                                   bildirim.mesajlar(bugun, secimler, ayarlar.panel_url or None))
+            print(f"Telegram'a {adet} mesaj gönderildi.")
+        except (bildirim.BildirimHatasi, httpx.HTTPError) as e:
+            print(f"UYARI: Telegram bildirimi gönderilemedi: {e}")
     return 0
 
 

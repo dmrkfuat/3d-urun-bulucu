@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from .. import analiz, config, lisans
+from .. import analiz, config, lisans, maliyet
 
 API = "https://makerworld.com/api/v1"
 SITE = "https://makerworld.com/en/models"
@@ -69,6 +69,13 @@ class MakerWorldKaynak:
             raise MakerWorldHatasi("MakerWorld arama yanıtının biçimi değişmiş.")
         return list(veri.get("hits") or [])
 
+    def trend(self, adet: int = 30) -> list[dict]:
+        """MakerWorld ana sayfasındaki "Trending" listesi (sitenin kendi sıralaması)."""
+        veri = self._get("/search-service/select/design/nav", {"navKey": "Trending", "offset": 0, "limit": adet})
+        if not isinstance(veri, dict) or "hits" not in veri:
+            raise MakerWorldHatasi("MakerWorld trend yanıtının biçimi değişmiş.")
+        return list(veri.get("hits") or [])
+
     def detay(self, design_id: int | str) -> dict:
         return self._get(f"/design-service/design/{design_id}")
 
@@ -79,17 +86,31 @@ class MakerWorldKaynak:
         arama_adet: int = 30,
         detay_limiti: int = 40,
         gun: int | None = 30,
+        trend_adet: int = 0,
     ) -> list[dict]:
+        # 1) Trend listesi: sitenin kendi sıralaması; kelime aramasının kaçırdıklarını yakalar.
+        trend_sira: dict[str, int] = {}
+        trend_secilen: list[tuple[str, dict]] = []
+        if trend_adet:
+            for sira, hit in enumerate(self.trend(max(30, trend_adet * 2)), start=1):
+                if not hit.get("id") or _atlanacak(hit):
+                    continue
+                trend_sira[str(hit["id"])] = sira
+                if len(trend_secilen) < trend_adet:
+                    trend_secilen.append((kategori_bul(hit, kategoriler), hit))
+
+        # 2) Kategori kelimeleriyle arama.
+        secilen_idler = {str(h["id"]) for _, h in trend_secilen}
         adaylar: dict[str, tuple[str, dict]] = {}
         for kategori, terimler in kategoriler.items():
             for terim in terimler:
                 for hit in self.ara(terim, arama_adet, gun):
-                    if not hit.get("id") or _atlanacak(hit):
+                    if not hit.get("id") or _atlanacak(hit) or str(hit["id"]) in secilen_idler:
                         continue
                     adaylar.setdefault(str(hit["id"]), (kategori, hit))
 
         sirali = sorted(adaylar.values(), key=lambda x: _sayi(x[1].get("downloadCount")), reverse=True)
-        sirali = _kategoriye_dengeli(sirali, detay_limiti)
+        sirali = trend_secilen + _kategoriye_dengeli(sirali, detay_limiti)
 
         urunler = []
         for kategori, hit in sirali:
@@ -99,8 +120,20 @@ class MakerWorldKaynak:
                 continue
             if not isinstance(tasarim, dict) or not tasarim.get("id") or _atlanacak(tasarim):
                 continue
-            urunler.append(urune_cevir(tasarim, kategori))
+            urunler.append(urune_cevir(tasarim, kategori, trend_sira.get(str(tasarim["id"]))))
         return urunler
+
+
+TREND_KATEGORI = "Trend / sezonluk"
+
+
+def kategori_bul(hit: dict, kategoriler: dict[str, list[str]]) -> str:
+    """Trend listesinden gelen modeli başlık ve etiketlerine göre bizim kategorilerimize yerleştirir."""
+    metin = " ".join([hit.get("title") or "", *[str(t) for t in hit.get("tags") or []]]).lower()
+    for kategori, terimler in kategoriler.items():
+        if any(terim.lower() in metin for terim in terimler):
+            return kategori
+    return TREND_KATEGORI
 
 
 def _kategoriye_dengeli(sirali: list[tuple[str, dict]], limit: int) -> list[tuple[str, dict]]:
@@ -161,7 +194,7 @@ def _malzeme(profil: dict | None) -> str | None:
     return ", ".join(turler[:3]) or None
 
 
-def urune_cevir(tasarim: dict, kategori: str) -> dict:
+def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -> dict:
     etiketler = [str(t) for t in tasarim.get("tags") or [] if t][:30]
     metin = analiz.temiz_metin(tasarim.get("summary"))
     profil = profil_sec(tasarim)
@@ -179,6 +212,8 @@ def urune_cevir(tasarim: dict, kategori: str) -> dict:
 
     lisans_metni = tasarim.get("license") or None
     tid = tasarim["id"]
+    gram = _sayi((profil or {}).get("weight")) or None
+    tahmin = maliyet.hesapla(gram, sure_dk) or {}
     return {
         "source_id": KAYNAK_ID,
         "external_id": str(tid),
@@ -199,4 +234,10 @@ def urune_cevir(tasarim: dict, kategori: str) -> dict:
         "image_url": tasarim.get("coverUrl") or tasarim.get("cover"),
         "tags": etiketler,
         "features": ozellikler,
+        "weight_g": gram,
+        "color_count": _sayi((profil or {}).get("materialColorCnt")) or None,
+        "cost_tl": tahmin.get("maliyet_tl"),
+        "price_tl": tahmin.get("fiyat_tl"),
+        "hourly_profit_tl": tahmin.get("saatlik_kazanc_tl"),
+        "trend_rank": trend_sirasi,
     }

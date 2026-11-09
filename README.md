@@ -4,7 +4,13 @@
 her birine **içerik puanı** verir ve her gün **en iyi 10 ürünün özetini** yazar.
 
 Özet `raporlar/` klasörüne `2026-11-09.md` gibi bir dosya olarak kaydedilir. Her üründe:
-link, kapak görseli, neden seçildiği, tahmini baskı süresi, lisans durumu ve kısa bir video fikri bulunur.
+link, kapak görseli, neden seçildiği, tahmini baskı süresi, **maliyet → önerilen fiyat**, lisans durumu
+ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hashtag) bulunur.
+
+- **Telegram:** her gün ilk 3 ürün kapak görseliyle telefona gelir.
+- **Web paneli:** <https://dmrkfuat.github.io/3d-urun-bulucu/> — günlük listeler, indirme grafiği ve
+  "bastım / videosunu çektim / sattım" işaretleri; "İşaretlerim" sekmesinde kategoriye göre satış ve kâr.
+  Yalnızca izinli e-postayla giriş yapılır.
 
 ---
 
@@ -73,6 +79,24 @@ GitHub'da depo → **Settings → Secrets and variables → Actions → New repo
 
 Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → Run workflow**.
 
+### 6. Telegram bildirimi (isteğe bağlı)
+
+1. Telegram'da **@BotFather** → `/newbot` → ad ve sonu `bot` ile biten kullanıcı adı verin.
+2. Verilen anahtarı `.env` içine `TELEGRAM_BOT_TOKEN=` olarak yazın.
+3. Kendi botunuzu açıp **Başlat**'a basın; sohbet numarasını (`TELEGRAM_CHAT_ID`) bulmak için gerekir.
+4. GitHub Secrets'a `TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID` ekleyin.
+
+### 7. Web paneli
+
+Panel `panel/` klasöründedir ve GitHub Pages ile yayınlanır (`.github/workflows/panel.yml`).
+Bir kerelik kurulum:
+1. Supabase **SQL Editor** → `supabase/guncelleme_2026-11-09_panel.sql` → **Run**.
+2. **Authentication → URL Configuration → Site URL**: panel adresi.
+3. **Publishable key**'i `panel/ayar.js` dosyasına yazın (bu anahtar tarayıcı için tasarlanmıştır;
+   **secret** anahtarı asla buraya yazmayın — yayın iş akışı bunu kontrol eder).
+4. Giriş izni: e-posta `panel_izinli` tablosuna eklenir ve Supabase'te kullanıcı oluşturulur
+   (**Authentication → Users → Add user**). Panelde e-postanızı yazınca giriş bağlantısı gelir.
+
 ---
 
 ## İçerik puanı nasıl hesaplanır? (100 üzerinden)
@@ -84,8 +108,16 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 | Görsel çekicilik | 20 | Hareketli parça / print-in-place (en yüksek), çok renkli (AMS), "satisfying", ışık efekti |
 | Kısa baskı | 15 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
 | Lisans | 10 | Satılabilir > NC (yalnızca içerik) > belirsiz |
+| Bonus | +5 / +5 | Etsy talep listesiyle eşleşme; MakerWorld "Trending" listesinde olma |
 
 Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
+
+### Maliyet tahmini
+
+`maliyet = gram × (1 + fire) × filament TL/kg ÷ 1000 + baskı saati × saat maliyeti`,
+`önerilen fiyat = maliyet × fiyat çarpanı` (en az `EN_DUSUK_FIYAT_TL`, 5 TL'ye yuvarlanır).
+Gram ve süre modelin P1S profilinden gelir. Varsayılanlar `config.py`'de: 800 TL/kg, saatlik 3 TL,
+%10 fire, ×3, en az 50 TL. Etsy/kargo ücreti ve işçilik dahil değildir.
 Ayarlar (`kategoriler`, `kısa baskı süresi`, özet adedi) `urun_bulucu/config.py` dosyasındadır.
 
 ### Lisans işaretleri
@@ -118,17 +150,21 @@ Bu işaretler bilgilendirme amaçlıdır, hukuki görüş değildir.
 calistir.bat              ← çift tıkla çalıştır
 .env.example              ← anahtar şablonu (.env'in kopyalanacağı dosya)
 requirements.txt          ← gerekli Python paketleri
-supabase/schema.sql       ← Supabase tabloları
+supabase/schema.sql       ← Supabase tabloları (+ guncelleme_*.sql)
 talep/etsy_talep.csv      ← Etsy talep listeniz
 raporlar/                 ← günlük özetler
+panel/                    ← web paneli (GitHub Pages)
 urun_bulucu/
   __main__.py             ← ana akış
-  config.py               ← ayarlar (kategoriler, süreler)
-  kaynaklar/makerworld.py ← MakerWorld
+  config.py               ← ayarlar (kategoriler, süreler, maliyet)
+  kaynaklar/makerworld.py ← MakerWorld (arama + Trending)
   analiz.py               ← baskı süresi, malzeme, görsel özellikler
   lisans.py               ← lisans sınıflandırma
   puanlama.py             ← içerik puanı
-  ozet.py                 ← özet ve video fikirleri
+  maliyet.py              ← maliyet, önerilen fiyat, saatlik kazanç
+  video.py                ← modele özel video planı
+  ozet.py                 ← özet (rapor)
+  bildirim.py             ← Telegram
   db.py                   ← Supabase / SQLite
 tests/                    ← otomatik testler
 ```

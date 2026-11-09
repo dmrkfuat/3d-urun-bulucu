@@ -2,7 +2,7 @@
 
 Ağırlıklar: popülerlik 30, 7 günlük artış 25, görsel çekicilik 20,
 kısa baskı süresi 15, lisans uygunluğu 10. Etsy talep listesiyle eşleşen
-ürünler +5 bonus alır (en fazla 100). Popülerlik ve artış, her kaynağın
+ürünler ve MakerWorld trend listesindekiler +5 bonus alır (en fazla 100). Popülerlik ve artış, her kaynağın
 kendi en yükseğine göre 0-1 arasına çekilir (ileride başka kaynak eklenirse diye).
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import math
 from datetime import date, datetime
 
 from . import analiz, lisans, talep
-from .config import KISA_BASKI_SAAT
+from .config import KISA_BASKI_SAAT, TREND_BONUS
 
 AGIRLIK = {"populerlik": 30, "artis": 25, "gorsel": 20, "sure": 15, "lisans": 10}
 ETSY_BONUS = 5
@@ -87,11 +87,14 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
         etsy = talep.eslesen(u, talepler)
         if etsy:
             puan += ETSY_BONUS
+        if u.get("trend_rank"):
+            puan += TREND_BONUS
         u["score"] = round(min(100.0, puan), 1)
         u["score_detail"] = {
             **{k: round(v, 3) for k, v in bilesen.items()},
             "gunluk_ilgi_artisi": round(artis_ham[u["id"]], 1),
             "artis_tipi": artis_tipi[u["id"]],
             "etsy_talep": etsy["anahtar_kelime"] if etsy else None,
+            "trend_sirasi": u.get("trend_rank"),
         }
     return sorted(urunler, key=lambda x: x["score"], reverse=True)
