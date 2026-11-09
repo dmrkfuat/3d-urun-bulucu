@@ -128,7 +128,7 @@ def test_yalniz_pazar_yerleri_ayari(monkeypatch):
 
 
 def test_turkce_sorgu():
-    assert pazar.sorgu_olustur("Ultra Satisfying Fidget Flexy Ring! (NO TPU!)") == "fidget esnek yüzük"
+    assert pazar.sorgu_olustur("Ultra Satisfying Fidget Flexy Ring! (NO TPU!)") == "fidget yüzük"
     assert pazar.sorgu_olustur("Impossible Thread - Print-in-Place Fidget (no AMS)") == "imkansız vida fidget"
     assert pazar.sorgu_olustur("Custom Text Embosser | Print-in-Place Hinged Press") == "yazı kabartma pres"
     assert pazar.sorgu_olustur("MYLITOS MINI GRINCH") == "grinch"            # marka adı atılır
@@ -169,7 +169,7 @@ def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):
         if p["engine"] == "google_lens":
             assert (p["url"], p["country"]) == (u["image_url"], "tr")
             return httpx.Response(200, json=LENS)
-        assert (p["q"], p["gl"]) == ("fidget esnek yüzük 3d baskı", "tr")
+        assert (p["q"], p["gl"]) == ("fidget yüzük 3d baskı", "tr")
         return httpx.Response(200, json=ALISVERIS)
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -289,8 +289,8 @@ LENS_TR = {"visual_matches": [
 def test_lens_kelimeleri_ve_arama_metni():
     # "katlanabilir" ve "stres" iki Türkçe 3D baskı başlığında geçiyor; tek başlıktaki "markaadı" kullanılmaz
     assert pazar.lens_kelimeleri(LENS_TR) == ["katlanabilir", "stres"]
-    assert pazar.arama_metni("Ultra Satisfying Fidget Flexy Ring", LENS_TR) ==         "fidget esnek yüzük katlanabilir stres 3d baskı"
-    assert pazar.arama_metni("Ultra Satisfying Fidget Flexy Ring", {}) == "fidget esnek yüzük 3d baskı"
+    assert pazar.arama_metni("Ultra Satisfying Fidget Flexy Ring", LENS_TR) ==         "fidget yüzük katlanabilir stres 3d baskı"
+    assert pazar.arama_metni("Ultra Satisfying Fidget Flexy Ring", {}) == "fidget yüzük 3d baskı"
     assert pazar.arama_metni("", {}) is None
 
 
@@ -319,3 +319,23 @@ def test_telegram_ve_rapor_sosyal():
                        "SQLite", {s["urun"]["id"]: o})
     assert "- **Sosyal medyada: Facebook 1, Instagram 1, TikTok 1" in md
     assert "  - Instagram: [Fidget yüzük 3D baskı 🌀 sipariş için DM](https://www.instagram.com/p/abc/)"            " (Türkçe, satış)" in md
+
+
+
+def test_sosyal_ilgi_suzgeci():
+    lens = {"visual_matches": [
+        {"title": "Yeni nesil magnetik fidget slider", "link": "https://www.instagram.com/p/1/"},
+        {"title": "ORJİNAL BİREBİR EZME ANTIFAR STOKLARIMIZDA", "link": "https://www.instagram.com/p/2/"},
+        {"title": "Modeling complex springs in Plasticity", "link": "https://www.youtube.com/watch?v=3"},
+        {"title": "Grumpy Christmas Grinch 3D model for download", "link": "https://www.facebook.com/x/4"},
+        {"title": "Satisfying donut 3D printed ASMR", "link": "https://www.tiktok.com/@a/video/5"},
+    ]}
+    anahtarlar = pazar.anahtar_kelimeler("Ultra Satisfying Fidget Flexy Ring", "fidget yüzük 3d baskı")
+    assert "ring" in anahtarlar and "satisfying" not in anahtarlar
+    basliklar = [r["title"] for r in pazar.sosyal_sonuclari(lens, anahtarlar)]
+    # "springs" içindeki "ring" eşleşmez; ilgisiz antifar ve dosya indirme sayfası elenir
+    assert basliklar == ["Yeni nesil magnetik fidget slider", "Satisfying donut 3D printed ASMR"]
+
+
+def test_markdown_icin_parantezli_link():
+    assert pazar.guvenli_link("https://shop.example/a_(b)[c]") == "https://shop.example/a_%28b%29%5Bc%5D"

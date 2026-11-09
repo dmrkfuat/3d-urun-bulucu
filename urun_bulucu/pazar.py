@@ -40,9 +40,10 @@ def guvenli_link(link: str | None) -> str | None:
     u = urlparse(str(link).strip())
     if u.scheme != "https" or not u.hostname:
         return None
-    # Boşluk Markdown bağlantısını, tırnak ve açılı ayraç HTML özniteliğini bozar: yüzde kodlanır.
+    # Boşluk ve ( ) [ ] Markdown bağlantısını, tırnak ve açılı ayraç HTML özniteliğini bozar: yüzde kodlanır.
     return (u.geturl().replace(" ", "%20").replace('"', "%22").replace("'", "%27")
-            .replace("<", "%3C").replace(">", "%3E"))
+            .replace("<", "%3C").replace(">", "%3E").replace("(", "%28").replace(")", "%29")
+            .replace("[", "%5B").replace("]", "%5D"))
 
 
 def _alan_eslesir(host: str, alan: str) -> bool:
@@ -106,7 +107,7 @@ CEVIRI = {
     "magnetic": "manyetik", "swing": "salıncak", "diorama": "diorama", "gnome": "cüce", "gnomo": "cüce",
     "nordic": "nordik", "knitted": "örgü", "sweater": "kazak", "tiny": "minik", "cute": "sevimli",
     "fidget": "fidget", "ring": "yüzük", "spinner": "spinner", "toy": "oyuncak", "toys": "oyuncak",
-    "dragon": "ejderha", "flexi": "esnek", "flexy": "esnek", "articulated": "eklemli", "snake": "yılan",
+    "dragon": "ejderha", "flexi": "eklemli", "articulated": "eklemli", "snake": "yılan",
     "cat": "kedi", "dog": "köpek", "dachshund": "sosis köpek", "octopus": "ahtapot", "gecko": "kertenkele",
     "lizard": "kertenkele", "axolotl": "aksolotl", "turtle": "kaplumbağa", "shark": "köpekbalığı",
     "dinosaur": "dinozor", "dino": "dinozor", "fish": "balık", "bird": "kuş", "owl": "baykuş",
@@ -398,7 +399,8 @@ SOSYAL = {"instagram.com": "Instagram", "tiktok.com": "TikTok", "youtube.com": "
 # sınırları kullanılır ve Türkçe harf kontrolü büyük/küçük harfe duyarlı yapılır.
 SATIS_IZI = re.compile(
     r"\bsipari[şs]|\bsat[ıi][şs](?:ta)?\b|\bsat[ıi]l[ıi]k\b|\bfiyat|\bkargo|\bdm\b|\bstokta\b|"
-    r"\d\s?(?:tl|₺)\b|₺|\border\b|for sale|\bshop\b|\bstore\b|\bavailable\b|\bprice\b|"
+    r"\d\s?(?:tl|₺)\b|₺|\border\b|for sale|\bshop\b|\bstore\b|\bavailable\b|\bprice\b|sold out|"
+    r"get (?:yours|them)|link in bio|"
     r"متوفر|للطلب|\bvenda\b|\bencomend", re.I)
 _TR_HARF_DUYARLI = re.compile(r"[çğışöüÇĞİŞÖÜ]")
 _TR_SOZ = re.compile(r"\b(?:ve|ile|için|baskı|sipariş|fiyat|fiyatı|hediye|tasarım|kargo|satışta)\b")
@@ -413,7 +415,18 @@ class _TrKelime:
 TR_KELIME = _TrKelime()
 
 
-def sosyal_sonuclari(yanit: dict, en_fazla: int = 6) -> list[dict]:
+def anahtar_kelimeler(ad: str | None, sorgu: str | None = None) -> set[str]:
+    """Sosyal medya gönderisinin bu ürünle ilgili olduğunu gösteren kelimeler: model adındaki
+    anlamlı kelimeler (4+ harf) ve Türkçe arama metninin kelimeleri."""
+    kelimeler = {k.lower() for k in re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]{4,}", ad or "")}
+    kelimeler |= set((sorgu or "").lower().split())
+    return {k for k in kelimeler if k not in GURULTU and k not in TR_DURAK and k not in ("baskı", "satisfying")}
+
+
+def sosyal_sonuclari(yanit: dict, anahtarlar: set[str] | None = None, en_fazla: int = 6) -> list[dict]:
+    """Lens'in bulduğu sosyal medya sayfaları. İlgisiz eşleşmeleri (görsel olarak benzeyen başka
+    ürünler, eğitim videoları) elemek için başlıkta ürünle ilgili bir kelime veya 3D baskı işareti
+    aranır; dosya indirme sayfaları atılır."""
     sonuc, gorulen = [], set()
     for x in (yanit.get("visual_matches") or []) + (yanit.get("exact_matches") or []):
         link = guvenli_link(x.get("link"))
@@ -424,6 +437,12 @@ def sosyal_sonuclari(yanit: dict, en_fazla: int = 6) -> list[dict]:
             continue
         if not baslik or baslik.lower() in ("youtube", "tiktok", "instagram", "facebook"):
             continue  # başlıksız/genel sayfa
+        kucuk = (x.get("title") or "").lower()
+        if DIJITAL.search(kucuk) or re.search(r"\b(?:3d model|free stl)\b", kucuk):
+            continue  # dosya indirme
+        ilgili = any(re.search(rf"(?<![a-zçğıöşü]){re.escape(k)}(?![a-zçğıöşü])", kucuk) for k in anahtarlar or ())
+        if anahtarlar is not None and not (ilgili or UC_D.search(kucuk)):
+            continue  # ürünle ilgisiz görünüyor
         gorulen.add(link)
         ham = x.get("title") or ""
         sonuc.append({"site": site, "pazar_yeri": False, "title": baslik, "link": link, "price": None,
@@ -534,8 +553,8 @@ def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tu
     2) İsimle (Alışveriş): model adının Türkçesi + Lens kelimeleri + '3d baskı'."""
     lens = lens_ara(api_key, urun["image_url"], client) if urun.get("image_url") else {}
     gorsel = lens_sonuclari(lens)
-    sosyal = sosyal_sonuclari(lens)
     sorgu = arama_metni(urun.get("name"), lens)
+    sosyal = sosyal_sonuclari(lens, anahtar_kelimeler(urun.get("name"), sorgu))
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
     return birlestir(gorsel, metin) + sosyal, sorgu
 
