@@ -235,8 +235,14 @@ def _istek(api_key: str, params: dict, client: httpx.Client | None) -> dict:
     return veri
 
 
-def lens_ara(api_key: str, gorsel_url: str, client: httpx.Client | None = None) -> dict:
-    return _istek(api_key, {"engine": "google_lens", "url": gorsel_url, "hl": "tr", "country": "tr"}, client)
+def lens_ara(api_key: str, gorsel_url: str, metin: str | None = None,
+             client: httpx.Client | None = None) -> dict:
+    """Google Lens (Türkiye). `metin` verilirse görsel + metin birlikte aranır (Lens "multisearch"):
+    ör. "fidget yüzük 3d baskı" eklenince 3D baskı ürün eşleşmeleri belirgin şekilde artar."""
+    params = {"engine": "google_lens", "url": gorsel_url, "hl": "tr", "country": "tr"}
+    if metin:
+        params |= {"type": "visual_matches", "q": metin}
+    return _istek(api_key, params, client)
 
 
 def alisveris_ara(api_key: str, sorgu: str, client: httpx.Client | None = None) -> dict:
@@ -252,7 +258,8 @@ UC_D = re.compile(
     re.I,
 )
 UC_D_SATICI = re.compile(r"3\s?d|bask[ıi]|print", re.I)
-DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|digital|download", re.I)
+DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|digital|download"
+                     r"|\b(?:print|printer|printable|3d)\s?files?\b", re.I)
 
 
 # Dijital model dosyası satan/paylaşan siteler: fiziksel ürün satmazlar, karşılaştırmaya girmez.
@@ -264,6 +271,17 @@ DIJITAL_SITELER = ("cults3d", "thingiverse", "printables", "makerworld", "cgtrad
 def dijital_site_mi(link: str | None, satici: str | None = None) -> bool:
     metin = ((urlparse(link or "").hostname or "") + " " + (satici or "")).lower().replace(" ", "")
     return any(d.replace(" ", "") in metin for d in DIJITAL_SITELER)
+
+
+# Yurt dışı toptan/ucuz pazar yerleri: başlıktaki "3D" çoğu zaman 3D baskı değil (3D efekt, kalıp
+# üretim); bağımsız 3D baskı mağazası sayılmazlar.
+YABANCI_PAZARLAR = ("temu", "dhgate", "aliexpress", "alibaba", "made-in-china", "madeinchina", "shein",
+                    "wish.com", "banggood", "joom")
+
+
+def yabanci_pazar_mi(link: str | None, satici: str | None = None) -> bool:
+    metin = ((urlparse(link or "").hostname or "") + " " + (satici or "")).lower().replace(" ", "")
+    return any(y in metin for y in YABANCI_PAZARLAR)
 
 
 def uc_d_mi(baslik: str | None, satici: str | None = None, link: str | None = None) -> bool:
@@ -309,7 +327,8 @@ def satis_yerleri(o: dict | None, en_fazla: int = 3) -> list[dict]:
         if r.get("kaynak") == "sosyal":
             continue  # sosyal medya ayrı gösterilir (sosyal_yerler)
         link = satis_linki(r)
-        if not link or r["site"] in siteler or dijital_site_mi(r.get("link"), r.get("site")):
+        if (not link or r["site"] in siteler or dijital_site_mi(r.get("link"), r.get("site"))
+                or DIJITAL.search(r.get("title") or "")):
             continue  # dijital dosya siteleri (eski kayıtlarda kalmış olabilir) gösterilmez
         siteler.add(r["site"])
         secilen.append({"site": r["site"], "price": r.get("price"), "link": link,
@@ -344,12 +363,24 @@ def bagimsiz_etiket(satici: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------- ayıklama
-def lens_sonuclari(yanit: dict) -> list[dict]:
-    """Görsel eşleşmeler dünya çapındadır: yalnızca PAZAR_SITELERI'ndeki 3D baskı ürünler tutulur."""
+def ilgili_mi(baslik: str | None, anahtarlar: set[str] | None) -> bool:
+    """Başlıkta ürünle ilgili bir kelime var mı? (anahtarlar None ise kontrol yapılmaz)"""
+    if anahtarlar is None:
+        return True
+    kucuk = (baslik or "").lower()
+    return any(re.search(rf"(?<![a-zçğıöşü]){re.escape(k)}(?![a-zçğıöşü])", kucuk) for k in anahtarlar)
+
+
+def lens_sonuclari(yanit: dict, anahtarlar: set[str] | None = None) -> list[dict]:
+    """Görsel eşleşmeler dünya çapındadır: yalnızca PAZAR_SITELERI'ndeki 3D baskı ürünler tutulur.
+    `anahtarlar` verilirse başlıkta ürünle ilgili bir kelime de aranır (yalnızca şekli benzeyen
+    başka ürünler karşılaştırmaya girmesin)."""
     sonuc = []
     for x in (yanit.get("visual_matches") or []) + (yanit.get("exact_matches") or []):
         site = site_bul(x.get("link"), x.get("source"))
         if not site or not uc_d_mi(x.get("title"), x.get("source"), x.get("link")):
+            continue
+        if not ilgili_mi(x.get("title"), anahtarlar):
             continue
         f = x.get("price") if isinstance(x.get("price"), dict) else {}
         fiyat = f.get("extracted_value")
@@ -372,7 +403,7 @@ def alisveris_sonuclari(yanit: dict) -> list[dict]:
         site = site_bul(x.get("link") or x.get("product_link"), satici)
         pazar_yeri = site is not None   # yalnızca alan adı / Google satıcı eşleşmesi pazar yeri sayılır
         if not pazar_yeri:
-            if not config.PAZAR_BAGIMSIZ_MAGAZALAR:
+            if not config.PAZAR_BAGIMSIZ_MAGAZALAR or yabanci_pazar_mi(x.get("link") or x.get("product_link"), satici):
                 continue
             site = bagimsiz_etiket(satici)
             if not site:
@@ -440,8 +471,7 @@ def sosyal_sonuclari(yanit: dict, anahtarlar: set[str] | None = None, en_fazla: 
         kucuk = (x.get("title") or "").lower()
         if DIJITAL.search(kucuk) or re.search(r"\b(?:3d model|free stl)\b", kucuk):
             continue  # dosya indirme
-        ilgili = any(re.search(rf"(?<![a-zçğıöşü]){re.escape(k)}(?![a-zçğıöşü])", kucuk) for k in anahtarlar or ())
-        if anahtarlar is not None and not (ilgili or UC_D.search(kucuk)):
+        if anahtarlar is not None and not (ilgili_mi(kucuk, anahtarlar) or UC_D.search(kucuk)):
             continue  # ürünle ilgisiz görünüyor
         gorulen.add(link)
         ham = x.get("title") or ""
@@ -549,12 +579,15 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
 
 
 def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
-    """1) Görselle (Lens): pazar yeri sonuçları + sosyal medya sayfaları + Türkçe başlıklardan kelimeler.
+    """1) Görsel + metinle (Lens): pazar yeri sonuçları + sosyal medya sayfaları + Türkçe başlıklardan
+       kelimeler. Görselin yanına ürün adının Türkçesi ve '3d baskı' eklenir.
     2) İsimle (Alışveriş): model adının Türkçesi + Lens kelimeleri + '3d baskı'."""
-    lens = lens_ara(api_key, urun["image_url"], client) if urun.get("image_url") else {}
-    gorsel = lens_sonuclari(lens)
+    temel = arama_metni(urun.get("name"))
+    lens = lens_ara(api_key, urun["image_url"], temel, client) if urun.get("image_url") else {}
     sorgu = arama_metni(urun.get("name"), lens)
-    sosyal = sosyal_sonuclari(lens, anahtar_kelimeler(urun.get("name"), sorgu))
+    anahtarlar = anahtar_kelimeler(urun.get("name"), sorgu)
+    gorsel = lens_sonuclari(lens, anahtarlar)
+    sosyal = sosyal_sonuclari(lens, anahtarlar)
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
     return birlestir(gorsel, metin) + sosyal, sorgu
 

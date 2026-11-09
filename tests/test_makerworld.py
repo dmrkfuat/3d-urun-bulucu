@@ -96,3 +96,13 @@ def test_populerlik_kaynak_icinde_olceklenir():
     assert puanli[1]["score_detail"]["populerlik"] == 1.0
     assert puanli[2]["score_detail"]["populerlik"] == 1.0
     assert puanli[3]["score_detail"]["populerlik"] < 1.0
+
+
+def test_gif_kapak_yerine_gercek_fotograf():
+    from urun_bulucu.kaynaklar.makerworld import kapak_sec
+    d = {"coverUrl": "https://x/a.gif", "designExtension": {"real_pictures": [
+        {"url": "https://x/b.GIF"}, {"url": "https://x/c.jpeg"}]}, "instances": [{"cover": "https://x/d.png"}]}
+    assert kapak_sec(d) == "https://x/c.jpeg"
+    assert kapak_sec({"coverUrl": "https://x/a.png"}) == "https://x/a.png"
+    assert kapak_sec({"coverUrl": "https://x/a.gif", "instances": [{"cover": "https://x/d.png"}]}) == "https://x/d.png"
+    assert kapak_sec({"coverUrl": "https://x/a.gif"}) == "https://x/a.gif"   # başka görsel yoksa

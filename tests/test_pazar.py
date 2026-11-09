@@ -168,6 +168,7 @@ def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):
         assert p["api_key"] == "K"
         if p["engine"] == "google_lens":
             assert (p["url"], p["country"]) == (u["image_url"], "tr")
+            assert (p["type"], p["q"]) == ("visual_matches", "fidget yüzük 3d baskı")   # görsel + metin
             return httpx.Response(200, json=LENS)
         assert (p["q"], p["gl"]) == ("fidget yüzük 3d baskı", "tr")
         return httpx.Response(200, json=ALISVERIS)
@@ -184,7 +185,7 @@ def test_hata_ve_bos_sonuc():
     kotu = httpx.Client(transport=httpx.MockTransport(
         lambda r: httpx.Response(401, json={"error": "Invalid API key."})))
     with pytest.raises(pazar.PazarHatasi, match="Invalid API key"):
-        pazar.lens_ara("X", "u", kotu)
+        pazar.lens_ara("X", "u", client=kotu)
     bos = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(
         200, json={"error": "Google Shopping hasn't returned any results for this query."})))
     assert pazar.alisveris_ara("K", "q", bos) == {}
@@ -339,3 +340,27 @@ def test_sosyal_ilgi_suzgeci():
 
 def test_markdown_icin_parantezli_link():
     assert pazar.guvenli_link("https://shop.example/a_(b)[c]") == "https://shop.example/a_%28b%29%5Bc%5D"
+
+
+def test_lens_ilgisiz_benzer_urunu_ve_yabanci_pazari_atar():
+    yanit = {"visual_matches": [
+        {"title": "3D Baskı Fidget Yüzük", "link": "https://www.trendyol.com/a/b-p-1", "source": "Trendyol"},
+        {"title": "3D Baskı Katlanabilir Stres Yıldızı", "link": "https://www.trendyol.com/a/c-p-2",
+         "source": "Trendyol"},
+    ]}
+    anahtar = pazar.anahtar_kelimeler("Fidget Flexy Ring", "fidget yüzük 3d baskı")
+    assert [r["title"] for r in pazar.lens_sonuclari(yanit, anahtar)] == ["3D Baskı Fidget Yüzük"]
+    assert len(pazar.lens_sonuclari(yanit)) == 2          # anahtar verilmezse eski davranış
+    alis = {"shopping_results": [
+        {"title": "3D Baskılı Stres Oyuncağı", "source": "Temu", "link": "https://www.temu.com/x",
+         "extracted_price": 90},
+        {"title": "3D Baskı Fidget Yüzük", "source": "Atölye3D", "link": "https://atolye3d.com/y",
+         "extracted_price": 120},
+    ]}
+    assert [r["site"] for r in pazar.alisveris_sonuclari(alis)] == ["Atölye3D"]
+
+
+def test_dosya_satisi_elenir():
+    assert not pazar.uc_d_mi("3D Print File - Extra Spiky Fidget Spinner: Sensory Stim Toy")
+    assert not pazar.uc_d_mi("Fidget Ring 3D Printer Files STL")
+    assert pazar.uc_d_mi("3D Printed Spiral Fidget Toy")

@@ -11,8 +11,10 @@ ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hash
   takip edilen tasarımcılar yeni model yüklerse bildirim gelir.
 - **Sezon takvimi:** Yılbaşı, Sevgililer Günü, Anneler/Babalar Günü, bayramlar, Cadılar Bayramı,
   okula dönüş ve Öğretmenler Günü'nden 4-8 hafta önce temaya uyan modeller +5 puan alır (`sezon.py`).
-- **E-ticaret araştırması (isteğe bağlı):** özetteki ürünlerin (1. sıradan başlayarak) kapak görseliyle Google Lens (SerpApi)
-  ve "<Türkçe ad> 3d baskı" Google Alışveriş araması. **Yalnızca 3D baskı ürünler** karşılaştırılır (fabrika
+- **E-ticaret araştırması (isteğe bağlı):** özetteki ürünlerin (1. sıradan başlayarak) kapak görseli + "<Türkçe ad> 3d baskı" metniyle Google
+  Lens (SerpApi; GIF kapaklar yerine gerçek baskı fotoğrafı) ve aynı metinle Google Alışveriş araması.
+  Görsel eşleşmeler yalnızca başlığı ürünle ilgili bir kelime içeriyorsa sayılır; Temu/DHgate gibi
+  yurt dışı toptan siteler bağımsız mağaza sayılmaz. **Yalnızca 3D baskı ürünler** karşılaştırılır (fabrika
   üretimi ve dijital model dosyaları elenir). Trendyol, Hepsiburada, n11, Amazon TR, Çiçeksepeti, Pazarama,
   PttAVM, Etsy ve 3D baskı satan bağımsız Türk mağazaları tutulur (`config.PAZAR_SITELERI`,
   `PAZAR_BAGIMSIZ_MAGAZALAR`). Siteler doğrudan taranmaz (Trendyol

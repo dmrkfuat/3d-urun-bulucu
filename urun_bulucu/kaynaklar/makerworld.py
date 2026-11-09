@@ -214,6 +214,23 @@ def filament_listesi(profil: dict | None) -> list[dict]:
     return sonuc
 
 
+def _gif_mi(url: str | None) -> bool:
+    return bool(url) and url.lower().split("?")[0].endswith(".gif")
+
+
+def kapak_sec(tasarim: dict) -> str | None:
+    """Kapak görseli. Hareketli GIF kapaklar Google Lens ve Telegram fotoğrafında sorun çıkarır;
+    o durumda tasarımcının yüklediği ilk gerçek baskı fotoğrafı, yoksa ilk profil kapağı kullanılır."""
+    kapak = tasarim.get("coverUrl") or tasarim.get("cover")
+    if not _gif_mi(kapak):
+        return kapak
+    ek = tasarim.get("designExtension") or {}
+    adaylar = [p.get("url") for p in (ek.get("real_pictures") or []) + (ek.get("design_pictures") or [])
+               if isinstance(p, dict)]
+    adaylar += [p.get("cover") for p in tasarim.get("instances") or [] if isinstance(p, dict)]
+    return next((a for a in adaylar if a and not _gif_mi(a)), kapak)
+
+
 def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -> dict:
     etiketler = [str(t) for t in tasarim.get("tags") or [] if t][:30]
     metin = analiz.temiz_metin(tasarim.get("summary"))
@@ -251,7 +268,7 @@ def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -
                          else lisans.siniflandir(lisans_metni)),
         "print_time_min": sure_dk,
         "material": _malzeme(profil) or analiz.malzeme_bul(metin),
-        "image_url": tasarim.get("coverUrl") or tasarim.get("cover"),
+        "image_url": kapak_sec(tasarim),
         "tags": etiketler,
         "features": ozellikler,
         "weight_g": gram,
