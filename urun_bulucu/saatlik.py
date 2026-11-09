@@ -51,9 +51,13 @@ def mesaj(gun: str | None, secimler: list[dict], panel_url: str | None, simdi: d
             fiyat = f" · {p['cost_tl']:.0f}→{p['price_tl']:.0f} TL" if p.get("cost_tl") is not None else ""
             satirlar.append(f"{s['rank']}. <a href=\"{_href(p['url'])}\">{_e(p['name'])}</a> — {s['score']}"
                             + ("🔥" if p.get("trend_rank") else "") + _e(fiyat))
-            yerler = pazar.satis_yerleri(pazar_sonuclari.get(s["product_id"]), en_fazla=3)
+            o = pazar_sonuclari.get(s["product_id"])
+            yerler = pazar.satis_yerleri(o, en_fazla=3)
             if yerler:
                 satirlar.append("   🛒 " + " · ".join(bildirim.satis_link_html(y) for y in yerler))
+            sosyal = pazar.sosyal_yerler(o, en_fazla=2)
+            if sosyal:
+                satirlar.append("   📱 " + " · ".join(bildirim.sosyal_link_html(r) for r in sosyal))
     if panel_url:
         satirlar += ["", f"📊 Panel: {_e(panel_url)}"]
     return "\n".join(satirlar)

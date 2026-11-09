@@ -43,6 +43,11 @@ def satis_link_html(y: dict) -> str:
     return f"<a href=\"{_href(y['link'])}\">{_e(y['site'])}</a>{fiyat}{etiket}"
 
 
+def sosyal_link_html(r: dict) -> str:
+    """Bir sosyal medya sayfası: <a href="...">Instagram</a> (Türkçe, satış)."""
+    return f"<a href=\"{_href(r['link'])}\">{_e(r['site'])}</a>{_e(pazar.sosyal_etiket(r))}"
+
+
 def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> str:
     """Bir ürünün Telegram metni (HTML). Fotoğraf altı en fazla 1024 karakter; sığmazsa
     satış bağlantıları azaltılır (HTML etiketi yarıda kesilmez)."""
@@ -60,12 +65,16 @@ def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> 
     if pazar_ozeti is not None:
         bas.append(f"🛒 {_e(pazar.fiyat_yazi(pazar_ozeti, u.get('price_tl')))}")
     son = [f"🎬 {_e(video.kancalar(u)[0])}", f"🔗 MakerWorld: {_e(u['url'])}"]
-    yerler = [f"   ↳ {satis_link_html(y)}" for y in pazar.satis_yerleri(pazar_ozeti)]
+    # Satış bağlantıları, sonra sosyal medya; sığmazsa sondan (önce sosyal) azaltılır.
+    ekler = [f"   ↳ {satis_link_html(y)}" for y in pazar.satis_yerleri(pazar_ozeti)]
+    sosyal = pazar.sosyal_yerler(pazar_ozeti, en_fazla=2)
+    if sosyal:
+        ekler.append("📱 " + " · ".join(sosyal_link_html(r) for r in sosyal))
     while True:
-        metin = "\n".join(bas + yerler + son)
-        if len(metin) <= sinir or not yerler:
+        metin = "\n".join(bas + ekler + son)
+        if len(metin) <= sinir or not ekler:
             return metin if len(metin) <= sinir else "\n".join(bas[:2] + son)[:sinir]
-        yerler.pop()
+        ekler.pop()
 
 
 def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
@@ -84,9 +93,13 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
     kalan = []
     for s in secimler[FOTOGRAFLI_ADET:]:
         satir = f"{s['rank']}. <a href=\"{_href(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
-        yerler = pazar.satis_yerleri(pazar_sonuclari.get(s["product_id"]), en_fazla=2)
+        o = pazar_sonuclari.get(s["product_id"])
+        yerler = pazar.satis_yerleri(o, en_fazla=2)
         if yerler:
             satir += "\n   🛒 " + " · ".join(satis_link_html(y) for y in yerler)
+        sosyal = pazar.sosyal_yerler(o, en_fazla=1)
+        if sosyal:
+            satir += "\n   📱 " + sosyal_link_html(sosyal[0])
         kalan.append(satir)
     ozet = [f"<b>3D Ürün Özeti — {gun.isoformat()}</b>"]
     aktif = sezon.aktif_sezonlar(gun)

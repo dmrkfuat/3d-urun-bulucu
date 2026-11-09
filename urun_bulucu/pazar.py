@@ -98,16 +98,20 @@ IFADELER = {
     "candle holder": "mumluk", "christmas tree": "yılbaşı ağacı", "fidget toy": "fidget oyuncak",
     "stress toy": "stres oyuncağı", "spider man": "örümcek adam", "spiderman": "örümcek adam",
     "headphone stand": "kulaklık standı", "watch stand": "saat standı", "plant pot": "saksı",
+    "infinity cube": "sonsuz küp", "fidget spinner": "fidget spinner",
+    "name tag": "isimlik", "name plate": "isimlik", "bottle opener": "açacak", "dice tower": "zar kulesi",
+    "wall art": "duvar dekoru", "night light": "gece lambası", "business card": "kartvizitlik",
 }
 CEVIRI = {
     "magnetic": "manyetik", "swing": "salıncak", "diorama": "diorama", "gnome": "cüce", "gnomo": "cüce",
     "nordic": "nordik", "knitted": "örgü", "sweater": "kazak", "tiny": "minik", "cute": "sevimli",
     "fidget": "fidget", "ring": "yüzük", "spinner": "spinner", "toy": "oyuncak", "toys": "oyuncak",
-    "dragon": "ejderha", "flexi": "eklemli", "articulated": "eklemli", "snake": "yılan", "cat": "kedi",
-    "dog": "köpek", "octopus": "ahtapot", "gecko": "kertenkele", "lizard": "kertenkele", "axolotl": "aksolotl",
-    "turtle": "kaplumbağa", "shark": "köpekbalığı", "dinosaur": "dinozor", "dino": "dinozor", "fish": "balık",
-    "bird": "kuş", "owl": "baykuş", "bunny": "tavşan", "rabbit": "tavşan", "bear": "ayı", "frog": "kurbağa",
-    "butterfly": "kelebek", "skeleton": "iskelet", "doll": "bebek", "wand": "asa", "magic": "sihirli",
+    "dragon": "ejderha", "flexi": "esnek", "flexy": "esnek", "articulated": "eklemli", "snake": "yılan",
+    "cat": "kedi", "dog": "köpek", "dachshund": "sosis köpek", "octopus": "ahtapot", "gecko": "kertenkele",
+    "lizard": "kertenkele", "axolotl": "aksolotl", "turtle": "kaplumbağa", "shark": "köpekbalığı",
+    "dinosaur": "dinozor", "dino": "dinozor", "fish": "balık", "bird": "kuş", "owl": "baykuş",
+    "bunny": "tavşan", "rabbit": "tavşan", "bear": "ayı", "frog": "kurbağa", "butterfly": "kelebek",
+    "skeleton": "iskelet", "skull": "kafatası", "doll": "bebek", "wand": "asa", "magic": "sihirli",
     "vase": "vazo", "planter": "saksı", "pot": "saksı", "flower": "çiçek", "rose": "gül", "lamp": "lamba",
     "light": "lamba", "candle": "mum", "tealight": "tealight mumluk", "holder": "tutucu", "stand": "stand",
     "pen": "kalem", "pencil": "kalem", "organizer": "düzenleyici", "desk": "masa", "box": "kutu",
@@ -119,32 +123,99 @@ CEVIRI = {
     "puzzle": "puzzle", "cube": "küp", "embosser": "kabartma", "stamp": "mühür", "frame": "çerçeve",
     "hook": "askı", "hanger": "askı", "wall": "duvar", "shelf": "raf", "bookmark": "kitap ayracı",
     "mask": "maske", "sword": "kılıç", "gun": "tabanca", "launcher": "fırlatıcı", "spider": "örümcek",
+    # ayırt edici mekanik/şekil kelimeleri
+    "impossible": "imkansız", "thread": "vida", "bolt": "cıvata", "nut": "somun", "screw": "vida",
+    "gear": "dişli", "gears": "dişli", "spring": "yay", "infinity": "sonsuz", "spiral": "spiral",
+    "clicker": "clicker", "slider": "kaydırmalı", "rotating": "dönen", "spinning": "dönen",
+    "folding": "katlanır", "collapsible": "katlanır", "bracelet": "bileklik", "necklace": "kolye",
+    "text": "yazı", "press": "pres", "earring": "küpe", "bowl": "kase", "dish": "tabak", "planet": "gezegen", "moon": "ay", "star": "yıldız",
+    "lithophane": "litofan", "mandala": "mandala", "bag": "çanta", "wallet": "cüzdan", "comb": "tarak",
+    # karakter/tema adları (Türk satıcılar da aynen yazar)
+    "grinch": "grinch", "pikachu": "pikachu", "pokemon": "pokemon", "minecraft": "minecraft",
+    "creeper": "creeper", "batman": "batman", "stitch": "stitch", "mario": "mario", "sonic": "sonic",
+    "groot": "groot", "yoda": "yoda", "coraline": "coraline", "hogwarts": "hogwarts", "harry": "harry potter",
 }
 GURULTU = {
     "print", "printed", "printing", "in", "place", "pip", "no", "ams", "tpu", "the", "a", "an", "for", "with",
     "and", "of", "to", "3d", "mini", "v2", "v3", "version", "remix", "easy", "super", "ultra", "satisfying",
     "free", "sell", "support", "supports", "without", "multi", "color", "colour", "plate", "set", "kit",
+    "custom", "extra", "long", "big", "small", "large", "new", "best", "my", "your", "simple", "cool",
+    "stile", "maglia", "natalizio", "style", "edition", "model", "design", "project", "file", "files",
 }
 
 
 def sorgu_olustur(ad: str | None, en_fazla_kelime: int = 3) -> str | None:
-    """Model adından Türkçe arama metni: bilinen kelimeler çevrilir, gürültü atılır."""
-    metin = " ".join(re.findall(r"[a-zçğıöşü]+", (ad or "").lower()))
+    """Model adından Türkçe arama metni.
+
+    Bilinen ifade/kelimeler çevrilir; gürültü atılır. Sözlükte olmayan kelimeler yalnızca hiç
+    bilinen kelime yoksa kullanılır; tamamı büyük harfle yazılmış bilinmeyen kelimeler (çoğunlukla
+    marka/tasarımcı adı, ör. "MYLITOS") hiçbir zaman kullanılmaz.
+    """
+    ham = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", ad or "")
+    hepsi_buyuk = bool(ham) and all(k.isupper() for k in ham if len(k) > 1)
+    metin = " ".join(k.lower() for k in ham)
     sonuc: list[str] = []
     for ifade, tr in IFADELER.items():
         if re.search(rf"\b{ifade}\b", metin):
             sonuc.append(tr)
             metin = re.sub(rf"\b{ifade}\b", " ", metin)
-    kelimeler = metin.split()
-    for k in kelimeler:
-        if k in GURULTU or len(k) < 3:
+    kalan = set(metin.split())
+    bilinmeyen: list[str] = []
+    for orijinal in ham:
+        k = orijinal.lower()
+        if k not in kalan or k in GURULTU or len(k) < 3:
             continue
         tr = CEVIRI.get(k) or CEVIRI.get(k.rstrip("s"))
-        if tr and tr not in sonuc:
-            sonuc.append(tr)
-    if not sonuc:  # hiç bilinen kelime yoksa ilk anlamlı İngilizce kelimeler
-        sonuc = [k for k in kelimeler if k not in GURULTU and len(k) >= 3][:2]
+        if tr:
+            if tr not in sonuc:
+                sonuc.append(tr)
+        elif not orijinal.isupper() and not hepsi_buyuk and k not in bilinmeyen:
+            bilinmeyen.append(k)
+    if not sonuc:
+        sonuc = bilinmeyen[:2]
     return " ".join(sonuc[:en_fazla_kelime]) or None
+
+
+# Lens'in bulduğu Türkçe 3D baskı başlıklarından ek kelimeler (satıcıların kullandığı Türkçe).
+TR_DURAK = {
+    "ve", "ile", "için", "icin", "bir", "bu", "da", "de", "fiyatı", "fiyati", "fiyatları", "satın", "al",
+    "adet", "set", "li", "lı", "lu", "lü", "model", "modeli", "renk", "renkli", "yeni", "marka", "markalar",
+    "genel", "baskı", "baski", "boyutlu", "yazıcı", "yazici", "trendyol", "hepsiburada", "n11", "amazon",
+    "taksit", "seçenekleri", "secenekleri", "özellikleri", "ozellikleri", "ürün", "urun", "cm", "mm", "gr",
+    "studio", "store", "shop", "official", "hediyelik", "hediye", "print", "printed", "pla", "petg",
+}
+TR_HARF = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+
+
+def tr_baslik_mi(x: dict) -> bool:
+    """Türkiye'den bir satış sonucu mu? (.tr alan adı veya Türkçe harfli pazar yeri başlığı)"""
+    host = (urlparse(x.get("link") or "").hostname or "").lower()
+    if host.endswith(".tr"):
+        return True
+    return bool(site_bul(x.get("link"), x.get("source"))) and bool(TR_HARF.search(x.get("title") or ""))
+
+
+def lens_kelimeleri(lens_yaniti: dict, en_fazla: int = 2) -> list[str]:
+    """Lens'in bulduğu Türkçe 3D baskı ürün başlıklarında en az 2 başlıkta geçen kelimeler.
+    Tek başlıkta geçen kelime (çoğunlukla marka) kullanılmaz."""
+    sayac: dict[str, int] = {}
+    for x in (lens_yaniti.get("visual_matches") or []) + (lens_yaniti.get("exact_matches") or []):
+        if not tr_baslik_mi(x) or not uc_d_mi(x.get("title"), None, x.get("link")):
+            continue
+        for k in set(re.findall(r"[a-zçğıöşü]{3,}", (x.get("title") or "").lower())):
+            if k not in TR_DURAK and k not in GURULTU:
+                sayac[k] = sayac.get(k, 0) + 1
+    return [k for k, n in sorted(sayac.items(), key=lambda x: (-x[1], x[0])) if n >= 2][:en_fazla]
+
+
+def arama_metni(ad: str | None, lens_yaniti: dict | None = None) -> str | None:
+    """İsimden üretilen metin + (varsa) Lens'teki Türkçe 3D baskı başlıklarından kelimeler + '3d baskı'."""
+    temel = sorgu_olustur(ad)
+    kelimeler = temel.split() if temel else []
+    for k in lens_kelimeleri(lens_yaniti or {}):
+        if k not in kelimeler and len(kelimeler) < 5:
+            kelimeler.append(k)
+    return f"{' '.join(kelimeler)} 3d baskı" if kelimeler else None
 
 
 # ---------------------------------------------------------------- SerpApi
@@ -234,6 +305,8 @@ def satis_yerleri(o: dict | None, en_fazla: int = 3) -> list[dict]:
                      key=lambda r: (not r.get("pazar_yeri"), r.get("price") is None, r.get("price") or 0))
     secilen, siteler = [], set()
     for r in adaylar:
+        if r.get("kaynak") == "sosyal":
+            continue  # sosyal medya ayrı gösterilir (sosyal_yerler)
         link = satis_linki(r)
         if not link or r["site"] in siteler or dijital_site_mi(r.get("link"), r.get("site")):
             continue  # dijital dosya siteleri (eski kayıtlarda kalmış olabilir) gösterilmez
@@ -315,6 +388,76 @@ def alisveris_sonuclari(yanit: dict) -> list[dict]:
     return sonuc
 
 
+# ---------------------------------------------------------------- sosyal medya (Instagram, TikTok, YouTube, Facebook)
+# Bu siteler doğrudan taranmaz (giriş zorunluluğu ve kullanım şartları). Google Lens görselle ararken
+# bu sayfaları da bulur; aynı modelin görsel benzeri oldukları için 3D şartı aranmaz. Şahıs
+# işletmelerinin mağaza sayfalarını öne çıkarmak için Türkçe ve satış belirtileri işaretlenir.
+SOSYAL = {"instagram.com": "Instagram", "tiktok.com": "TikTok", "youtube.com": "YouTube",
+          "youtu.be": "YouTube", "facebook.com": "Facebook"}
+# Not: re.I ile "ı" harfi "I/i" ile de eşleşir ("Satisfying" → "satış" sanılır); bu yüzden kelime
+# sınırları kullanılır ve Türkçe harf kontrolü büyük/küçük harfe duyarlı yapılır.
+SATIS_IZI = re.compile(
+    r"\bsipari[şs]|\bsat[ıi][şs](?:ta)?\b|\bsat[ıi]l[ıi]k\b|\bfiyat|\bkargo|\bdm\b|\bstokta\b|"
+    r"\d\s?(?:tl|₺)\b|₺|\border\b|for sale|\bshop\b|\bstore\b|\bavailable\b|\bprice\b|"
+    r"متوفر|للطلب|\bvenda\b|\bencomend", re.I)
+_TR_HARF_DUYARLI = re.compile(r"[çğışöüÇĞİŞÖÜ]")
+_TR_SOZ = re.compile(r"\b(?:ve|ile|için|baskı|sipariş|fiyat|fiyatı|hediye|tasarım|kargo|satışta)\b")
+
+
+class _TrKelime:
+    @staticmethod
+    def search(metin: str) -> bool:
+        return bool(_TR_HARF_DUYARLI.search(metin) or _TR_SOZ.search(metin.lower()))
+
+
+TR_KELIME = _TrKelime()
+
+
+def sosyal_sonuclari(yanit: dict, en_fazla: int = 6) -> list[dict]:
+    sonuc, gorulen = [], set()
+    for x in (yanit.get("visual_matches") or []) + (yanit.get("exact_matches") or []):
+        link = guvenli_link(x.get("link"))
+        host = (urlparse(link or "").hostname or "").lower()
+        site = next((ad for alan, ad in SOSYAL.items() if host and _alan_eslesir(host, alan)), None)
+        baslik = temiz_baslik(x.get("title"))
+        if not site or not link or link in gorulen:
+            continue
+        if not baslik or baslik.lower() in ("youtube", "tiktok", "instagram", "facebook"):
+            continue  # başlıksız/genel sayfa
+        gorulen.add(link)
+        ham = x.get("title") or ""
+        sonuc.append({"site": site, "pazar_yeri": False, "title": baslik, "link": link, "price": None,
+                      "thumbnail": x.get("thumbnail"), "kaynak": "sosyal",
+                      "tr": bool(TR_KELIME.search(ham)), "satis": bool(SATIS_IZI.search(ham))})
+    # Önce Türkçe ve satış belirtisi olanlar
+    sonuc.sort(key=lambda r: (not r["tr"], not r["satis"]))
+    return sonuc[:en_fazla]
+
+
+def sosyal_yerler(o: dict | None, en_fazla: int = 3) -> list[dict]:
+    return [r for r in (o or {}).get("results") or [] if r.get("kaynak") == "sosyal"][:en_fazla]
+
+
+def sosyal_yazi(o: dict | None) -> str | None:
+    sosyal = [r for r in (o or {}).get("results") or [] if r.get("kaynak") == "sosyal"]
+    if not sosyal:
+        return None
+    sayac: dict[str, int] = {}
+    for r in sosyal:
+        sayac[r["site"]] = sayac.get(r["site"], 0) + 1
+    metin = ", ".join(f"{s} {n}" for s, n in sorted(sayac.items(), key=lambda x: (-x[1], x[0])))
+    tr = sum(1 for r in sosyal if r.get("tr"))
+    satis = sum(1 for r in sosyal if r.get("satis"))
+    ek = [f"{tr} Türkçe" if tr else "", f"{satis} satış belirtili" if satis else ""]
+    ek = [e for e in ek if e]
+    return f"Sosyal medyada: {metin}" + (f" ({', '.join(ek)})" if ek else "")
+
+
+def sosyal_etiket(r: dict) -> str:
+    isaret = [e for e, var in (("Türkçe", r.get("tr")), ("satış", r.get("satis"))) if var]
+    return f" ({', '.join(isaret)})" if isaret else ""
+
+
 def birlestir(*listeler: list[dict], en_fazla: int = 15) -> list[dict]:
     """Tekrarları atar; önce görsel eşleşmeler (daha benzer), sonra metin sonuçları."""
     gorulen, sonuc = set(), []
@@ -342,7 +485,7 @@ def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None) -> d
     return {
         "product_id": product_id,
         "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "found_count": len(sonuclar),
+        "found_count": sum(1 for r in sonuclar if r.get("kaynak") != "sosyal"),   # satış sitesi sonuçları
         "min_price": min(fiyatlar) if fiyatlar else None,
         "max_price": max(fiyatlar) if fiyatlar else None,
         "currency": "TL" if fiyatlar else None,
@@ -387,11 +530,14 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
 
 
 def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
-    gorsel = lens_sonuclari(lens_ara(api_key, urun["image_url"], client)) if urun.get("image_url") else []
-    sorgu = sorgu_olustur(urun.get("name"))
-    sorgu = f"{sorgu} 3d baskı" if sorgu else None
+    """1) Görselle (Lens): pazar yeri sonuçları + sosyal medya sayfaları + Türkçe başlıklardan kelimeler.
+    2) İsimle (Alışveriş): model adının Türkçesi + Lens kelimeleri + '3d baskı'."""
+    lens = lens_ara(api_key, urun["image_url"], client) if urun.get("image_url") else {}
+    gorsel = lens_sonuclari(lens)
+    sosyal = sosyal_sonuclari(lens)
+    sorgu = arama_metni(urun.get("name"), lens)
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
-    return birlestir(gorsel, metin), sorgu
+    return birlestir(gorsel, metin) + sosyal, sorgu
 
 
 def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None) -> dict[int, dict]:
@@ -410,7 +556,8 @@ def fiyat_yazi(o: dict, onerilen_fiyat: float | None = None) -> str:
         return "3D baskı benzeri satışta bulunamadı"
     sayac: dict[str, int] = {}
     for r in o["results"]:
-        sayac[r["site"]] = sayac.get(r["site"], 0) + 1
+        if r.get("kaynak") != "sosyal":
+            sayac[r["site"]] = sayac.get(r["site"], 0) + 1
     siteler = ", ".join(f"{s} {n}" for s, n in sorted(sayac.items(), key=lambda x: -x[1])[:4])
     metin = f"3D baskı benzeri: {siteler}"
     if o.get("min_price") is not None:
