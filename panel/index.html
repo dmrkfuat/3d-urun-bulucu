@@ -198,6 +198,8 @@
     return s && d ? `${s} sa ${d} dk` : s ? `${s} sa` : `${d} dk`;
   };
   const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Veritabanından gelen bağlantılar yalnızca https ise kullanılır (javascript:, data: vb. engellenir).
+  const url = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" ? esc(x.href) : "#"; } catch (e) { return "#"; } };
   const LISANS = { ticari_serbest: "🟢 satılabilir", nc_sadece_icerik: "🟡 NC", kontrol_et: "🔴 kontrol et" };
 
   let secimler = [];
@@ -307,10 +309,10 @@
     const p = r.products, m = isaretler.get(r.product_id) || {};
     return `
     <article class="kart" data-pid="${r.product_id}">
-      ${p.image_url ? `<img src="${esc(p.image_url)}" alt="" loading="lazy">` : ""}
+      ${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy">` : ""}
       <div class="govde">
         <div class="ust"><span class="sira">${r.rank}.</span>
-          <a class="ad" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>
+          <a class="ad" href="${url(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>
           <span class="puan">${r.score}</span></div>
         <div class="cipler">
           <span class="cip">${esc(p.category || "-")}</span>
@@ -327,7 +329,7 @@
         <p class="neden">${esc(r.reason)}</p>
         ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
           <ul style="margin:6px 0 0;padding-left:18px">${(pazar.get(r.product_id).results || []).slice(0, 10).map((x) =>
-            `<li>${esc(x.site)}: <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
+            `<li>${esc(x.site)}: <a href="${url(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
           ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
         <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>
@@ -396,7 +398,7 @@
     $("#tumBilgi").textContent = `${data.length} ürün${data.length === 200 ? " (ilk 200)" : ""}`;
     $("#tumTablo").innerHTML = `<tr><th>Ürün</th><th>Kategori</th><th class="sayi">Puan</th><th class="sayi">Baskı</th><th class="sayi">Maliyet → fiyat</th><th class="sayi">Saatlik</th><th class="sayi">İndirme</th><th></th></tr>` +
       data.map((p) => `<tr>
-        <td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>${p.trend_rank ? " 🔥" : ""}</td>
+        <td><a href="${url(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>${p.trend_rank ? " 🔥" : ""}</td>
         <td>${esc(p.category || "-")}</td><td class="sayi">${p.score ?? "-"}</td><td class="sayi">${sure(p.print_time_min)}</td>
         <td class="sayi">${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</td>
         <td class="sayi">${tl(p.hourly_profit_tl)}</td><td class="sayi">${(p.downloads || 0).toLocaleString("tr-TR")}</td>
@@ -447,7 +449,7 @@
 
     $("#planTablo").innerHTML = satirlar.length
       ? `<tr><th>Ürün</th><th class="sayi">Adet</th><th class="sayi">Süre</th><th>Basıldı</th><th></th></tr>` + satirlar.map((r) => `<tr data-pid="${r.product_id}">
-          <td><a href="${esc(r.products.url)}" target="_blank" rel="noopener">${esc(r.products.name)}</a></td>
+          <td><a href="${url(r.products.url)}" target="_blank" rel="noopener">${esc(r.products.name)}</a></td>
           <td class="sayi"><span class="sayac"><button type="button" data-adet="-1" aria-label="Azalt">−</button><output>${r.quantity}</output><button type="button" data-adet="1" aria-label="Artır">+</button></span></td>
           <td class="sayi">${sure(r.products.print_time_min == null ? null : r.products.print_time_min * r.quantity)}</td>
           <td><input type="checkbox" data-bitti ${r.done ? "checked" : ""} aria-label="Basıldı"></td>
@@ -532,7 +534,7 @@
       [...kat].sort((a, b) => b[1].kar - a[1].kar).map(([k, t]) =>
         `<tr><td>${esc(k)}</td><td class="sayi">${t.basilan}</td><td class="sayi">${t.video}</td><td class="sayi">${t.satis}</td><td class="sayi">${tl(t.ciro)}</td><td class="sayi">${tl(t.kar)}</td></tr>`).join("");
     $("#isaretTablo").innerHTML = `<tr><th>Ürün</th><th>Kategori</th><th>Bastım</th><th>Video</th><th class="sayi">Satış</th><th>Not</th></tr>` +
-      satirlar.map((m) => `<tr><td><a href="${esc(m.products.url)}" target="_blank" rel="noopener">${esc(m.products.name)}</a></td>
+      satirlar.map((m) => `<tr><td><a href="${url(m.products.url)}" target="_blank" rel="noopener">${esc(m.products.name)}</a></td>
         <td>${esc(m.products.category || "-")}</td><td>${m.printed ? "✓" : ""}</td><td>${m.video ? "✓" : ""}</td>
         <td class="sayi">${m.sold_count}</td><td>${esc(m.note || "")}</td></tr>`).join("");
   }

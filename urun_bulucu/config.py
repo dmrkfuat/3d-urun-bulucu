@@ -55,16 +55,18 @@ EN_DUSUK_FIYAT_TL = 50      # önerilen fiyat bunun altına inmez
 # --- E-ticaret araştırması (SerpApi: Google Lens + Google Alışveriş; ücretsiz plan ayda 250 arama) ---
 PAZAR_GUNLUK_ADET = 3        # günde kaç ürün (ürün başına 2 arama: 3 × 2 × 30 = 180 < 250)
 PAZAR_YENILEME_GUN = 14      # aynı ürün bu kadar gün geçmeden tekrar aranmaz
-# Yalnızca bu sitelerden gelen sonuçlar tutulur (alan adı veya Google'daki satıcı adında geçen parça → ad).
+# Yalnızca bu sitelerden gelen sonuçlar tutulur: alan adı → gösterilecek ad.
+# Bağlantının alan adı bunlardan biri (veya alt alanı) olmalı; Google Alışveriş sonuçlarında
+# bağlantı Google'a gittiği için satıcı adı (ör. "Trendyol", "trendyol.com") eşleşmesi kullanılır.
 PAZAR_SITELERI = {
-    "trendyol": "Trendyol",
-    "hepsiburada": "Hepsiburada",
+    "trendyol.com": "Trendyol",
+    "hepsiburada.com": "Hepsiburada",
     "n11.com": "n11",
     "amazon.com.tr": "Amazon TR",
-    "ciceksepeti": "Çiçeksepeti",
-    "pazarama": "Pazarama",
-    "pttavm": "PttAVM",
-    "etsy": "Etsy",
+    "ciceksepeti.com": "Çiçeksepeti",
+    "pazarama.com": "Pazarama",
+    "pttavm.com": "PttAVM",
+    "etsy.com": "Etsy",
 }
 
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.

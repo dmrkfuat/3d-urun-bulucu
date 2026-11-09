@@ -31,13 +31,34 @@ class PazarHatasi(RuntimeError):
 
 
 # ---------------------------------------------------------------- site süzgeci
+def guvenli_link(link: str | None) -> str | None:
+    """Yalnızca https bağlantıları kabul edilir (javascript:, data: vb. elenir)."""
+    if not link:
+        return None
+    u = urlparse(str(link).strip())
+    return u.geturl() if u.scheme == "https" and u.hostname else None
+
+
+def _alan_eslesir(host: str, alan: str) -> bool:
+    return host == alan or host.endswith("." + alan)
+
+
 def site_bul(link: str | None, kaynak: str | None) -> str | None:
-    """Sonucun PAZAR_SITELERI'nden hangisine ait olduğu; değilse None (sonuç elenir)."""
-    alan = urlparse(link or "").netloc.lower()
-    kaynak = (kaynak or "").lower()
-    for anahtar, ad in config.PAZAR_SITELERI.items():
-        if anahtar in alan or anahtar in kaynak:
+    """Sonucun PAZAR_SITELERI'nden hangisine ait olduğu; değilse None (sonuç elenir).
+
+    Öncelik bağlantının alan adıdır (tam alan adı veya alt alanı; "trendyol.evil.com" eşleşmez).
+    Bağlantı Google Alışveriş ürün sayfasına gidiyorsa satıcı adına bakılır.
+    """
+    host = (urlparse(link or "").hostname or "").lower()
+    for alan, ad in config.PAZAR_SITELERI.items():
+        if host and _alan_eslesir(host, alan):
             return ad
+    google = bool(host) and (_alan_eslesir(host, "google.com") or _alan_eslesir(host, "google.com.tr"))
+    if google:
+        kaynak = (kaynak or "").strip().lower()
+        for alan, ad in config.PAZAR_SITELERI.items():
+            if kaynak == ad.lower() or kaynak == alan or kaynak.startswith(alan + " ") or kaynak == alan.split(".")[0]:
+                return ad
     return None
 
 
@@ -153,7 +174,7 @@ def lens_sonuclari(yanit: dict) -> list[dict]:
             continue
         f = x.get("price") if isinstance(x.get("price"), dict) else {}
         fiyat = f.get("extracted_value")
-        sonuc.append({"site": site, "title": x.get("title"), "link": x.get("link"),
+        sonuc.append({"site": site, "title": x.get("title"), "link": guvenli_link(x.get("link")),
                       "price": float(fiyat) if fiyat is not None and _tl_mi(f.get("currency")) else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "görsel"})
     return sonuc
@@ -162,13 +183,14 @@ def lens_sonuclari(yanit: dict) -> list[dict]:
 def alisveris_sonuclari(yanit: dict) -> list[dict]:
     sonuc = []
     for x in yanit.get("shopping_results") or []:
-        site = site_bul(x.get("link"), x.get("source"))
+        site = site_bul(x.get("link") or x.get("product_link"), x.get("source"))
         if not site:
             continue
         fiyat = x.get("extracted_price")
         if fiyat is None:
             fiyat = _fiyat_metinden(x.get("price"))
-        sonuc.append({"site": site, "title": x.get("title"), "link": x.get("link") or x.get("product_link"),
+        sonuc.append({"site": site, "title": x.get("title"),
+                      "link": guvenli_link(x.get("link")) or guvenli_link(x.get("product_link")),
                       "price": float(fiyat) if fiyat is not None else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "metin"})
     return sonuc

@@ -28,15 +28,33 @@ ALISVERIS = {"shopping_results": [
     {"title": "Fidget Set", "source": "hepsiburada.com", "price": "₺2.348,59",
      "product_link": "https://www.google.com/search?prds=3"},                            # extracted_price yok
     {"title": "Yurt dışı", "source": "Stress zéro", "price": "₺300,00", "extracted_price": 300.0},
-    {"title": "Print Forge 3D Baskı Yüzük", "source": "Trendyol", "price": "₺350", "extracted_price": 350.0},
+    {"title": "Print Forge 3D Baskı Yüzük", "source": "Trendyol", "price": "₺350", "extracted_price": 350.0,
+     "product_link": "https://www.google.com/search?prds=5"},
 ]}
 
 
 def test_site_suzgeci():
     assert pazar.site_bul("https://www.trendyol.com/a-p-1", "Trendyol") == "Trendyol"
-    assert pazar.site_bul(None, "Amazon.com.tr - Amazon.com.tr – pazaryeri") == "Amazon TR"
+    assert pazar.site_bul("https://www.google.com/search?prds=2",
+                          "Amazon.com.tr - Amazon.com.tr – pazaryeri") == "Amazon TR"
+    assert pazar.site_bul(None, "Trendyol") is None   # bağlantısız sonuç kabul edilmez
+    assert pazar.site_bul("https://www.google.com/search?prds=1", "trendyol.com") == "Trendyol"
     assert pazar.site_bul("https://www.amazon.com/dp/1", "Amazon") is None
     assert pazar.site_bul("https://www.reddit.com/r/x", "Reddit") is None
+    # Sahte alan adları ve başka sitedeki "Trendyol" yazısı kabul edilmez
+    assert pazar.site_bul("https://trendyol.com.evil.example/x", "Trendyol") is None
+    assert pazar.site_bul("https://eviltrendyol.com/x", "Trendyol") is None
+    assert pazar.site_bul("https://shop.example/x", "Trendyol") is None
+
+
+def test_guvenli_link():
+    assert pazar.guvenli_link("https://www.trendyol.com/a-p-1") == "https://www.trendyol.com/a-p-1"
+    assert pazar.guvenli_link("javascript:alert(1)") is None
+    assert pazar.guvenli_link("http://www.trendyol.com/a") is None
+    assert pazar.guvenli_link("data:text/html,x") is None
+    assert pazar.guvenli_link(None) is None
+    zararli = {"visual_matches": [{"title": "x", "link": "javascript:alert(1)", "source": "Trendyol"}]}
+    assert pazar.lens_sonuclari(zararli) == []   # alan adı yok → site eşleşmez → elenir
 
 
 def test_fiyat_metinden():
