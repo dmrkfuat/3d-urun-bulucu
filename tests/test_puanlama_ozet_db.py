@@ -49,6 +49,13 @@ def test_ozet_kategori_siniri_ve_icerik():
     assert "Video fikri" in metin and "Neden seçildi" in metin
 
 
+def test_neden_buyuk_harfleri_korur():
+    u = urun(1, "X", 5000, 2_000_000, features=["çok renkli (AMS)"])
+    [puanli] = puanlama.puanla([u], {}, BUGUN)
+    metin = ozet.neden(puanli)
+    assert "AMS" in metin and "2.0 milyon" in metin and metin[0].isupper()
+
+
 def test_sqlite_ayni_model_tekrar_eklenmez(tmp_path):
     depo = SqliteDepo(tmp_path / "t.db")
     u = urun(None, "Model", 10, 100)

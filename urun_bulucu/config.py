@@ -30,6 +30,9 @@ KATEGORILER: dict[str, list[str]] = {
     "Telefon ve kablo aksesuarı": ["phone stand", "cable organizer"],
 }
 
+# Yalnızca bu süre içinde yüklenen modeller aranır (trend). None = tüm zamanlar.
+ARAMA_DONEMI: str | None = "now-30d"
+
 # Her terim için kaç arama sonucu alınacak ve kaç modelin detayı çekilecek.
 ARAMA_ADET = 30
 DETAY_LIMITI = 80

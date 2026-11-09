@@ -22,7 +22,8 @@ def calistir(bugun: date | None = None) -> int:
     kaynak = ThingiverseKaynak(ayarlar.thingiverse_token)
     print("Thingiverse'ten popüler modeller toplanıyor (yavaş ve az istekle, birkaç dakika sürebilir)...")
     try:
-        urunler = kaynak.topla(config.KATEGORILER, config.ARAMA_ADET, config.DETAY_LIMITI)
+        urunler = kaynak.topla(config.KATEGORILER, config.ARAMA_ADET, config.DETAY_LIMITI,
+                               config.ARAMA_DONEMI)
     except ThingiverseHatasi as e:
         print(f"HATA: {e}")
         return 1

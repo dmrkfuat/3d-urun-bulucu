@@ -58,11 +58,11 @@ class ThingiverseKaynak:
         raise ThingiverseHatasi(f"Thingiverse çok fazla istek uyarısı verdi: {yol}")
 
     # --- API çağrıları ---
-    def ara(self, terim: str, adet: int = 30) -> list[dict]:
-        veri = self._get(
-            f"/search/{quote(terim)}",
-            {"type": "things", "sort": "popular", "per_page": adet, "page": 1},
-        )
+    def ara(self, terim: str, adet: int = 30, donem: str | None = None) -> list[dict]:
+        params = {"type": "things", "sort": "popular", "per_page": adet, "page": 1}
+        if donem:
+            params["posted_after"] = donem  # ör. "now-30d": yalnızca son 30 günde yüklenenler
+        veri = self._get(f"/search/{quote(terim)}", params)
         if isinstance(veri, dict):
             return list(veri.get("hits") or [])
         return list(veri or [])
@@ -76,11 +76,12 @@ class ThingiverseKaynak:
         kategoriler: dict[str, list[str]],
         arama_adet: int = 30,
         detay_limiti: int = 80,
+        donem: str | None = None,
     ) -> list[dict]:
         adaylar: dict[str, tuple[str, dict]] = {}
         for kategori, terimler in kategoriler.items():
             for terim in terimler:
-                for hit in self.ara(terim, arama_adet):
+                for hit in self.ara(terim, arama_adet, donem):
                     if hit.get("is_nsfw") or not hit.get("id"):
                         continue
                     adaylar.setdefault(str(hit["id"]), (kategori, hit))

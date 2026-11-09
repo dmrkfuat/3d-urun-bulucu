@@ -19,6 +19,7 @@ def _handler(istekler):
         yol = request.url.path
         if yol.startswith("/search/"):
             assert request.url.params["sort"] == "popular"
+            assert request.url.params["posted_after"] == "now-30d"
             hits = [{"id": i, "like_count": DETAYLAR[i]["like_count"], "is_nsfw": DETAYLAR[i]["is_nsfw"]}
                     for i in DETAYLAR]
             return httpx.Response(200, json={"total": len(hits), "hits": hits})
@@ -32,7 +33,8 @@ def test_topla_ve_donustur():
     istekler = []
     kaynak = ThingiverseKaynak("deneme-token", httpx.Client(transport=httpx.MockTransport(_handler(istekler))),
                                bekleme_sn=0)
-    urunler = kaynak.topla({"Eklemli figür": ["flexi"], "Masa": ["desk organizer"]}, detay_limiti=10)
+    urunler = kaynak.topla({"Eklemli figür": ["flexi"], "Masa": ["desk organizer"]}, detay_limiti=10,
+                           donem="now-30d")
 
     assert [u["external_id"] for u in urunler] == ["1", "2"]  # NSFW elendi, tekrar yok
     ejder = urunler[0]

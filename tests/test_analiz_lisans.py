@@ -32,6 +32,11 @@ def test_malzeme_ve_gorsel():
     # kelime sınırı: "lightweight" ışık efekti sayılmaz, "gears" hareketli sayılır
     assert analiz.gorsel_ozellikler("lightweight bracket") == []
     assert analiz.gorsel_ozellikler("planetary gears") == ["hareketli parça"]
+    # olumsuz ifadeler sayılmaz
+    assert analiz.gorsel_ozellikler("Watch Stand [no supports, no AMS]") == []
+    assert analiz.gorsel_ozellikler("works without AMS too", "multicolor version") == ["çok renkli (AMS)"]
+    assert analiz.gorsel_ozellikler("- Multi-material/AMS: not required\n- Supports: none") == []
+    assert analiz.gorsel_ozellikler("holder-no-supports-no-ams") == []
 
 
 def test_html_temizleme_ve_sure_yazi():

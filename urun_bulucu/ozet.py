@@ -32,9 +32,9 @@ VARSAYILAN_VIDEO = "Baskı timelapse'i + elde gösterim; açıklamaya baskı sü
 
 def _kisa_sayi(n: int) -> str:
     if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
+        return f"{n / 1_000_000:.1f} milyon"
     if n >= 1000:
-        return f"{n / 1000:.1f}B"
+        return f"{n / 1000:.1f} bin"
     return str(n)
 
 
@@ -63,7 +63,8 @@ def neden(urun: dict) -> str:
         nedenler.append(f"Etsy talep listenizle eşleşiyor (\"{d['etsy_talep']}\")")
     if not nedenler:
         nedenler.append("puan bileşenlerinin dengeli toplamı yüksek")
-    return "; ".join(nedenler).capitalize() + "."
+    metin = "; ".join(nedenler)
+    return metin[:1].upper() + metin[1:] + "."  # capitalize() "AMS"i "ams" yapıyordu
 
 
 def sec(puanli_urunler: list[dict], adet: int = OZET_ADET) -> list[dict]:

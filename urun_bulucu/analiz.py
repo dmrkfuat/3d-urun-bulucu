@@ -71,12 +71,30 @@ def malzeme_bul(metin: str) -> str | None:
     return ", ".join(bulunan[:3]) or None
 
 
+_OLUMSUZ_ONCE = re.compile(r"\b(?:no|without|non|not)[\s-]+(?:\w+[\s-]+)?$")
+_OLUMSUZ_SONRA = re.compile(r"^[^.\n]{0,25}?\b(?:not (?:required|needed|necessary)|optional|unnecessary)\b")
+
+
+def _olumlu_kelime_var(metin: str, kelime: str) -> bool:
+    """Kelime geçiyor ve yanında olumsuzluk yoksa True.
+
+    Önce: "no AMS", "without supports". Sonra: "AMS: not required", "multicolor optional".
+    """
+    for m in re.finditer(r"(?<![a-z0-9])" + re.escape(kelime) + r"(?![a-z0-9])", metin):
+        if _OLUMSUZ_ONCE.search(metin[max(0, m.start() - 20):m.start()]):
+            continue
+        if _OLUMSUZ_SONRA.search(metin[m.end():m.end() + 40]):
+            continue
+        return True
+    return False
+
+
 def gorsel_ozellikler(*parcalar: str | None) -> list[str]:
     metin = " ".join(p for p in parcalar if p).lower().replace("_", " ")
     return [
         etiket
         for etiket, (_, kelimeler) in GORSEL_OZELLIKLER.items()
-        if any(_kelime_var(metin, k) for k in kelimeler)
+        if any(_olumlu_kelime_var(metin, k) for k in kelimeler)
     ]
 
 
