@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from . import analiz, lisans
-from .config import KATEGORI_BASINA_EN_FAZLA, OZET_ADET, YAZICI
+from .config import KATEGORI_BASINA_EN_FAZLA, MAKERWORLD_HEPSI_SATILABILIR, OZET_ADET, YAZICI
 
 # Özelliğe göre hazır video/paylaşım fikirleri (sıra önemli: ilk eşleşen kullanılır).
 VIDEO_SABLONLARI: list[tuple[str, str]] = [
@@ -27,6 +27,7 @@ KATEGORI_SABLONLARI = {
     "Telefon ve kablo aksesuarı": "Günlük kullanım POV: telefonu/kabloyu yerleştirme anı, \"bunu bilmiyordum\" tadında.",
     "Hediyelik": "\"Sevgiliye/arkadaşa 3D baskı hediye\" kurgusu: baskı → paketleme → veriliş.",
 }
+KAYNAK_ADI = {"thingiverse": "Thingiverse", "makerworld": "MakerWorld"}
 VARSAYILAN_VIDEO = "Baskı timelapse'i + elde gösterim; açıklamaya baskı süresi ve filament miktarını yaz."
 
 
@@ -85,22 +86,28 @@ def sec(puanli_urunler: list[dict], adet: int = OZET_ADET) -> list[dict]:
     ]
 
 
-def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str:
+def _kaynak(urun: dict) -> str:
+    return KAYNAK_ADI.get(urun.get("source_id"), urun.get("source_id") or "-")
+
+
+def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str,
+             kaynaklar: list[str] | None = None) -> str:
+    kaynak_yazi = ", ".join(kaynaklar) if kaynaklar else "Thingiverse"
     satirlar = [
         f"# 3D Ürün Özeti — {gun.isoformat()}",
         "",
-        f"Yazıcı: {YAZICI} · İncelenen model: {toplam} · Kaynak: Thingiverse · Veritabanı: {depo_adi}",
+        f"Yazıcı: {YAZICI} · İncelenen model: {toplam} · Kaynak: {kaynak_yazi} · Veritabanı: {depo_adi}",
         "",
-        "Lisans işaretleri: 🟢 satılabilir · 🟡 NC: satılamaz, içerikte gösterilebilir · "
+        "Lisans işaretleri: 🟢 satılabilir · 🟡 NC / kişisel kullanım: satılamaz, içerikte gösterilebilir · "
         "🔴 kontrol et. (Bilgilendirme amaçlıdır, hukuki görüş değildir.)",
         "",
-        "| # | Ürün | Puan | Baskı süresi | Lisans |",
-        "|---|------|-----:|--------------|--------|",
+        "| # | Ürün | Kaynak | Puan | Baskı süresi | Lisans |",
+        "|---|------|--------|-----:|--------------|--------|",
     ]
     for s in secimler:
         u = s["urun"]
         satirlar.append(
-            f"| {s['rank']} | [{u['name']}]({u['url']}) | {s['score']} | "
+            f"| {s['rank']} | [{u['name'].replace('|', '/')}]({u['url']}) | {_kaynak(u)} | {s['score']} | "
             f"{analiz.sure_yazi(u.get('print_time_min'))} | {lisans.ETIKET[u['license_flag']].split(' ')[0]} |"
         )
     satirlar.append("")
@@ -113,12 +120,14 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str) -> str
         if u.get("image_url"):
             satirlar += [f"![{u['name']}]({u['image_url']})", ""]
         satirlar += [
-            f"- **Link:** {u['url']}",
+            f"- **Link:** {u['url']} ({_kaynak(u)})",
             f"- **Kategori:** {u.get('category') or '-'} · **Tasarımcı:** {u.get('creator') or '-'}",
             f"- **Neden seçildi:** {s['reason']}",
             f"- **Tahmini baskı süresi:** {analiz.sure_yazi(u.get('print_time_min'))}"
             + (f" · **Malzeme:** {u['material']}" if u.get("material") else ""),
-            f"- **Lisans:** {u.get('license') or 'belirtilmemiş'} → {lisans.ETIKET[u['license_flag']]}",
+            f"- **Lisans:** {u.get('license') or 'belirtilmemiş'} → {lisans.ETIKET[u['license_flag']]}"
+            + (" (ayar: MakerWorld modelleri satılabilir sayılıyor)"
+               if u.get("source_id") == "makerworld" and MAKERWORLD_HEPSI_SATILABILIR else ""),
             f"- **Video fikri:** {s['video_idea']}",
             "",
         ]

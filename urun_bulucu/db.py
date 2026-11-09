@@ -19,7 +19,8 @@ KAYNAKLAR = [
     {"id": "printables", "name": "Printables", "base_url": "https://www.printables.com",
      "access_method": "beklemede", "notes": "Resmi API yok; Cloudflare bot kontrolü var"},
     {"id": "makerworld", "name": "MakerWorld", "base_url": "https://makerworld.com",
-     "access_method": "beklemede", "notes": "Resmi API yok; kullanım şartları kontrol edilecek"},
+     "access_method": "site JSON uçları (resmi olmayan)",
+     "notes": "Anahtar gerekmez; robots.txt izinli, şartlarda otomatik erişim yasağı yok (Kasım 2026)"},
     {"id": "etsy_manuel", "name": "Etsy (elle girilen talep listesi)", "base_url": "https://www.etsy.com",
      "access_method": "manuel", "notes": "talep/etsy_talep.csv"},
 ]

@@ -10,7 +10,14 @@ def test_lisans_siniflandirma():
     assert lisans.siniflandir("CC BY-NC-SA 4.0") == lisans.NC_SADECE_ICERIK
     assert lisans.siniflandir("Attribution - Non-Commercial - No Derivatives") == lisans.NC_SADECE_ICERIK
     assert lisans.siniflandir("All Rights Reserved") == lisans.KONTROL_ET
-    assert lisans.siniflandir("Standard Digital File License") == lisans.KONTROL_ET
+    # MakerWorld lisansları
+    assert lisans.siniflandir("Standard Digital File License") == lisans.NC_SADECE_ICERIK
+    assert lisans.siniflandir("MakerWorld Exclusive License") == lisans.NC_SADECE_ICERIK
+    assert lisans.siniflandir("BY") == lisans.TICARI_SERBEST
+    assert lisans.siniflandir("BY-SA") == lisans.TICARI_SERBEST
+    assert lisans.siniflandir("CC0") == lisans.TICARI_SERBEST
+    assert lisans.siniflandir("BY-NC-SA") == lisans.NC_SADECE_ICERIK
+    assert lisans.siniflandir("Bypass") == lisans.KONTROL_ET
     assert lisans.siniflandir("") == lisans.KONTROL_ET
     assert lisans.siniflandir(None) == lisans.KONTROL_ET
 

@@ -2,7 +2,8 @@
 
 Ağırlıklar: popülerlik 30, 7 günlük artış 25, görsel çekicilik 20,
 kısa baskı süresi 15, lisans uygunluğu 10. Etsy talep listesiyle eşleşen
-ürünler +5 bonus alır (en fazla 100).
+ürünler +5 bonus alır (en fazla 100). Popülerlik ve artış, her kaynağın
+(Thingiverse, MakerWorld) kendi en yükseğine göre 0-1 arasına çekilir.
 """
 from __future__ import annotations
 
@@ -64,13 +65,20 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             artis_ham[u["id"]] = _ilgi(u["downloads"], u["likes"]) / gun
             artis_tipi[u["id"]] = "yayından beri günlük ortalama"
 
-    pop_max = max(pop_ham.values()) or 1
-    artis_max = math.log1p(max(artis_ham.values())) or 1
+    # Popülerlik ve artış her kaynağın kendi içinde ölçeklenir: MakerWorld'deki sayılar
+    # Thingiverse'tekilerden çok büyük olduğu için ortak ölçek bir kaynağı ezerdi.
+    pop_max: dict[str, float] = {}
+    artis_max: dict[str, float] = {}
+    for u in urunler:
+        k = u.get("source_id")
+        pop_max[k] = max(pop_max.get(k, 0.0), pop_ham[u["id"]])
+        artis_max[k] = max(artis_max.get(k, 0.0), math.log1p(artis_ham[u["id"]]))
 
     for u in urunler:
+        k = u.get("source_id")
         bilesen = {
-            "populerlik": pop_ham[u["id"]] / pop_max,
-            "artis": math.log1p(artis_ham[u["id"]]) / artis_max,
+            "populerlik": pop_ham[u["id"]] / (pop_max[k] or 1),
+            "artis": math.log1p(artis_ham[u["id"]]) / (artis_max[k] or 1),
             "gorsel": analiz.gorsel_puan(u.get("features") or []),
             "sure": sure_puani(u.get("print_time_min")),
             "lisans": LISANS_PUANI.get(u.get("license_flag"), 0.4),

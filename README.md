@@ -14,7 +14,7 @@ link, kapak görseli, neden seçildiği, tahmini baskı süresi, lisans durumu v
 |---|---|---|
 | **Thingiverse** | ✅ Çalışıyor | Resmi API ile. Ücretsiz bir anahtar gerekir (aşağıda 2. adım). |
 | Printables | ⏸ Beklemede | Resmi API yok; site otomatik erişime Cloudflare bot kontrolü uyguluyor. |
-| MakerWorld | ⏸ Beklemede | Resmi API yok; kullanım şartları henüz doğrulanmadı. |
+| **MakerWorld** | ✅ Çalışıyor | Anahtar gerekmez. Sitenin kendi JSON uçlarıyla (resmi/belgelenmiş API değil). robots.txt izinli; kullanım şartlarında otomatik erişim yasağı yok (Kasım 2026). Baskı süresi P1S profilinden gelir. |
 | Etsy | ✍️ Elle liste | Etsy API'si satış adedi vermiyor ve analiz amaçlı kullanımı kısıtlıyor. Gördüğünüz çok satanları `talep/etsy_talep.csv` dosyasına yazarsınız (6. adım). |
 | Google Trends | ✖ Kapalı | Sizin tercihinizle atlandı. |
 
@@ -106,7 +106,12 @@ Ayarlar (`kategoriler`, `kısa baskı süresi`, özet adedi) `urun_bulucu/config
 ### Lisans işaretleri
 
 - 🟢 **Satılabilir** — CC BY, CC0, GPL vb. (Atıf gerekebilir.)
-- 🟡 **NC** — Ticari kullanıma kapalı: **satmayın**, ama içerikte gösterebilirsiniz.
+- 🟡 **NC / kişisel kullanım** — Ticari kullanıma kapalı: **satmayın**, ama içerikte gösterebilirsiniz.
+  MakerWorld'ün "Standard Digital File License" ve "MakerWorld Exclusive License" lisansları da
+  normalde buraya girer (baskıyı satmak için tasarımcının ücretli ticari lisansı gerekir).
+  **Şu anki ayar:** `config.py` → `MAKERWORLD_HEPSI_SATILABILIR = True`, yani MakerWorld
+  modellerinin hepsi 🟢 sayılıyor; raporda asıl lisans metni yine yazar. Lisansa göre
+  sınıflandırma için `False` yapın.
 - 🔴 **Kontrol et** — Lisans yazmıyor veya standart dışı; model sayfasından kontrol edin.
 
 Bu işaretler bilgilendirme amaçlıdır, hukuki görüş değildir.
@@ -116,6 +121,13 @@ Bu işaretler bilgilendirme amaçlıdır, hukuki görüş değildir.
 - Thingiverse baskı süresini ayrı bir alan olarak vermez; süre yalnızca tasarımcı açıklamaya
   yazdıysa bulunur, yoksa "bilinmiyor" görünür.
 - Thingiverse'in indirme sayıları bazen şişkin olabilir; bu yüzden beğeni daha ağır sayılır.
+- MakerWorld'ün sayıları Thingiverse'ten çok büyüktür; popülerlik ve artış her sitenin kendi
+  içinde ölçeklenir. Yine de MakerWorld modellerinin baskı süresi bilindiği için sık öne çıkarlar.
+- MakerWorld uçları haber verilmeden değişebilir veya GitHub sunucularından gelen isteği
+  engelleyebilir. O gün MakerWorld atlanır ve özet Thingiverse ile yazılır (`config.py` →
+  `MAKERWORLD_AKTIF = False` ile tamamen kapatılabilir).
+- Popüler modellerin bir kısmı marka/karakter içerir (Minecraft, Coraline vb.); lisans
+  🟢 olsa bile bunların baskısını satmak marka hakkı sorunu doğurabilir.
 
 ---
 
@@ -132,6 +144,7 @@ urun_bulucu/
   __main__.py             ← ana akış
   config.py               ← ayarlar (kategoriler, süreler)
   kaynaklar/thingiverse.py← Thingiverse API
+  kaynaklar/makerworld.py ← MakerWorld
   analiz.py               ← baskı süresi, malzeme, görsel özellikler
   lisans.py               ← lisans sınıflandırma
   puanlama.py             ← içerik puanı

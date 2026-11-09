@@ -36,8 +36,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           if [ -z "$THINGIVERSE_TOKEN" ]; then
-            echo "::warning::THINGIVERSE_TOKEN secret'ı tanımlı değil; analiz atlandı."
-            exit 0
+            echo "::warning::THINGIVERSE_TOKEN secret'ı tanımlı değil; yalnızca MakerWorld kullanılacak."
           fi
           python -m urun_bulucu
 

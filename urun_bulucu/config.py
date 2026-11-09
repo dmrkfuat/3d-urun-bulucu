@@ -37,6 +37,16 @@ ARAMA_DONEMI: str | None = "now-30d"
 ARAMA_ADET = 30
 DETAY_LIMITI = 80
 
+# MakerWorld (anahtar gerekmez). False yapılırsa yalnızca Thingiverse kullanılır.
+MAKERWORLD_AKTIF = True
+# Aynı 30 günlük dönem, gün sayısı olarak.
+MAKERWORLD_GUN = 30
+# MakerWorld detay yanıtları büyük (~0,5 MB); siteyi yormamak için daha az detay çekilir.
+MAKERWORLD_DETAY_LIMITI = 60
+# Kullanıcı tercihi: MakerWorld modellerinin hepsi lisansına bakılmadan 🟢 satılabilir sayılır.
+# Asıl lisans metni raporda yine gösterilir. False yapılırsa lisansa göre sınıflandırılır.
+MAKERWORLD_HEPSI_SATILABILIR = True
+
 RAPOR_KLASORU = KOK / "raporlar"
 TALEP_DOSYASI = KOK / "talep" / "etsy_talep.csv"
 
