@@ -1,0 +1,36 @@
+name: Saatlik Telegram testi
+
+# Test amaçlıdır: her saat başı Supabase'teki son özeti Telegram'a tek mesaj olarak gönderir.
+# Dış sitelere istek atmaz. Kapatmak için: gh workflow disable saatlik-test.yml
+# (veya GitHub > Actions > Saatlik Telegram testi > ... > Disable workflow)
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saatlik-test
+  cancel-in-progress: true
+
+jobs:
+  mesaj:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Test mesajını gönder
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m urun_bulucu.saatlik
