@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 import statistics
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 import httpx
 
@@ -188,6 +188,50 @@ def uc_d_mi(baslik: str | None, satici: str | None = None) -> bool:
     return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
 
 
+# ---------------------------------------------------------------- satış sayfası bağlantısı
+# Google Alışveriş sonuçları Google'ın ürün sayfasına gider. Pazar yeri sonuçlarında kullanıcının
+# tıklayacağı bağlantı olarak sitenin kendi arama sayfası (ürün adıyla) verilir.
+SITE_ARAMA = {
+    "Trendyol": "https://www.trendyol.com/sr?q={q}",
+    "Hepsiburada": "https://www.hepsiburada.com/ara?q={q}",
+    "n11": "https://www.n11.com/arama?q={q}",
+    "Amazon TR": "https://www.amazon.com.tr/s?k={q}",
+    "Çiçeksepeti": "https://www.ciceksepeti.com/arama?query={q}",
+    "Pazarama": "https://www.pazarama.com/arama?q={q}",
+    "PttAVM": "https://www.pttavm.com/arama?q={q}",
+    "Etsy": "https://www.etsy.com/search?q={q}",
+}
+
+
+def satis_linki(r: dict) -> str | None:
+    """Sonucun satıldığı siteye giden bağlantı: doğrudan ürün sayfası > sitenin arama sayfası > Google."""
+    link = r.get("link")
+    host = (urlparse(link or "").hostname or "").lower()
+    if host and any(_alan_eslesir(host, alan) for alan in config.PAZAR_SITELERI):
+        return link
+    sablon = SITE_ARAMA.get(r.get("site")) if r.get("pazar_yeri") else None
+    if sablon and r.get("title"):
+        return sablon.format(q=quote_plus(r["title"][:80]))
+    return link
+
+
+def satis_yerleri(o: dict | None, en_fazla: int = 3) -> list[dict]:
+    """Mesajda gösterilecek siteler: her siteden bir sonuç; önce pazar yerleri, sonra en ucuz."""
+    adaylar = sorted((o or {}).get("results") or [],
+                     key=lambda r: (not r.get("pazar_yeri"), r.get("price") is None, r.get("price") or 0))
+    secilen, siteler = [], set()
+    for r in adaylar:
+        link = satis_linki(r)
+        if not link or r["site"] in siteler:
+            continue
+        siteler.add(r["site"])
+        secilen.append({"site": r["site"], "price": r.get("price"), "link": link,
+                        "pazar_yeri": r.get("pazar_yeri", True)})
+        if len(secilen) >= en_fazla:
+            break
+    return secilen
+
+
 # ---------------------------------------------------------------- dış metinleri temizleme
 # Satıcı adları ve ürün başlıkları dışarıdan gelir; rapora (Markdown) ve Telegram'a yazılır.
 _MD_ISARET = re.compile(r"[\[\]()<>*_`|!#\\\r\n\t]")
@@ -296,6 +340,18 @@ def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None) -> d
 def medyan(o: dict) -> float | None:
     fiyatlar = _fiyat_kumesi((o or {}).get("results") or [])
     return statistics.median(fiyatlar) if fiyatlar else None
+
+
+def _zaman(t: object) -> datetime:
+    return datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+
+
+def gecerli_mi(o: dict | None) -> bool:
+    """Kayıt güncel kurallarla (3D şartı) mı yapılmış?"""
+    try:
+        return bool(o) and _zaman(o["checked_at"]) >= _zaman(config.PAZAR_KURAL_TARIHI)
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 # ---------------------------------------------------------------- akış

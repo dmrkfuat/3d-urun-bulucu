@@ -58,10 +58,17 @@ def calistir(bugun: date | None = None) -> int:
         print(f"UYARI: Tasarımcı takibi atlandı: {e}")
     if ayarlar.serpapi_key:
         try:
-            pazar_sonuclari = pazar.calistir(depo, secimler, ayarlar.serpapi_key)
-            print(f"E-ticaret araması: {len(pazar_sonuclari)} ürün arandı.")
+            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key)
+            print(f"E-ticaret araması: {len(aranan)} ürün arandı.")
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: E-ticaret araması atlandı: {e}")
+    try:
+        # Rapor ve Telegram için bugünkü ilk 10'un kayıtlı tüm arama sonuçları (önceki günlerde
+        # aranmış olanlar dahil); yalnızca 3D şartıyla yapılmış aramalar.
+        pazar_sonuclari = {pid: o for pid, o in depo.pazar_kayitlari([s["product_id"] for s in secimler]).items()
+                           if pazar.gecerli_mi(o)}
+    except Exception as e:  # noqa: BLE001
+        print(f"UYARI: Kayıtlı e-ticaret sonuçları okunamadı: {e}")
 
     yol = ozet.rapor_yaz(config.RAPOR_KLASORU, bugun,
                          ozet.markdown(bugun, secimler, len(urunler), depo.ad, pazar_sonuclari))

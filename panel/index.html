@@ -200,6 +200,22 @@
   const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   // Veritabanından gelen bağlantılar yalnızca https ise kullanılır (javascript:, data: vb. engellenir).
   const url = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" ? esc(x.href) : "#"; } catch (e) { return "#"; } };
+  // Satış bağlantısı (sunucudaki pazar.satis_linki ile aynı kural): doğrudan ürün sayfası >
+  // pazar yerinin kendi arama sayfası (ürün adıyla) > Google ürün sayfası.
+  const PAZAR_ALANLARI = ["trendyol.com", "hepsiburada.com", "n11.com", "amazon.com.tr", "ciceksepeti.com", "pazarama.com", "pttavm.com", "etsy.com"];
+  const SITE_ARAMA = {
+    "Trendyol": "https://www.trendyol.com/sr?q=", "Hepsiburada": "https://www.hepsiburada.com/ara?q=",
+    "n11": "https://www.n11.com/arama?q=", "Amazon TR": "https://www.amazon.com.tr/s?k=",
+    "Çiçeksepeti": "https://www.ciceksepeti.com/arama?query=", "Pazarama": "https://www.pazarama.com/arama?q=",
+    "PttAVM": "https://www.pttavm.com/arama?q=", "Etsy": "https://www.etsy.com/search?q=",
+  };
+  const satisLinki = (x) => {
+    let host = "";
+    try { host = new URL(x.link).hostname.toLowerCase(); } catch (e) { /* bağlantı yok */ }
+    if (host && PAZAR_ALANLARI.some((a) => host === a || host.endsWith("." + a))) return x.link;
+    if (x.pazar_yeri !== false && SITE_ARAMA[x.site] && x.title) return SITE_ARAMA[x.site] + encodeURIComponent(x.title.slice(0, 80));
+    return x.link;
+  };
   const LISANS = { ticari_serbest: "🟢 satılabilir", nc_sadece_icerik: "🟡 NC", kontrol_et: "🔴 kontrol et" };
 
   let secimler = [];
@@ -329,7 +345,7 @@
         <p class="neden">${esc(r.reason)}</p>
         ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
           <ul style="margin:6px 0 0;padding-left:18px">${(pazar.get(r.product_id).results || []).slice(0, 10).map((x) =>
-            `<li>${esc(x.site)}: <a href="${url(x.link)}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.pazar_yeri === false ? ' <span class="muted">(bağımsız mağaza)</span>' : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
+            `<li>${esc(x.site)}: <a href="${url(satisLinki(x))}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.pazar_yeri === false ? ' <span class="muted">(bağımsız mağaza)</span>' : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
           ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
         <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>

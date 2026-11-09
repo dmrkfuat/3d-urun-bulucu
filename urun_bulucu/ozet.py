@@ -112,7 +112,7 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str,
             + (f" · **Malzeme:** {u['material']}" if u.get("material") else ""),
             f"- **Maliyet:** {maliyet.yazi(u)}",
             *([f"- **Türkiye'de satışta:** {pazar.fiyat_yazi(pazar_sonuclari[s['product_id']], u.get('price_tl'))}"]
-              + [f"  - {r['site']}: [{(r.get('title') or 'ürün')[:60].replace(']', ')')}]({r['link']})"
+              + [f"  - {r['site']}: [{(r.get('title') or 'ürün')[:60].replace(']', ')')}]({pazar.satis_linki(r) or '#'})"
                  + (f" — {r['price']:.0f} TL" if r.get("price") is not None else "")
                  + (" (bağımsız mağaza)" if r.get("pazar_yeri") is False else "")
                  + (" (görsel eşleşme)" if r.get("kaynak") == "görsel" else "")

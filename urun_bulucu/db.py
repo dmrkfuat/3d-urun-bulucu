@@ -56,6 +56,7 @@ class Depo(Protocol):
     # e-ticaret araması
     def pazar_kontrol_tarihleri(self, ids: list[int]) -> dict[int, str]: ...
     def pazar_kaydet(self, satirlar: list[dict]) -> None: ...
+    def pazar_kayitlari(self, ids: list[int]) -> dict[int, dict]: ...
 
 
 TASARIMCI_ALANLARI = ["source_id", "uid", "name", "handle", "hit_days", "last_hit_date", "followed",
@@ -234,6 +235,17 @@ class SqliteDepo:
         return {r["product_id"]: r["checked_at"] for r in self.con.execute(
             f"select product_id, checked_at from market_checks where product_id in ({yer})", ids)}
 
+    def pazar_kayitlari(self, ids: list[int]) -> dict[int, dict]:
+        if not ids:
+            return {}
+        yer = ",".join("?" * len(ids))
+        sonuc = {}
+        for r in self.con.execute(f"select * from market_checks where product_id in ({yer})", ids):
+            d = dict(r)
+            d["results"] = json.loads(d.get("results") or "[]")
+            sonuc[d["product_id"]] = d
+        return sonuc
+
     def pazar_kaydet(self, satirlar: list[dict]) -> None:
         alanlar = ", ".join(PAZAR_ALANLARI)
         yer = ", ".join(f":{a}" for a in PAZAR_ALANLARI)
@@ -334,6 +346,12 @@ class SupabaseDepo:
             return {}
         yanit = self.sb.table("market_checks").select("product_id,checked_at").in_("product_id", ids).execute()
         return {r["product_id"]: r["checked_at"] for r in yanit.data}
+
+    def pazar_kayitlari(self, ids: list[int]) -> dict[int, dict]:
+        if not ids:
+            return {}
+        yanit = self.sb.table("market_checks").select("*").in_("product_id", ids).execute()
+        return {r["product_id"]: r for r in yanit.data}
 
     def pazar_kaydet(self, satirlar: list[dict]) -> None:
         if satirlar:

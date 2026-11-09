@@ -195,3 +195,51 @@ def test_rapor_ve_telegram():
            " (görsel eşleşme)" in md or "  - Trendyol: [Print Forge 3D Baskı Katlanabilir Yüzük]" in md
     m = bildirim.mesajlar(date(2026, 11, 9), secimler, pazar_sonuclari=o)
     assert "🛒 3D baskı benzeri: Pixu3D 3" in m[0]["veri"]["caption"]
+
+
+# ---------------------------------------------------------------- satış bağlantıları
+def test_satis_linki_ve_yerleri():
+    dogrudan = {"site": "Trendyol", "pazar_yeri": True, "title": "Yüzük 3D Baskı",
+                "link": "https://www.trendyol.com/x/y-p-1", "price": None}
+    assert pazar.satis_linki(dogrudan) == "https://www.trendyol.com/x/y-p-1"
+    google = {"site": "Hepsiburada", "pazar_yeri": True, "title": "Fidget Yüzük 3D Baskı & Set",
+              "link": "https://www.google.com/search?prds=1", "price": 279.0}
+    assert pazar.satis_linki(google) == "https://www.hepsiburada.com/ara?q=Fidget+Y%C3%BCz%C3%BCk+3D+Bask%C4%B1+%26+Set"
+    magaza = {"site": "Pixu3D", "pazar_yeri": False, "title": "Yüzük",
+              "link": "https://www.google.com/search?prds=2", "price": 179.0}
+    assert pazar.satis_linki(magaza) == "https://www.google.com/search?prds=2"
+
+    o = {"results": [magaza, google, dogrudan,
+                     {**google, "price": 199.0, "title": "Başka"},                     # aynı site: tek bağlantı
+                     {"site": "Etsy", "pazar_yeri": True, "title": "Ring", "price": 150.0,
+                      "link": "https://www.etsy.com/listing/5"}]}
+    yerler = pazar.satis_yerleri(o)
+    # önce pazar yerleri (fiyatlı ucuzdan pahalıya, fiyatsız sonra), her siteden bir tane, en fazla 3
+    assert [(y["site"], y["price"]) for y in yerler] == [("Etsy", 150.0), ("Hepsiburada", 199.0), ("Trendyol", None)]
+    assert pazar.satis_yerleri(None) == []
+
+
+def test_telegram_satis_baglantilari_ve_uzunluk():
+    o = pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS), pazar.alisveris_sonuclari(ALISVERIS)))
+    s = {"rank": 1, "score": 90, "product_id": 1,
+         "urun": urun(1, "Ring", 1, 1, image_url="https://cdn.example/1.png", price_tl=65)}
+    yazi = bildirim.urun_yazisi(s, o)
+    assert "   ↳ <a href=\"https://www.hepsiburada.com/ara?q=PLA+Fidget+Y%C4%B1ld%C4%B1z%C4%B1\">Hepsiburada</a> 279 TL" in yazi
+    assert "🔗 MakerWorld: " in yazi
+    # Sığmazsa satış bağlantıları azaltılır, HTML yarıda kesilmez
+    kisa = bildirim.urun_yazisi(s, o, sinir=len(yazi) - 10)
+    assert kisa.count("↳") == yazi.count("↳") - 1 and kisa.count("<a ") == kisa.count("</a>")
+
+    kalan = [{"rank": i, "score": 80, "product_id": i, "urun": urun(i, f"M{i}", 1, 1)} for i in range(2, 6)]
+    m = bildirim.mesajlar(date(2026, 11, 9), [s] + kalan, pazar_sonuclari={4: o})
+    ozet_metni = m[-1]["veri"]["text"]
+    assert "4. <a href" in ozet_metni and "\n   🛒 <a href=" in ozet_metni
+    assert "(mağaza)" in ozet_metni or ozet_metni.count("🛒") == 1
+
+
+def test_gecerli_mi(monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_KURAL_TARIHI", "2026-11-09T17:10:00+00:00")
+    assert pazar.gecerli_mi({"checked_at": "2026-11-09T18:00:00+00:00"})
+    assert not pazar.gecerli_mi({"checked_at": "2026-11-09T14:33:34+00:00"})
+    assert not pazar.gecerli_mi({})
+    assert not pazar.gecerli_mi(None)

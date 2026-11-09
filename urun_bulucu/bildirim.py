@@ -30,24 +30,36 @@ def _fiyat(u: dict) -> str:
     return f" · ~{u['cost_tl']:.0f} → {u['price_tl']:.0f} TL"
 
 
-def urun_yazisi(s: dict, pazar_ozeti: dict | None = None) -> str:
-    """Bir ürünün Telegram metni (HTML). Fotoğraf altı sınırı 1024 karakter."""
+def satis_link_html(y: dict) -> str:
+    """Bir satış yeri: <a href="...">Trendyol</a> 135 TL (bağımsız mağaza ise işaretli)."""
+    fiyat = f" {y['price']:.0f} TL" if y.get("price") is not None else ""
+    etiket = "" if y.get("pazar_yeri", True) else " (mağaza)"
+    return f"<a href=\"{_e(y['link'])}\">{_e(y['site'])}</a>{fiyat}{etiket}"
+
+
+def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> str:
+    """Bir ürünün Telegram metni (HTML). Fotoğraf altı en fazla 1024 karakter; sığmazsa
+    satış bağlantıları azaltılır (HTML etiketi yarıda kesilmez)."""
     u = s["urun"]
-    satirlar = [
+    bas = [
         f"<b>{s['rank']}. {_e(u['name'])}</b> — {s['score']} puan",
         f"⏱ {_e(analiz.sure_yazi(u.get('print_time_min')))}"
         + (f" · {u['weight_g']} g" if u.get("weight_g") else "") + _e(_fiyat(u)),
     ]
     if u.get("trend_rank"):
-        satirlar.append(f"🔥 MakerWorld trend #{u['trend_rank']}")
+        bas.append(f"🔥 MakerWorld trend #{u['trend_rank']}")
     sezon_notu = (u.get("score_detail") or {}).get("sezon")
     if sezon_notu:
-        satirlar.append(_e(sezon_notu))
+        bas.append(_e(sezon_notu))
     if pazar_ozeti is not None:
-        satirlar.append(f"🛒 {_e(pazar.fiyat_yazi(pazar_ozeti, u.get('price_tl')))}")
-    satirlar.append(f"🎬 {_e(video.kancalar(u)[0])}")
-    satirlar.append(f"🔗 {_e(u['url'])}")
-    return "\n".join(satirlar)[:1024]
+        bas.append(f"🛒 {_e(pazar.fiyat_yazi(pazar_ozeti, u.get('price_tl')))}")
+    son = [f"🎬 {_e(video.kancalar(u)[0])}", f"🔗 MakerWorld: {_e(u['url'])}"]
+    yerler = [f"   ↳ {satis_link_html(y)}" for y in pazar.satis_yerleri(pazar_ozeti)]
+    while True:
+        metin = "\n".join(bas + yerler + son)
+        if len(metin) <= sinir or not yerler:
+            return metin if len(metin) <= sinir else "\n".join(bas[:2] + son)[:sinir]
+        yerler.pop()
 
 
 def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
@@ -63,9 +75,13 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
             sonuc.append({"metot": "sendPhoto", "veri": {"photo": s["urun"]["image_url"], "caption": yazi}})
         else:
             sonuc.append({"metot": "sendMessage", "veri": {"text": yazi}})
-    kalan = [f"{s['rank']}. <a href=\"{_e(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
-             + (" 🛒" if pazar_sonuclari.get(s["product_id"], {}).get("found_count") else "")
-             for s in secimler[FOTOGRAFLI_ADET:]]
+    kalan = []
+    for s in secimler[FOTOGRAFLI_ADET:]:
+        satir = f"{s['rank']}. <a href=\"{_e(s['urun']['url'])}\">{_e(s['urun']['name'])}</a> — {s['score']}"
+        yerler = pazar.satis_yerleri(pazar_sonuclari.get(s["product_id"]), en_fazla=2)
+        if yerler:
+            satir += "\n   🛒 " + " · ".join(satis_link_html(y) for y in yerler)
+        kalan.append(satir)
     ozet = [f"<b>3D Ürün Özeti — {gun.isoformat()}</b>"]
     aktif = sezon.aktif_sezonlar(gun)
     if aktif:
