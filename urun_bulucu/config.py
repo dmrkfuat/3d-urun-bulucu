@@ -55,6 +55,11 @@ EN_DUSUK_FIYAT_TL = 50      # önerilen fiyat bunun altına inmez
 # --- E-ticaret araştırması (SerpApi: Google Lens + Google Alışveriş; ücretsiz plan ayda 250 arama) ---
 PAZAR_GUNLUK_ADET = 3        # günde kaç ürün (ürün başına 2 arama: 3 × 2 × 30 = 180 < 250)
 PAZAR_YENILEME_GUN = 14      # aynı ürün bu kadar gün geçmeden tekrar aranmaz
+# Az sonuç gelirse daha geniş metinle (eş anlamlılar / ilk kelime atılmış) bir Alışveriş araması daha.
+# Yalnızca SerpApi'de bu ay PAZAR_YEDEK_KOTA_ESIGI'nden fazla hak kaldıysa yapılır.
+PAZAR_YEDEK_ARAMA = True
+PAZAR_YEDEK_ALT_SINIR = 3       # bundan az 3D baskı satış sonucu gelirse
+PAZAR_YEDEK_KOTA_ESIGI = 40
 # Yalnızca bu sitelerden gelen sonuçlar tutulur: alan adı → gösterilecek ad.
 # Bağlantının alan adı bunlardan biri (veya alt alanı) olmalı; Google Alışveriş sonuçlarında
 # bağlantı Google'a gittiği için satıcı adı (ör. "Trendyol", "trendyol.com") eşleşmesi kullanılır.

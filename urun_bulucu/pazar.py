@@ -26,6 +26,7 @@ import httpx
 from . import config
 
 API = "https://serpapi.com/search.json"
+HESAP_API = "https://serpapi.com/account.json"
 
 
 class PazarHatasi(RuntimeError):
@@ -101,6 +102,7 @@ IFADELER = {
     "headphone stand": "kulaklık standı", "watch stand": "saat standı", "plant pot": "saksı",
     "infinity cube": "sonsuz küp", "fidget spinner": "fidget spinner",
     "name tag": "isimlik", "name plate": "isimlik", "bottle opener": "açacak", "dice tower": "zar kulesi",
+    "text embosser": "kabartma mühür", "paper embosser": "kabartma mühür",
     "wall art": "duvar dekoru", "night light": "gece lambası", "business card": "kartvizitlik",
 }
 CEVIRI = {
@@ -135,6 +137,11 @@ CEVIRI = {
     "grinch": "grinch", "pikachu": "pikachu", "pokemon": "pokemon", "minecraft": "minecraft",
     "creeper": "creeper", "batman": "batman", "stitch": "stitch", "mario": "mario", "sonic": "sonic",
     "groot": "groot", "yoda": "yoda", "coraline": "coraline", "hogwarts": "hogwarts", "harry": "harry potter",
+    # MakerWorld'de sık görülen İspanyolca/Portekizce/İtalyanca kelimeler
+    "varita": "asa", "giratoria": "dönen", "giratorio": "dönen", "lagartixa": "kertenkele",
+    "navidad": "yılbaşı", "natal": "yılbaşı", "natale": "yılbaşı", "maceta": "saksı", "llavero": "anahtarlık",
+    "chaveiro": "anahtarlık", "portachiavi": "anahtarlık", "papai": "noel baba",
+    "reindeer": "geyik", "deer": "geyik", "snowflake": "kar tanesi", "angel": "melek", "elf": "elf",
 }
 GURULTU = {
     "print", "printed", "printing", "in", "place", "pip", "no", "ams", "tpu", "the", "a", "an", "for", "with",
@@ -177,6 +184,84 @@ def sorgu_olustur(ad: str | None, en_fazla_kelime: int = 3) -> str | None:
     return " ".join(sonuc[:en_fazla_kelime]) or None
 
 
+# Ürün tipi: Türk satıcılar ilanı ürünün ne olduğuyla yazar ("Grinch Figür", "Yılbaşı Süsü").
+# Model adı yalnızca karakter/tema söylüyorsa (ör. "MINI GRINCH") ad + etiketlerden tip eklenir.
+TIP_KURALLARI = [
+    (("keychain", "keyring", "key chain"), "anahtarlık"),
+    (("stamp", "embosser"), "mühür"),
+    (("ornament", "decoration", "decor"), "süs"),
+    (("figure", "figurine", "statue", "bust", "diorama", "character"), "figür"),
+    (("vase",), "vazo"),
+    (("planter", "plant pot", "flower pot"), "saksı"),
+    (("lamp", "night light", "lithophane"), "lamba"),
+]
+KARAKTERLER = {"grinch", "pikachu", "pokemon", "creeper", "batman", "stitch", "mario", "sonic", "groot",
+               "yoda", "coraline", "harry potter", "örümcek adam", "noel baba", "kardan adam"}
+TIP_ISIMLERI = {tip for _, tip in TIP_KURALLARI} | {
+    "anahtarlık", "kalemlik", "isimlik", "mumluk", "yüzük", "bileklik", "kolye", "küpe", "oyuncak", "stand",
+    "standı", "tutucu", "düzenleyici", "kutu", "çerçeve", "askı", "raf", "tepsi", "kase", "tabak", "süsü",
+    "kartvizitlik", "açacak", "altlığı", "kulesi", "çanta", "cüzdan", "tarak", "maske", "kılıç", "fırlatıcı"}
+BOYUT = re.compile(r"\b(?:mini|tiny|little|small)\b")
+
+
+def urun_tipi(ad: str | None, etiketler: list[str] | None = None, mevcut: str | None = None) -> str | None:
+    """Sorguya eklenecek ürün tipi (ör. "mini figür", "süsü"); sorguda zaten bir tip varsa None."""
+    mevcut_kelimeler = set((mevcut or "").split())
+    if mevcut_kelimeler & TIP_ISIMLERI:
+        return None
+    metin = " | ".join([(ad or "").lower(), *[str(e).lower() for e in etiketler or []]])
+
+    def bul(kaynak: str) -> str | None:
+        return next((tr for ingilizce, tr in TIP_KURALLARI
+                     if any(re.search(rf"\b{re.escape(k)}s?\b", kaynak) for k in ingilizce)), None)
+
+    karakter = any(re.search(rf"(?<![a-zçğıöşü]){re.escape(k)}(?![a-zçğıöşü])", mevcut or "")
+                   for k in KARAKTERLER)
+    # Karakterli modellerde yalnızca ada bakılır: etiketlerdeki genel "decoration" yüzünden
+    # "MINI GRINCH" figürü "süs" sanılmasın. Ad bir şey söylemiyorsa çoğunlukla figürdür.
+    tip = (bul((ad or "").lower()) or "figür") if karakter else bul(metin)
+    if tip == "süs" and "yılbaşı" in mevcut_kelimeler:
+        tip = "süsü"    # "yılbaşı süsü"
+    if tip == "figür" and BOYUT.search(metin):
+        tip = "mini figür"
+    return tip
+
+
+# Genişletilmiş (ikinci) aramada kullanılır: Türk pazar yerlerinde daha yaygın karşılıklar.
+ES_ANLAMLI = {"fidget": "stres oyuncağı", "manyetik": "mıknatıslı", "eklemli": "hareketli",
+              "kabartma mühür": "kabartma damga", "imkansız vida": "spiral vida"}
+
+
+def genis_metin(sorgu: str | None) -> str | None:
+    """Az sonuç gelirse kullanılacak daha geniş sorgu: eş anlamlılarla değiştirilir; değişmediyse
+    ilk kelime (çoğunlukla sıfat) atılır."""
+    if not sorgu:
+        return None
+    govde = re.sub(r"\s*3d baskı$", "", sorgu)
+    yeni = govde
+    for k, es in ES_ANLAMLI.items():
+        yeni = re.sub(rf"(?<![a-zçğıöşü]){re.escape(k)}(?![a-zçğıöşü])", es, yeni)
+    if yeni == govde:
+        parcalar = _parcalar(govde)
+        if len(parcalar) < 3:
+            return None
+        yeni = " ".join(parcalar[1:])
+    return f"{yeni} 3d baskı"
+
+
+def _parcalar(govde: str) -> list[str]:
+    """Sorguyu bölünmemesi gereken ifadeleriyle parçalar ("noel baba", "yılbaşı ağacı" tek parça)."""
+    ifadeler = sorted({v for v in [*IFADELER.values(), *CEVIRI.values(), *KARAKTERLER, *ES_ANLAMLI.values(),
+                                   "yılbaşı süsü", "mini figür"] if " " in v}, key=len, reverse=True)
+    parcalar, kalan = [], govde.split()
+    while kalan:
+        uyan = next((i for i in ifadeler if kalan[:len(i.split())] == i.split()), None)
+        n = len(uyan.split()) if uyan else 1
+        parcalar.append(" ".join(kalan[:n]))
+        kalan = kalan[n:]
+    return parcalar
+
+
 # Lens'in bulduğu Türkçe 3D baskı başlıklarından ek kelimeler (satıcıların kullandığı Türkçe).
 TR_DURAK = {
     "ve", "ile", "için", "icin", "bir", "bu", "da", "de", "fiyatı", "fiyati", "fiyatları", "satın", "al",
@@ -209,10 +294,16 @@ def lens_kelimeleri(lens_yaniti: dict, en_fazla: int = 2) -> list[str]:
     return [k for k, n in sorted(sayac.items(), key=lambda x: (-x[1], x[0])) if n >= 2][:en_fazla]
 
 
-def arama_metni(ad: str | None, lens_yaniti: dict | None = None) -> str | None:
-    """İsimden üretilen metin + (varsa) Lens'teki Türkçe 3D baskı başlıklarından kelimeler + '3d baskı'."""
-    temel = sorgu_olustur(ad)
+def arama_metni(ad: str | None, lens_yaniti: dict | None = None,
+                etiketler: list[str] | None = None) -> str | None:
+    """İsimden üretilen metin (isimden çıkmazsa etiketlerden) + ürün tipi + (varsa) Lens'teki Türkçe
+    3D baskı başlıklarından kelimeler + '3d baskı'."""
+    temel = sorgu_olustur(ad) or sorgu_olustur(" ".join(str(e) for e in (etiketler or [])[:6]))
     kelimeler = temel.split() if temel else []
+    tip = urun_tipi(ad, etiketler, temel) if kelimeler else None
+    for k in (tip or "").split():
+        if k not in kelimeler:
+            kelimeler.append(k)
     for k in lens_kelimeleri(lens_yaniti or {}):
         if k not in kelimeler and len(kelimeler) < 5:
             kelimeler.append(k)
@@ -581,15 +672,36 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
 def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
     """1) Görsel + metinle (Lens): pazar yeri sonuçları + sosyal medya sayfaları + Türkçe başlıklardan
        kelimeler. Görselin yanına ürün adının Türkçesi ve '3d baskı' eklenir.
-    2) İsimle (Alışveriş): model adının Türkçesi + Lens kelimeleri + '3d baskı'."""
-    temel = arama_metni(urun.get("name"))
+    2) İsimle (Alışveriş): model adının Türkçesi + ürün tipi + Lens kelimeleri + '3d baskı'.
+    3) Satış sonucu PAZAR_YEDEK_ALT_SINIR'dan azsa ve kota yetiyorsa daha geniş metinle bir kez daha."""
+    ad, etiketler = urun.get("name"), urun.get("tags")
+    temel = arama_metni(ad, None, etiketler)
     lens = lens_ara(api_key, urun["image_url"], temel, client) if urun.get("image_url") else {}
-    sorgu = arama_metni(urun.get("name"), lens)
-    anahtarlar = anahtar_kelimeler(urun.get("name"), sorgu)
+    sorgu = arama_metni(ad, lens, etiketler)
+    anahtarlar = anahtar_kelimeler(ad, sorgu)
     gorsel = lens_sonuclari(lens, anahtarlar)
     sosyal = sosyal_sonuclari(lens, anahtarlar)
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
-    return birlestir(gorsel, metin) + sosyal, sorgu
+    satis = birlestir(gorsel, metin)
+    if config.PAZAR_YEDEK_ARAMA and len(satis) < config.PAZAR_YEDEK_ALT_SINIR:
+        genis = genis_metin(sorgu)
+        kalan = kalan_hak(api_key, client) if genis else None
+        if genis and kalan is not None and kalan >= config.PAZAR_YEDEK_KOTA_ESIGI:
+            satis = birlestir(gorsel, metin, alisveris_sonuclari(alisveris_ara(api_key, genis, client)))
+            sorgu = f"{sorgu} · {genis}"
+    return satis + sosyal, sorgu
+
+
+def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
+    """SerpApi'de bu ay kalan arama hakkı (hesap sorgusu ücretsizdir, hak düşmez). Okunamazsa None
+    döner; o durumda ek arama yapılmaz."""
+    try:
+        yanit = (client or httpx.Client(timeout=30)).get(HESAP_API, params={"api_key": api_key})
+        veri = yanit.json() if yanit.status_code == 200 else {}
+        kalan = veri.get("total_searches_left", veri.get("plan_searches_left"))
+        return int(kalan) if kalan is not None else None
+    except (httpx.HTTPError, ValueError, TypeError):
+        return None
 
 
 def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None) -> dict[int, dict]:

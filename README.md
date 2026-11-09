@@ -14,7 +14,10 @@ ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hash
 - **E-ticaret araştırması (isteğe bağlı):** özetteki ürünlerin (1. sıradan başlayarak) kapak görseli + "<Türkçe ad> 3d baskı" metniyle Google
   Lens (SerpApi; GIF kapaklar yerine gerçek baskı fotoğrafı) ve aynı metinle Google Alışveriş araması.
   Görsel eşleşmeler yalnızca başlığı ürünle ilgili bir kelime içeriyorsa sayılır; Temu/DHgate gibi
-  yurt dışı toptan siteler bağımsız mağaza sayılmaz. **Yalnızca 3D baskı ürünler** karşılaştırılır (fabrika
+  yurt dışı toptan siteler bağımsız mağaza sayılmaz.
+  Arama metnine ürün tipi eklenir (ad + MakerWorld etiketlerinden: "grinch mini figür", "yılbaşı süsü").
+  3'ten az sonuç gelirse ve SerpApi'de 40'tan fazla hak kaldıysa daha geniş metinle ("fidget" →
+  "stres oyuncağı") bir arama daha yapılır (`PAZAR_YEDEK_ARAMA`). **Yalnızca 3D baskı ürünler** karşılaştırılır (fabrika
   üretimi ve dijital model dosyaları elenir). Trendyol, Hepsiburada, n11, Amazon TR, Çiçeksepeti, Pazarama,
   PttAVM, Etsy ve 3D baskı satan bağımsız Türk mağazaları tutulur (`config.PAZAR_SITELERI`,
   `PAZAR_BAGIMSIZ_MAGAZALAR`). Siteler doğrudan taranmaz (Trendyol

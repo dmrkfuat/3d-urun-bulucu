@@ -130,7 +130,7 @@ def test_yalniz_pazar_yerleri_ayari(monkeypatch):
 def test_turkce_sorgu():
     assert pazar.sorgu_olustur("Ultra Satisfying Fidget Flexy Ring! (NO TPU!)") == "fidget yüzük"
     assert pazar.sorgu_olustur("Impossible Thread - Print-in-Place Fidget (no AMS)") == "imkansız vida fidget"
-    assert pazar.sorgu_olustur("Custom Text Embosser | Print-in-Place Hinged Press") == "yazı kabartma pres"
+    assert pazar.sorgu_olustur("Custom Text Embosser | Print-in-Place Hinged Press") == "kabartma mühür pres"
     assert pazar.sorgu_olustur("MYLITOS MINI GRINCH") == "grinch"            # marka adı atılır
     assert pazar.sorgu_olustur("Gnomo Nordico Natalizio Stile Maglia NO AMS") == "cüce"
     assert pazar.sorgu_olustur("Zorblax Thing") == "zorblax thing"           # sözlükte yoksa ilk 2 kelime
@@ -364,3 +364,43 @@ def test_dosya_satisi_elenir():
     assert not pazar.uc_d_mi("3D Print File - Extra Spiky Fidget Spinner: Sensory Stim Toy")
     assert not pazar.uc_d_mi("Fidget Ring 3D Printer Files STL")
     assert pazar.uc_d_mi("3D Printed Spiral Fidget Toy")
+
+
+def test_urun_tipi_ve_etiketler():
+    assert pazar.arama_metni("MYLITOS MINI GRINCH", None, ["grinch", "christmas", "decoration", "toy"]) \
+        == "grinch mini figür 3d baskı"                      # karakter + mini → mini figür (süs değil)
+    assert pazar.arama_metni("Christmas Cable Car", None, ["cable car", "decoration"]) \
+        == "teleferik yılbaşı süsü 3d baskı"
+    assert pazar.arama_metni("Fidget Flexy Ring", None, ["fidget", "decoration"]) == "fidget yüzük 3d baskı"  # tip zaten var
+    assert pazar.arama_metni("Custom Text Embosser | Hinged Press") == "kabartma mühür pres 3d baskı"
+    assert pazar.arama_metni("XQZW", None, ["keychain", "dragon"]) == "anahtarlık ejderha 3d baskı"   # addan çıkmazsa etiketlerden
+
+
+def test_genis_metin():
+    assert pazar.genis_metin("fidget yüzük 3d baskı") == "stres oyuncağı yüzük 3d baskı"
+    assert pazar.genis_metin("noel baba tutucu 3d baskı") is None          # "noel baba" bölünmez
+    assert pazar.genis_metin("minik kablo tutucu 3d baskı") == "kablo tutucu 3d baskı"
+    assert pazar.genis_metin(None) is None
+
+
+def _yedek_istemci(kalan: int, istekler: list):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("account.json"):
+            istekler.append("hesap")
+            return httpx.Response(200, json={"total_searches_left": kalan})
+        p = request.url.params
+        istekler.append((p["engine"], p.get("q")))
+        return httpx.Response(200, json={})
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_az_sonucta_genis_arama_kota_varsa():
+    u = {"name": "Fidget Flexy Ring", "image_url": "https://cdn.example/r.png", "tags": []}
+    istekler = []
+    _, sorgu = pazar.urun_ara("K", u, _yedek_istemci(200, istekler))
+    assert istekler[-2:] == ["hesap", ("google_shopping", "stres oyuncağı yüzük 3d baskı")]
+    assert sorgu == "fidget yüzük 3d baskı · stres oyuncağı yüzük 3d baskı"
+    istekler = []
+    pazar.urun_ara("K", u, _yedek_istemci(10, istekler))            # kota azsa ek arama yok
+    assert [i for i in istekler if i != "hesap"] == [("google_lens", "fidget yüzük 3d baskı"),
+                                                     ("google_shopping", "fidget yüzük 3d baskı")]
