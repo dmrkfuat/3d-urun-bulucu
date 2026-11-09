@@ -26,7 +26,8 @@ jobs:
 
       - name: Gizli anahtar kontrolü
         run: |
-          if grep -rqE 'sb_secret_|service_role' panel/; then
+          # Gerçek anahtar biçimleri: yeni gizli anahtar (sb_secret_xxxx) ve eski JWT anahtarları (eyJ...)
+          if grep -rqE 'sb_secret_[A-Za-z0-9_-]{8,}|eyJhbGciOi' panel/; then
             echo "::error::panel/ içinde gizli anahtar var; yayınlanmadı."
             exit 1
           fi
