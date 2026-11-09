@@ -28,14 +28,21 @@ create table if not exists panel_izinli (
 );
 alter table panel_izinli enable row level security;
 
+-- Giriş yapan hesabın kimliği (auth.uid()) üzerinden kontrol; e-posta doğrulanmış olmalı.
 create or replace function public.panel_izinli_mi()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
-  select exists (select 1 from panel_izinli where lower(email) = lower(auth.jwt() ->> 'email'));
+  select exists (
+    select 1
+    from auth.users u
+    join public.panel_izinli p on lower(p.email) = lower(u.email)
+    where u.id = auth.uid()
+      and u.email_confirmed_at is not null
+  );
 $$;
 revoke all on function public.panel_izinli_mi() from public, anon;
 grant execute on function public.panel_izinli_mi() to authenticated;
