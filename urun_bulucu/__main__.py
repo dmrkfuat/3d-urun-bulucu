@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import bildirim, config, ozet, pazar, puanlama, talep, tasarimci
+from . import bildirim, config, maliyet, ozet, pazar, puanlama, talep, tasarimci
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -40,6 +40,14 @@ def calistir(bugun: date | None = None) -> int:
     onceki = depo.onceki_anliklar([u["id"] for u in urunler],
                                   en_gec=bugun - timedelta(days=6), en_erken=bugun - timedelta(days=14))
 
+    # Daha önce e-ticarette aranmış ürünlerde fiyat piyasaya göre önerilir (puanlamadan önce).
+    try:
+        kayitlar = {pid: o for pid, o in depo.pazar_kayitlari([u["id"] for u in urunler]).items()
+                    if pazar.gecerli_mi(o)}
+        print(f"Piyasaya göre fiyat: {len(maliyet.piyasaya_uygula(urunler, kayitlar))} ürün")
+    except Exception as e:  # noqa: BLE001 — fiyat maliyetten kalır
+        print(f"UYARI: Piyasa fiyatları okunamadı: {e}")
+
     talepler = talep.oku(config.TALEP_DOSYASI)
     puanli = puanlama.puanla(urunler, onceki, bugun, talepler)
     depo.puanlari_kaydet(puanli)
@@ -67,6 +75,12 @@ def calistir(bugun: date | None = None) -> int:
         # aranmış olanlar dahil); yalnızca 3D şartıyla yapılmış aramalar.
         pazar_sonuclari = {pid: o for pid, o in depo.pazar_kayitlari([s["product_id"] for s in secimler]).items()
                            if pazar.gecerli_mi(o)}
+        # Bugün ilk kez aranan ürünlerin fiyatı da piyasaya göre güncellenir (puan yarın etkilenir).
+        guncel = maliyet.piyasaya_uygula([s["urun"] for s in secimler], pazar_sonuclari)
+        for u in guncel:
+            u["score_detail"].update(puanlama.fiyat_ayrintisi(u))
+        if guncel:
+            depo.puanlari_kaydet(guncel)
     except Exception as e:  # noqa: BLE001
         print(f"UYARI: Kayıtlı e-ticaret sonuçları okunamadı: {e}")
 

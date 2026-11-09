@@ -188,8 +188,9 @@ class SqliteDepo:
 
     def puanlari_kaydet(self, urunler: list[dict]) -> None:
         self.con.executemany(
-            "update products set score=?, score_detail=? where id=?",
-            [(u["score"], json.dumps(u["score_detail"], ensure_ascii=False), u["id"]) for u in urunler],
+            "update products set score=?, score_detail=?, price_tl=?, hourly_profit_tl=? where id=?",
+            [(u["score"], json.dumps(u["score_detail"], ensure_ascii=False), u.get("price_tl"),
+              u.get("hourly_profit_tl"), u["id"]) for u in urunler],
         )
         self.con.commit()
 
@@ -311,7 +312,8 @@ class SupabaseDepo:
     def puanlari_kaydet(self, urunler: list[dict]) -> None:
         for u in urunler:
             self.sb.table("products").update(
-                {"score": u["score"], "score_detail": u["score_detail"]}
+                {"score": u["score"], "score_detail": u["score_detail"],
+                 "price_tl": u.get("price_tl"), "hourly_profit_tl": u.get("hourly_profit_tl")}
             ).eq("id", u["id"]).execute()
 
     def secimleri_kaydet(self, gun: date, secimler: list[dict]) -> None:

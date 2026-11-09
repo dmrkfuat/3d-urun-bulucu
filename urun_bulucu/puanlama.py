@@ -1,8 +1,9 @@
 """İçerik puanı (0-100).
 
-Ağırlıklar: popülerlik 30, 7 günlük artış 25, görsel çekicilik 20,
-kısa baskı süresi 15, lisans uygunluğu 10. Etsy talep listesiyle eşleşen
-ürünler ve MakerWorld trend listesindekiler +5 bonus alır (en fazla 100). Popülerlik ve artış, her kaynağın
+Ağırlıklar: popülerlik 25, 7 günlük artış 25, satış potansiyeli 20, görsel çekicilik 15,
+kısa baskı süresi 10, lisans uygunluğu 5. Etsy talep listesiyle eşleşen ürünler ve MakerWorld
+trend listesindekiler +5, sezon ürünleri +5 bonus alır; Türkiye piyasa verisi olanlar -3..+5
+(piyasa bonusu). En fazla 100. Popülerlik ve artış, her kaynağın
 kendi en yükseğine göre 0-1 arasına çekilir (ileride başka kaynak eklenirse diye).
 """
 from __future__ import annotations
@@ -10,10 +11,10 @@ from __future__ import annotations
 import math
 from datetime import date, datetime
 
-from . import analiz, lisans, sezon, talep
+from . import analiz, config, lisans, sezon, talep
 from .config import KISA_BASKI_SAAT, TREND_BONUS
 
-AGIRLIK = {"populerlik": 30, "artis": 25, "gorsel": 20, "sure": 15, "lisans": 10}
+AGIRLIK = {"populerlik": 25, "artis": 25, "satis": 20, "gorsel": 15, "sure": 10, "lisans": 5}
 ETSY_BONUS = 5
 LISANS_PUANI = {lisans.TICARI_SERBEST: 1.0, lisans.NC_SADECE_ICERIK: 0.8, lisans.KONTROL_ET: 0.4}
 
@@ -28,6 +29,56 @@ def sure_puani(dakika: int | None) -> float:
     if dakika <= KISA_BASKI_SAAT * 60:
         return 0.7
     return 0.15  # tek seferde bitmeyecek kadar uzun
+
+
+def fiyat_bandi_puani(fiyat: float) -> float:
+    """Alıcının kolay karar verdiği fiyat aralığı daha iyi: ≤300 TL en iyi, 1000 TL üstü zor satar."""
+    if fiyat <= 300:
+        return 1.0
+    if fiyat <= 600:
+        return 0.8
+    if fiyat <= 1000:
+        return 0.5
+    return 0.2
+
+
+def satis_puani(u: dict) -> float:
+    """Satış potansiyeli (0-1): saat başına kazanç %40, parça başına kâr %30, fiyat aralığı %30.
+    Maliyet bilinmiyorsa nötr (0.5)."""
+    if u.get("cost_tl") is None or u.get("price_tl") is None or u.get("hourly_profit_tl") is None:
+        return 0.5
+    saatlik = min(1.0, max(0.0, u["hourly_profit_tl"]) / config.SATIS_TAM_SAATLIK_TL)
+    parca = min(1.0, max(0.0, u["price_tl"] - u["cost_tl"]) / config.SATIS_TAM_PARCA_KAR_TL)
+    return 0.4 * saatlik + 0.3 * parca + 0.3 * fiyat_bandi_puani(u["price_tl"])
+
+
+def piyasa_bonusu(u: dict) -> tuple[int, str | None]:
+    """Türkiye'deki 3D baskı benzerlerinin fiyatına göre bonus (piyasa verisi olan ürünler):
+    piyasa fiyatı maliyeti iyi karşılıyorsa +, karşılamıyorsa -; pazar çok kalabalıksa -2."""
+    p = u.get("piyasa")
+    if not p or not u.get("cost_tl"):
+        return 0, None
+    oran = p["medyan"] / u["cost_tl"]
+    if oran >= 5:
+        bonus = 5
+    elif oran >= 3:
+        bonus = 3
+    elif oran >= 1.5:
+        bonus = 0
+    else:
+        bonus = -3
+    kalabalik = p.get("satis_sonucu", 0) >= 12
+    if kalabalik:
+        bonus -= 2
+    metin = (f"Türkiye'de 3D baskı benzerleri ortanca {p['medyan']} TL (maliyetin {oran:.0f} katı)"
+             + ("; pazar kalabalık" if kalabalik else ""))
+    return bonus, metin
+
+
+def fiyat_ayrintisi(u: dict) -> dict:
+    """score_detail'e yazılan fiyat bilgisi (panel ve rapor için)."""
+    return {"fiyat_kaynagi": "piyasa" if u.get("piyasa") else "maliyet",
+            "maliyet_fiyati": u.get("maliyet_fiyati"), "piyasa_bilgisi": u.get("piyasa")}
 
 
 def _gun_farki(baslangic: str | None, bugun: date) -> int:
@@ -83,6 +134,7 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             "gorsel": analiz.gorsel_puan(u.get("features") or []),
             "sure": sure_puani(u.get("print_time_min")),
             "lisans": LISANS_PUANI.get(u.get("license_flag"), 0.4),
+            "satis": satis_puani(u),
         }
         puan = sum(AGIRLIK[k] * v for k, v in bilesen.items())
         etsy = talep.eslesen(u, talepler)
@@ -93,7 +145,9 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
         sezon_eslesme = sezon.eslesen(u, aktif_sezonlar)
         if sezon_eslesme:
             puan += sezon.SEZON_BONUS
-        u["score"] = round(min(100.0, puan), 1)
+        p_bonus, p_metin = piyasa_bonusu(u)
+        puan += p_bonus
+        u["score"] = round(max(0.0, min(100.0, puan)), 1)
         u["score_detail"] = {
             **{k: round(v, 3) for k, v in bilesen.items()},
             "gunluk_ilgi_artisi": round(artis_ham[u["id"]], 1),
@@ -101,5 +155,8 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             "etsy_talep": etsy["anahtar_kelime"] if etsy else None,
             "trend_sirasi": u.get("trend_rank"),
             "sezon": sezon.yazi(*sezon_eslesme) if sezon_eslesme else None,
+            "piyasa": p_metin,
+            "piyasa_bonusu": p_bonus,
+            **fiyat_ayrintisi(u),
         }
     return sorted(urunler, key=lambda x: x["score"], reverse=True)

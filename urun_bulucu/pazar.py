@@ -611,6 +611,10 @@ def birlestir(*listeler: list[dict], en_fazla: int = 15) -> list[dict]:
     return sonuc[:en_fazla]
 
 
+def fiyat_kumesi(sonuclar: list[dict]) -> list[float]:
+    return _fiyat_kumesi(sonuclar)
+
+
 def _fiyat_kumesi(sonuclar: list[dict]) -> list[float]:
     """Fiyat istatistiği: tüm fiyatlı 3D baskı sonuçlar; ortancadan 5 kat uzak uç değerler atılır."""
     fiyatlar = [r["price"] for r in sonuclar if r.get("price") is not None]

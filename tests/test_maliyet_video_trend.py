@@ -136,3 +136,54 @@ def test_sqlite_yeni_sutunlar_ve_eski_dosya(tmp_path):
     depo = SqliteDepo(yol)
     sutunlar = {r["name"] for r in depo.con.execute("pragma table_info(products)")}
     assert {"weight_g", "cost_tl", "price_tl", "trend_rank"} <= sutunlar
+
+
+# ---------------------------------------------------------------- piyasaya göre fiyat ve satış puanı
+def _pazar_kaydi(fiyatlar, satis=None):
+    return {"found_count": satis if satis is not None else len(fiyatlar),
+            "results": [{"site": "Trendyol", "price": f, "kaynak": "metin"} for f in fiyatlar]}
+
+
+def test_piyasaya_gore_fiyat():
+    u = urun(1, "Ring", 10, 100, print_time_min=60, weight_g=20, cost_tl=20.6, price_tl=65, hourly_profit_tl=44.4)
+    guncel = maliyet.piyasaya_uygula([u], {1: _pazar_kaydi([300, 380, 400, 450])})
+    assert guncel == [u]
+    assert u["price_tl"] == 355 and u["maliyet_fiyati"] == 65          # ortanca 390 × 0,9 = 351 → 5'e yukarı 355
+    assert u["piyasa"] == {"medyan": 390, "fiyatli": 4, "satis_sonucu": 4}
+    assert u["hourly_profit_tl"] == round(355 - 20.6, 1)
+    assert "ortancası 390 TL'ye göre; maliyete göre 65 TL olurdu" in maliyet.yazi(u)
+    # İki kez uygulanınca maliyet fiyatı korunur
+    maliyet.piyasaya_uygula([u], {1: _pazar_kaydi([300, 380, 400, 450])})
+    assert u["maliyet_fiyati"] == 65
+
+
+def test_piyasa_fiyati_maliyetin_altina_inmez_ve_az_veride_uygulanmaz():
+    u = urun(1, "Vazo", 10, 100, print_time_min=600, weight_g=400, cost_tl=380.0, price_tl=1140, hourly_profit_tl=76)
+    maliyet.piyasaya_uygula([u], {1: _pazar_kaydi([200, 250, 300])})
+    assert u["price_tl"] == 570                                          # 380 × 1,5
+    v = urun(2, "X", 10, 100, print_time_min=60, weight_g=20, cost_tl=20.6, price_tl=65, hourly_profit_tl=44.4)
+    assert maliyet.piyasaya_uygula([v], {2: _pazar_kaydi([300, 400])}) == [] and v["price_tl"] == 65
+
+
+def test_satis_puani_ve_piyasa_bonusu():
+    hizli = urun(1, "A", 10, 100, cost_tl=20, price_tl=200, hourly_profit_tl=120)
+    agir = urun(2, "B", 10, 100, cost_tl=380, price_tl=1150, hourly_profit_tl=80)
+    assert puanlama.satis_puani(hizli) == 1.0
+    assert puanlama.satis_puani(agir) < 0.75                            # pahalı: zor satar
+    assert puanlama.satis_puani(urun(3, "C", 10, 100)) == 0.5           # maliyet bilinmiyor
+    assert puanlama.piyasa_bonusu(hizli) == (0, None)
+    hizli["piyasa"] = {"medyan": 380, "fiyatli": 5, "satis_sonucu": 13}
+    bonus, metin = puanlama.piyasa_bonusu(hizli)
+    assert bonus == 3 and "ortanca 380 TL (maliyetin 19 katı); pazar kalabalık" in metin
+    agir["piyasa"] = {"medyan": 450, "fiyatli": 4, "satis_sonucu": 4}
+    assert puanlama.piyasa_bonusu(agir)[0] == -3                        # piyasa maliyeti karşılamıyor
+
+
+def test_piyasa_bonusu_puana_ve_nedene_yansir():
+    a = urun(1, "A", 100, 1000, print_time_min=60, weight_g=20, cost_tl=20, price_tl=60, hourly_profit_tl=40)
+    b = urun(2, "B", 100, 1000, print_time_min=60, weight_g=20, cost_tl=20, price_tl=60, hourly_profit_tl=40,
+             piyasa={"medyan": 300, "fiyatli": 5, "satis_sonucu": 5})
+    puanli = {u["id"]: u for u in puanlama.puanla([a, b], {}, BUGUN)}
+    assert puanli[2]["score"] - puanli[1]["score"] == 5
+    assert puanli[2]["score_detail"]["fiyat_kaynagi"] == "piyasa"
+    assert "ortanca 300 TL" in ozet.neden(puanli[2])

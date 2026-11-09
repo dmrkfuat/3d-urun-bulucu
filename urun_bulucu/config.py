@@ -52,6 +52,17 @@ FIRE_ORANI = 0.10           # hatalı baskı ve renk değişimi atığı için f
 FIYAT_CARPANI = 3           # önerilen satış fiyatı = maliyet × bu sayı
 EN_DUSUK_FIYAT_TL = 50      # önerilen fiyat bunun altına inmez
 
+# Piyasaya göre fiyat: ürünün Türkiye'deki 3D baskı benzerlerinin en az PIYASA_EN_AZ_FIYATLI fiyatı
+# biliniyorsa önerilen fiyat = ortanca × PIYASA_FIYAT_ORANI (biraz altında, rekabetçi); ama
+# maliyetin PIYASA_EN_AZ_KAR_CARPANI katından aşağı inmez.
+PIYASA_FIYAT_ORANI = 0.9
+PIYASA_EN_AZ_KAR_CARPANI = 1.5
+PIYASA_EN_AZ_FIYATLI = 3
+
+# Satış potansiyeli: saat başına ve parça başına kazanç bu değerlerde tam puan alır.
+SATIS_TAM_SAATLIK_TL = 100
+SATIS_TAM_PARCA_KAR_TL = 150
+
 # --- E-ticaret araştırması (SerpApi: Google Lens + Google Alışveriş; ücretsiz plan ayda 250 arama) ---
 PAZAR_GUNLUK_ADET = 3        # günde kaç ürün (ürün başına 2 arama: 3 × 2 × 30 = 180 < 250)
 PAZAR_YENILEME_GUN = 14      # aynı ürün bu kadar gün geçmeden tekrar aranmaz

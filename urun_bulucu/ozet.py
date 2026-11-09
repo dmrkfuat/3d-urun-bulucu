@@ -39,6 +39,8 @@ def neden(urun: dict) -> str:
         nedenler.append(f"MakerWorld trend listesinde #{urun['trend_rank']}")
     if d.get("sezon"):
         nedenler.append(f"sezon ürünü ({d['sezon']})")
+    if d.get("piyasa") and (d.get("piyasa_bonusu") or 0) > 0:
+        nedenler.append(d["piyasa"])
     if (urun.get("hourly_profit_tl") or 0) >= 50:
         nedenler.append(f"saat başına ~{urun['hourly_profit_tl']:.0f} TL kazanç")
     if not nedenler:

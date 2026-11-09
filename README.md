@@ -126,12 +126,14 @@ Bir kerelik kurulum:
 
 | Bileşen | Ağırlık | Açıklama |
 |---|---:|---|
-| Popülerlik | 30 | Beğeni, indirme ve baskı sayısı (logaritmik, o günkü en iyiye göre) |
+| Popülerlik | 25 | Beğeni, indirme ve baskı sayısı (logaritmik, o günkü en iyiye göre) |
 | Son 7 gündeki artış | 25 | Bir hafta önceki kayda göre günlük artış. İlk hafta henüz kayıt olmadığı için "yayından beri günlük ortalama" kullanılır. |
-| Görsel çekicilik | 20 | Hareketli parça / print-in-place (en yüksek), çok renkli (AMS), "satisfying", ışık efekti |
-| Kısa baskı | 15 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
-| Lisans | 10 | Satılabilir > NC (yalnızca içerik) > belirsiz |
-| Bonus | +5 / +5 | Etsy talep listesiyle eşleşme; MakerWorld "Trending" listesinde olma |
+| Satış potansiyeli | 20 | Saat başına kazanç (%40), parça başına kâr (%30), fiyat aralığı (%30: ≤300 TL en iyi, 1000 TL üstü zor satar) |
+| Görsel çekicilik | 15 | Hareketli parça / print-in-place (en yüksek), çok renkli (AMS), "satisfying", ışık efekti |
+| Kısa baskı | 10 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
+| Lisans | 5 | Satılabilir > NC (yalnızca içerik) > belirsiz |
+| Bonus | +5 / +5 / +5 | Etsy talep listesiyle eşleşme; MakerWorld "Trending" listesinde olma; sezon ürünü |
+| Piyasa bonusu | −5…+5 | E-ticarette aranmış ürünlerde: Türkiye'deki 3D baskı benzerlerinin ortancası maliyetin ≥5 katı +5, ≥3 katı +3, 1,5 katından az −3; 12+ satış sonucu (kalabalık pazar) −2 |
 
 Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
 
@@ -141,6 +143,10 @@ Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
 `önerilen fiyat = maliyet × fiyat çarpanı` (en az `EN_DUSUK_FIYAT_TL`, 5 TL'ye yuvarlanır).
 Gram ve süre modelin P1S profilinden gelir. Varsayılanlar `config.py`'de: 800 TL/kg, saatlik 3 TL,
 %10 fire, ×3, en az 50 TL. Etsy/kargo ücreti ve işçilik dahil değildir.
+
+**Piyasaya göre fiyat:** ürün e-ticarette aranmışsa ve en az 3 fiyatlı 3D baskı benzeri bulunduysa
+önerilen fiyat `ortanca × 0,9` olur (rekabetçi), ama maliyetin 1,5 katının altına inmez
+(`PIYASA_FIYAT_ORANI`, `PIYASA_EN_AZ_KAR_CARPANI`). Raporda maliyete göre fiyat da yazılır.
 Ayarlar (`kategoriler`, `kısa baskı süresi`, özet adedi) `urun_bulucu/config.py` dosyasındadır.
 
 ### Lisans işaretleri
