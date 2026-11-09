@@ -188,6 +188,30 @@ def uc_d_mi(baslik: str | None, satici: str | None = None) -> bool:
     return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
 
 
+# ---------------------------------------------------------------- dış metinleri temizleme
+# Satıcı adları ve ürün başlıkları dışarıdan gelir; rapora (Markdown) ve Telegram'a yazılır.
+_MD_ISARET = re.compile(r"[\[\]()<>*_`|!#\\\r\n\t]")
+
+
+def temiz_baslik(metin: str | None, uzunluk: int = 120) -> str | None:
+    if not metin:
+        return None
+    return re.sub(r"\s+", " ", _MD_ISARET.sub(" ", str(metin))).strip()[:uzunluk] or None
+
+
+def bagimsiz_etiket(satici: str | None) -> str | None:
+    """Bağımsız mağaza adı: yalnızca güvenli karakterler; bir pazar yeri adına benziyorsa
+    "(bağımsız)" eki alır, böylece pazar yeri gibi görünemez."""
+    ad = re.sub(r"\s+", " ", re.sub(r"[^\w\s.&'\-]", "", satici or "")).strip()[:40]
+    if not ad:
+        return None
+    sade = ad.lower().replace(" ", "")
+    for alan, pazar_adi in config.PAZAR_SITELERI.items():
+        if alan.split(".")[0] in sade or pazar_adi.lower().replace(" ", "") in sade:
+            return f"{ad} (bağımsız)"
+    return ad
+
+
 # ---------------------------------------------------------------- ayıklama
 def lens_sonuclari(yanit: dict) -> list[dict]:
     """Görsel eşleşmeler dünya çapındadır: yalnızca PAZAR_SITELERI'ndeki 3D baskı ürünler tutulur."""
@@ -198,7 +222,7 @@ def lens_sonuclari(yanit: dict) -> list[dict]:
             continue
         f = x.get("price") if isinstance(x.get("price"), dict) else {}
         fiyat = f.get("extracted_value")
-        sonuc.append({"site": site, "pazar_yeri": True, "title": x.get("title"),
+        sonuc.append({"site": site, "pazar_yeri": True, "title": temiz_baslik(x.get("title")),
                       "link": guvenli_link(x.get("link")),
                       "price": float(fiyat) if fiyat is not None and _tl_mi(f.get("currency")) else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "görsel"})
@@ -215,17 +239,20 @@ def alisveris_sonuclari(yanit: dict) -> list[dict]:
         if not link or not uc_d_mi(x.get("title"), satici):
             continue
         site = site_bul(x.get("link") or x.get("product_link"), satici)
-        if not site:
-            if not config.PAZAR_BAGIMSIZ_MAGAZALAR or not satici:
+        pazar_yeri = site is not None   # yalnızca alan adı / Google satıcı eşleşmesi pazar yeri sayılır
+        if not pazar_yeri:
+            if not config.PAZAR_BAGIMSIZ_MAGAZALAR:
                 continue
-            site = satici[:40]
+            site = bagimsiz_etiket(satici)
+            if not site:
+                continue
         fiyat = x.get("extracted_price")
         if fiyat is None:
             fiyat = _fiyat_metinden(x.get("price"))
         if fiyat is not None and float(fiyat) < config.PAZAR_EN_DUSUK_FIYAT_TL:
             continue  # dosya satışı veya hatalı fiyat
-        sonuc.append({"site": site, "pazar_yeri": site in config.PAZAR_SITELERI.values(),
-                      "title": x.get("title"), "link": link,
+        sonuc.append({"site": site, "pazar_yeri": pazar_yeri,
+                      "title": temiz_baslik(x.get("title")), "link": link,
                       "price": float(fiyat) if fiyat is not None else None,
                       "thumbnail": x.get("thumbnail"), "kaynak": "metin"})
     return sonuc

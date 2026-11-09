@@ -66,6 +66,23 @@ def test_guvenli_link():
     assert pazar.lens_sonuclari(zararli) == []
 
 
+def test_bagimsiz_magaza_etiketi_ve_baslik_temizligi(monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_BAGIMSIZ_MAGAZALAR", True)
+    assert pazar.bagimsiz_etiket("Pixu3D") == "Pixu3D"
+    assert pazar.bagimsiz_etiket("3D Yazdıralım") == "3D Yazdıralım"
+    assert pazar.bagimsiz_etiket("[Tıkla](https://x.example) **mağaza**") == "Tıklahttpsx.example mağaza"
+    # Pazar yeri adına benzeyen bağımsız mağaza pazar yeri gibi görünemez
+    assert pazar.bagimsiz_etiket("Trendyol") == "Trendyol (bağımsız)"
+    assert pazar.bagimsiz_etiket("Trendyol Store 3D") == "Trendyol Store 3D (bağımsız)"
+    assert pazar.bagimsiz_etiket("!!!") is None
+    assert pazar.temiz_baslik("Yüzük ](javascript:x) **3D**\nBaskı") == "Yüzük javascript:x 3D Baskı"
+    # Google'ın Trendyol dışı bir satıcıyı alan adı eşleşmesi olmadan "Trendyol" diye vermesi:
+    sahte = {"shopping_results": [{"title": "Yüzük 3D Baskı", "source": "Trendyol Resmi Mağaza",
+                                   "extracted_price": 100.0, "product_link": "https://shop.example/1"}]}
+    [r] = pazar.alisveris_sonuclari(sahte)
+    assert (r["site"], r["pazar_yeri"]) == ("Trendyol Resmi Mağaza (bağımsız)", False)
+
+
 def test_uc_d_sarti():
     assert pazar.uc_d_mi("Fidget Yüzük 3D Baskı")
     assert pazar.uc_d_mi("Fidget Parmak Yuzugu 3D Baski")
