@@ -1,0 +1,54 @@
+name: Günlük ürün analizi
+
+on:
+  schedule:
+    - cron: "0 17 * * *"   # her gün 20:00 (Türkiye saati)
+  workflow_dispatch: {}     # GitHub'da "Run workflow" ile elle de çalıştırılabilir
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gunluk-analiz
+  cancel-in-progress: false
+
+jobs:
+  analiz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Testler
+        run: python -m pytest -q
+
+      - name: Analizi çalıştır
+        env:
+          THINGIVERSE_TOKEN: ${{ secrets.THINGIVERSE_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -z "$THINGIVERSE_TOKEN" ]; then
+            echo "::warning::THINGIVERSE_TOKEN secret'ı tanımlı değil; analiz atlandı."
+            exit 0
+          fi
+          python -m urun_bulucu
+
+      - name: Raporu depoya kaydet
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add raporlar
+          # Supabase yoksa geçmiş veriler (7 günlük artış için) yerel veritabanı dosyasında tutulur
+          if [ -z "$SUPABASE_URL" ] && [ -f data/urunler.db ]; then git add -f data/urunler.db; fi
+          git diff --cached --quiet || git commit -m "Günlük özet: $(date -u +%F)"
+          git push

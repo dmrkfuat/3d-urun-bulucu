@@ -1,0 +1,22 @@
+# Gizli anahtarlar — asla GitHub'a gitmez
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Yerel veritabanı (Supabase yokken kullanılır)
+data/
+
+# Araç/editör dosyaları
+.playwright-mcp/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
