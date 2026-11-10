@@ -177,7 +177,7 @@
     </div>
 
     <div id="kesifSekmesi" hidden>
-      <p class="muted">Türkiye'de çok satan 3D baskı ürünler (haftada bir). <b>İlan sayısı</b>, aynı ürünü satan ayrı ilanlardır (Google Alışveriş + görsel arama); satış adedi değil, talep işaretidir. 🎯 Görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 İsimle bulundu: görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (tahmin).</p>
+      <p class="muted">Türkiye'de çok satan 3D baskı ürünler (haftada bir). <b>Satıcı sayısı</b>, aynı ürünü satan farklı satıcılardır (Google Alışveriş + görsel arama; satıcı başlıktaki markadan anlaşılır, bir satıcının renk ilanları tek sayılır). Satış adedi değil, talep işaretidir. 🎯 Görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 İsimle bulundu: görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (tahmin).</p>
       <div id="kesifListe" class="kesifler"></div>
     </div>
 
@@ -496,7 +496,9 @@
     if (son.error) { kap.innerHTML = `<div class="hata">${esc(son.error.message)}${/market_discovery|relation/i.test(son.error.message) ? " (Supabase'te supabase/guncelleme_2026-11-10_kesif.sql çalıştırıldı mı?)" : ""}</div>`; return; }
     if (!son.data.length) { kap.innerHTML = `<div class="bos">Henüz keşif yapılmadı. Haftada bir günlük analizle birlikte çalışır.</div>`; return; }
     const gun = son.data[0].kesif_tarihi;
-    const { data, error } = await sb.from("market_discovery").select("*").eq("kesif_tarihi", gun).order("ilan_sayisi", { ascending: false });
+    const { data: satirlar, error } = await sb.from("market_discovery").select("*").eq("kesif_tarihi", gun).order("ilan_sayisi", { ascending: false });
+    const saticiSayisi = (k) => Object.values(k.siteler || {}).reduce((t, n) => t + Number(n || 0), 0);
+    const data = (satirlar || []).slice().sort((a, b) => saticiSayisi(b) - saticiSayisi(a) || b.ilan_sayisi - a.ilan_sayisi);
     if (error) { kap.innerHTML = `<div class="hata">${esc(error.message)}</div>`; return; }
     await planIdleriYukle();
     kap.innerHTML = `<p class="muted">Keşif tarihi: ${esc(new Date(gun).toLocaleDateString("tr-TR", { dateStyle: "long" }))}</p>` + data.map((k, n) => {
@@ -515,9 +517,9 @@
       const diger = (k.diger_kaynaklar || []).filter((m) => m.site !== "MakerWorld").slice(0, 3)
         .map((m) => `<a href="${url(m.link)}" target="_blank" rel="noopener">${esc(m.site)}</a>`).join(" · ");
       return `<article class="kesifKart">
-        <div class="ust"><span class="sira">${n + 1}.</span><span class="ad">${esc(k.ad)}</span><span class="puan">${k.ilan_sayisi} ilan</span></div>
+        <div class="ust"><span class="sira">${n + 1}.</span><span class="ad">${esc(k.ad)}</span><span class="puan">${saticiSayisi(k)} satıcı</span></div>
         <div class="yanyana">${gorseller}</div>
-        <div class="cipler">${siteler}</div>
+        <div class="cipler"><span class="muted" style="font-size:13px">Satıcılar:</span>${siteler}<span class="muted" style="font-size:13px">· ${k.ilan_sayisi} ilan</span></div>
         <div>💰 ${fiyat}</div>
         ${satirlar}
         ${diger ? `<div class="muted" style="font-size:13px">Diğer model siteleri: ${diger}</div>` : ""}

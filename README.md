@@ -114,8 +114,10 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de satılandan başlar.
 1. Google Alışveriş'te kategori aramaları (`config.py` → `KESIF_SORGULARI`; yaklaşan sezon eklenir).
 2. Aynı ürünün ilanları kümelenir. Google Alışveriş satış adedi vermediği için talep işareti, aynı
-   ürünü satan **ayrı ilan ve site sayısıdır** (satıcılar satan ürünü kopyalar). Tek mağazanın çok
-   ürünü talep sayılmaz (sıralamada her siteden en fazla 5 ilan sayılır, en az 2 site gerekir).
+   ürünü satan **farklı satıcı sayısıdır** (satıcılar satan ürünü kopyalar). Satıcı, başlığın başındaki
+   markadan anlaşılır ("Bezos 3D Baskı ..."); bir satıcının her renk için açtığı ilanlar tek sayılır,
+   tek mağazanın ürünleri listelenmez (en az 2 satıcı). Tek sitede (ör. yalnızca Trendyol'da) birden
+   çok satıcının sattığı ürünler de sayılır.
 3. En çok satılan 8 ürünün fotoğrafıyla Google Lens: aynı ürünü satan diğer ilanlar eklenir ve
    sonuçlarda MakerWorld model sayfası çıkarsa **🎯 görsel eşleşme** (birebir kaynak model) olur.
 4. Ürün adının İngilizcesiyle MakerWorld'de ücretsiz arama: **🔤 isimle bulundu**. Yalnızca en az

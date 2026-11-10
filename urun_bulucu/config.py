@@ -99,7 +99,7 @@ KESIF_SORGULARI = [           # Google Alışveriş aramaları (her biri 1 SerpA
     "3d baskı saksı", "3d baskı anahtarlık", "3d baskı masaüstü düzenleyici", "3d baskı lamba",
 ]
 KESIF_EN_AZ_ILAN = 2          # en az bu kadar ayrı ilanı olan ürünler listelenir
-KESIF_EN_AZ_SITE = 2          # ve en az bu kadar farklı sitede/mağazada satılan
+KESIF_EN_AZ_SATICI = 2        # ve en az bu kadar farklı satıcının sattığı (tek mağazanın ürünü sayılmaz)
 KESIF_RAPOR_ADET = 12         # raporda en çok kaç ürün
 KESIF_LENS_ADET = 8           # en çok ilanlı kaç ürünün görseliyle Lens araması yapılır
 KESIF_YENILEME_GUN = 28       # aynı ürünün Lens sonucu bu kadar gün yeniden kullanılır (kota)

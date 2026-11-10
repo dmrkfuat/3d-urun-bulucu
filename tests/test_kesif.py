@@ -151,11 +151,24 @@ def test_calistir_zamani_gelmediyse_tablo_yoksa_veya_kota_azsa_aramaz(tmp_path, 
     assert cagrilar == ["hesap"]     # yalnızca ücretsiz kota sorgusu
 
 
-def test_tek_magazanin_cok_urunu_talep_sayilmaz():
-    tek = [_ilan(f"3D Baskı Masa Düzenleyici Model {n}", "Pixu3D", n) for n in range(14)]
-    cok = [_ilan("Dokunsal Fidget Cetveli", s, n) for n, s in enumerate(["Hepsiburada", "n11", "PttAVM"], 20)]
-    assert kesif.talep_puani(tek) == 5 and kesif.talep_puani(cok) == 3
-    assert kesif.site_sayisi(tek) == 1 and kesif.site_adi("trendruum.com") == "trendruum"
+def test_satici_sayisi_markaya_gore_renk_ilanlari_tek_sayilir():
+    tek = [{**_ilan(f"3D Baskı Masa Düzenleyici Model {n}", "Pixu3D", n), "pazar_yeri": False} for n in range(14)]
+    k = {"ilanlar": tek, "cekirdek": {"masa", "duzenleyici"}}
+    assert kesif.satici_sayisi(k) == 1                      # tek mağazanın 14 ürünü: 1 satıcı
+    renk = [_ilan(f"Bezos 3D Baskı Dokunsal Fidget Cetveli - {r}", "Hepsiburada", n)
+            for n, r in enumerate(["Kırmızı", "Turuncu", "Mor"])]
+    diger = [_ilan("Nexora Living 3D Baskı Dokunsal Fidget Cetveli", "Hepsiburada", 7),
+             _ilan("PTTAVM: Northcity 3D Baskı Dokunsal Fidget Cetveli", "PttAVM", 8),
+             _ilan("3D Baskı Dokunsal Fidget Cetveli - Beyaz", "n11", 9),
+             _ilan("3D Baskı Dokunsal Fidget Cetveli - Mor", "n11", 10)]   # markasız, aynı başlık
+    k = kesif.kumele(renk + diger)[0]
+    assert kesif.saticilar(k["ilanlar"], k["cekirdek"]) == {"Hepsiburada": 2, "PttAVM": 1, "n11": 1}
+    assert kesif.satici(diger[1], k["cekirdek"]) == "pttavm:northcity"
+    # Trendyol'da iki farklı satıcının sattığı ürün (tek site) artık elenmez.
+    ty = [_ilan("Genel Markalar Sonsuz Küp Infinity Küp", "Trendyol", 11),
+          _ilan("MODA Sonsuz Küp Infinity Küp", "Trendyol", 12), _ilan("MODA Sonsuz Küp Infinity Küp", "Trendyol", 13)]
+    assert kesif.satici_sayisi(kesif.kumele(ty)[0]) == 2
+    assert kesif.site_adi("trendruum.com") == "trendruum"
     # İsimle arama tek ayırt edici kelimeyle yapılmaz (her anahtarlık eşleşirdi).
     assert kesif.ingilizce_kelimeler(["maskot", "anahtarlik"])[0] == ["keychain"]
 
@@ -168,3 +181,13 @@ def test_model_sayfasi_alan_adini_dogrular():
     assert kesif.model_sayfasi("https://printables.com.kotu.example/model/1") is None
     assert kesif.model_sayfasi("https://kotu.example/makerworld.com/models/1") is None
     assert kesif.model_sayfasi("https://makerworld.com/tr/search/models?keyword=x") is None
+
+
+def test_ayni_model_iki_kez_eslesmez():
+    class Mw(SahteMakerWorld):
+        def detay(self, tid):
+            return {"id": int(tid), "title": "Fidget Ruler", "instances": []}
+    kume = {"kelimeler": ["fidget"], "ayirt": {"x"}}
+    modeller = [{"site": "MakerWorld", "id": "5", "sira": 1}, {"site": "MakerWorld", "id": "5", "sira": 4}]
+    ozet, _ = kesif.makerworld_eslestir(Mw(), kume, modeller, 300)
+    assert [e["external_id"] for e in ozet] == ["5"]

@@ -5,7 +5,9 @@ Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de SATI
 1. Google Alışveriş'te (SerpApi) kategori aramaları: "3d baskı fidget", "3d baskı saksı"...
    Yalnızca 3D baskı fiziksel ürünler tutulur (pazar.alisveris_sonuclari).
 2. Aynı ürünün ilanları kümelenir. Google Alışveriş satış adedi/yorum vermez; çok satanın en
-   güçlü işareti, aynı ürünü KAÇ AYRI İLANIN satmasıdır (satıcılar satan ürünü kopyalar).
+   güçlü işareti, aynı ürünü KAÇ FARKLI SATICININ satmasıdır (satıcılar satan ürünü kopyalar).
+   Satıcı başlıktaki markadan anlaşılır; bir satıcının her renk için açtığı ilanlar tek sayılır,
+   tek mağazanın ürünü (en az KESIF_EN_AZ_SATICI satıcı yoksa) listelenmez.
 3. En çok ilanı olan kümelerin görseliyle Google Lens: (a) aynı ürünü satan diğer Türk pazar
    yeri ilanları sayılır, (b) sonuçlarda MakerWorld/Printables model sayfası çıkarsa o modelin
    kaynağıdır ("görsel eşleşme"; birebir model).
@@ -129,13 +131,39 @@ def site_adi(site: str | None) -> str:
     return re.sub(r"\.(com|net|org)(\.tr)?$", "", (site or "").strip(), flags=re.I) or "?"
 
 
-def talep_puani(ilanlar: list[dict]) -> int:
-    """Sıralama: her siteden en fazla 5 ilan sayılır (tek mağazanın 14 farklı ürünü talep değildir)."""
-    return sum(min(n, 5) for n in Counter(site_adi(i.get("site")) for i in ilanlar).values())
+def satici(ilan: dict, cekirdek: set[str]) -> str:
+    """İlanın satıcısı için anahtar. Pazar yeri başlıkları çoğunlukla markayla başlar
+    ("Bezos 3D Baskı Dokunsal...", "MODA Sonsuz Küp..."): ürün kelimelerinden önceki kısım marka
+    sayılır. Marka yoksa aynı sitede aynı başlık (renk hariç) aynı satıcı sayılır; bağımsız mağaza
+    kendisidir. Böylece bir satıcının her renk için açtığı ayrı ilanlar tek sayılır."""
+    site = site_adi(ilan.get("site"))
+    if ilan.get("pazar_yeri") is False:
+        return site.lower()
+    kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
+    site_kel = set(re.findall(r"[a-z0-9]+", _n(_kucuk(site))))
+    on: list[str] = []
+    for k in kel:
+        if k in site_kel and not on:
+            continue   # "PTTAVM: Northcity 3D Baskı ..." → site adı atlanır
+        if k in ("3d", "3", "boyutlu") or k in DURAK or k in GENEL or k in cekirdek or _kok(k) in cekirdek:
+            break
+        on.append(k)
+    if on and len(on) <= 3:
+        return f"{site.lower()}:{' '.join(on)}"
+    govde = [k for k in kel if k not in RENKLER and k not in site_kel]
+    return f"{site.lower()}:{' '.join(govde)[:80]}"
 
 
-def site_sayisi(ilanlar: list[dict]) -> int:
-    return len({site_adi(i.get("site")) for i in ilanlar})
+def saticilar(ilanlar: list[dict], cekirdek: set[str]) -> dict[str, int]:
+    """{site: farklı satıcı sayısı}, çoktan aza."""
+    gruplar: dict[str, set[str]] = {}
+    for i in ilanlar:
+        gruplar.setdefault(site_adi(i.get("site")), set()).add(satici(i, cekirdek))
+    return dict(sorted(((s, len(v)) for s, v in gruplar.items()), key=lambda x: -x[1]))
+
+
+def satici_sayisi(k: dict) -> int:
+    return sum(saticilar(k["ilanlar"], k.get("cekirdek") or set()).values())
 
 
 def benzer(a: set[str], b: set[str]) -> bool:
@@ -165,6 +193,20 @@ def kumele(ilanlar: list[dict]) -> list[dict]:
         hedef["_kelimeler"].append(kel)
         if all(i["link"] != ilan["link"] for i in hedef["ilanlar"]):
             hedef["ilanlar"].append(ilan)
+    # Sıra bağımlılığını gider: "Bezos ... Cetveli" ile "Nexora ... Cetveli" doğrudan benzemez ama
+    # markasız "Dokunsal Fidget Cetveli" ikisine de benzer; böyle köprülenen kümeler birleşir.
+    birlesti = True
+    while birlesti:
+        birlesti = False
+        for i in range(len(kumeler)):
+            for j in range(len(kumeler) - 1, i, -1):
+                a, b = kumeler[i], kumeler[j]
+                if any(benzer(x, y) for x in a["_uyeler"] for y in b["_uyeler"]):
+                    a["_uyeler"] += b["_uyeler"]
+                    a["_kelimeler"] += b["_kelimeler"]
+                    a["ilanlar"] = _birlestir(a["ilanlar"], b["ilanlar"])
+                    del kumeler[j]
+                    birlesti = True
     for k in kumeler:
         # Ad: en kısa (markasız olma ihtimali en yüksek) başlık.
         def bas(i: dict) -> str:
@@ -174,9 +216,13 @@ def kumele(ilanlar: list[dict]) -> list[dict]:
         k["anahtar"] = " ".join(sorted(ayirt_edici(kelimeler(bas(temsil)))))[:120]
         k["kelimeler"] = kelimeler(bas(temsil))
         k["ayirt"] = set().union(*k["_uyeler"])
+        # Çekirdek: üyelerin en az yarısında geçen kelimeler (marka adları çekirdeğe girmez).
+        sayac = Counter(x for u in k["_uyeler"] for x in u)
+        k["cekirdek"] = ({x for x, n in sayac.items() if n * 2 >= len(k["_uyeler"])}
+                         if len(k["_uyeler"]) >= 2 else ayirt_edici(k["kelimeler"]))
         k["gorsel"] = next((i.get("thumbnail") for i in k["ilanlar"] if i.get("thumbnail")), None)
         del k["_uyeler"], k["_kelimeler"]
-    return sorted(kumeler, key=lambda k: (-talep_puani(k["ilanlar"]), -len(k["ilanlar"])))
+    return sorted(kumeler, key=lambda k: (-satici_sayisi(k), -len(k["ilanlar"])))
 
 
 def _ilgili(baslik: str | None, ayirt: set[str]) -> bool:
@@ -282,7 +328,7 @@ def makerworld_eslestir(kaynak: mw.MakerWorldKaynak, kume: dict, modeller: list[
     """(özetler, products tablosuna yazılacak ürünler). Önce görsel eşleşmeler, sonra isimle arama."""
     hedefler: list[tuple[str, str, int | None]] = []
     for m in modeller:
-        if m["site"] == "MakerWorld" and len([h for h in hedefler if h[1] == "görsel"]) < config.KESIF_GORSEL_ESLESME:
+        if m["site"] == "MakerWorld" and all(h[0] != m["id"] for h in hedefler) and len([h for h in hedefler if h[1] == "görsel"]) < config.KESIF_GORSEL_ESLESME:
             hedefler.append((m["id"], "görsel", m.get("sira")))
     # İsimle arama yalnızca en az 2 ayırt edici kelime varsa ("cute cat planter" evet, tek başına
     # "keychain" hayır: her anahtarlık eşleşirdi).
@@ -340,7 +386,7 @@ def kesfet(depo, api_key: str, bugun: date, kaynak: mw.MakerWorldKaynak | None =
         for i in pazar.alisveris_sonuclari(yanit):
             ilanlar.append({**i, "sorgu": q, "ham_baslik": ham.get(i["link"])})
     kumeler = [k for k in kumele(ilanlar) if len(k["ilanlar"]) >= config.KESIF_EN_AZ_ILAN
-               and site_sayisi(k["ilanlar"]) >= config.KESIF_EN_AZ_SITE]
+               and satici_sayisi(k) >= config.KESIF_EN_AZ_SATICI]
     kumeler = kumeler[: config.KESIF_RAPOR_ADET]
 
     en_erken = (bugun - timedelta(days=config.KESIF_YENILEME_GUN)).isoformat()
@@ -368,14 +414,15 @@ def kesfet(depo, api_key: str, bugun: date, kaynak: mw.MakerWorldKaynak | None =
                 k["lens_yapildi"] = True
             except (pazar.PazarHatasi, httpx.HTTPError) as e:
                 print(f"UYARI: Lens ({k['ad']}): {e}")
-        k["siteler"] = dict(Counter(site_adi(i["site"]) for i in k["ilanlar"]).most_common())
+        k["siteler"] = saticilar(k["ilanlar"], k["cekirdek"])   # site başına farklı satıcı
+        k["satici_sayisi"] = sum(k["siteler"].values())
         fiyatlar = [i["price"] for i in k["ilanlar"] if i.get("price")]
         k["fiyat_min"], k["fiyat_max"] = (min(fiyatlar), max(fiyatlar)) if fiyatlar else (None, None)
         k["fiyat_medyan"] = _medyan(k["ilanlar"])
         k["diger_kaynaklar"] = modeller
         k["eslesmeler"], urunler = makerworld_eslestir(kaynak, k, modeller, k["fiyat_medyan"])
         tum_urunler += urunler
-    kumeler.sort(key=lambda k: (-talep_puani(k["ilanlar"]), -len(k["ilanlar"])))
+    kumeler.sort(key=lambda k: (-k["satici_sayisi"], -len(k["ilanlar"])))
 
     if tum_urunler:
         try:
@@ -439,15 +486,16 @@ ESLESME_ETIKETI = {"görsel": "🎯 görsel eşleşme", "isim": "🔤 isimle bul
 
 def markdown(bugun: date, kumeler: list[dict]) -> str:
     s = [f"# Türkiye'de çok satan 3D baskılar → MakerWorld — {bugun.isoformat()}", "",
-         "Google Alışveriş'teki 3D baskı ilanları ürün ürün kümelendi. **İlan sayısı** = aynı ürünü satan "
-         "ayrı ilanlar (Google Alışveriş + görsel arama); satış adedi değil, talep işaretidir. "
+         "Google Alışveriş'teki 3D baskı ilanları ürün ürün kümelendi. **Satıcı sayısı** = aynı ürünü satan "
+         "farklı satıcılar (başlıktaki markaya göre; bir satıcının renk ilanları tek sayılır). Satış adedi "
+         "değil, talep işaretidir. "
          "🎯 görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 isimle bulundu: "
          "görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (kaba tahmin).", ""]
     for n, k in enumerate(kumeler, 1):
-        s += [f"## {n}. {k['ad']} — {len(k['ilanlar'])} ilan", ""]
+        s += [f"## {n}. {k['ad']} — {k['satici_sayisi']} satıcı, {len(k['ilanlar'])} ilan", ""]
         if k.get("gorsel"):
             s += [f"![{k['ad']}]({k['gorsel']})", ""]
-        s.append(f"- **Satıldığı yerler:** " + ", ".join(f"{a} {b}" for a, b in k["siteler"].items()))
+        s.append(f"- **Satıcılar:** " + ", ".join(f"{a} {b}" for a, b in k["siteler"].items()))
         s.append(f"- **Fiyat:** {_fiyat_araligi(k)}")
         for i in k["ilanlar"][:4]:
             s.append(f"  - {i['site']}: [{(i.get('title') or 'ilan')[:60]}]({pazar.satis_linki(i) or i['link']})"
@@ -471,9 +519,10 @@ def telegram_mesaji(bugun: date, kumeler: list[dict], panel_url: str | None = No
     if not kumeler:
         return None
     e_ = bildirim._e
-    metin = f"<b>🔥 Türkiye'de çok satan 3D baskılar → MakerWorld</b> ({bugun.isoformat()})\n<i>ilan sayısı = aynı ürünü satan ayrı ilan</i>"
+    metin = f"<b>🔥 Türkiye'de çok satan 3D baskılar → MakerWorld</b> ({bugun.isoformat()})\n<i>satıcı = aynı ürünü satan farklı satıcı</i>"
     for n, k in enumerate(kumeler, 1):
-        p = [f"<b>{n}. {e_(k['ad'])}</b> — {len(k['ilanlar'])} ilan ({e_(', '.join(list(k['siteler'])[:4]))})",
+        siteler = ", ".join(f"{a} {b}" for a, b in list(k["siteler"].items())[:4])
+        p = [f"<b>{n}. {e_(k['ad'])}</b> — {k['satici_sayisi']} satıcı ({e_(siteler)})",
              f"   💰 {e_(_fiyat_araligi(k))}"]
         for e in k.get("eslesmeler", [])[:2]:
             isaret = "🎯" if e["eslesme"] == "görsel" else "🔤"

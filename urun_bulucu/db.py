@@ -295,6 +295,8 @@ class SqliteDepo:
         return sonuc
 
     def kesif_kaydet(self, satirlar: list[dict]) -> None:
+        for gun in {s["kesif_tarihi"] for s in satirlar}:
+            self.con.execute("delete from market_discovery where kesif_tarihi = ?", (gun,))
         alanlar = ", ".join(KESIF_ALANLARI)
         yer = ", ".join(f":{a}" for a in KESIF_ALANLARI)
         self.con.executemany(
@@ -431,6 +433,8 @@ class SupabaseDepo:
 
     def kesif_kaydet(self, satirlar: list[dict]) -> None:
         if satirlar:
+            for gun in {s["kesif_tarihi"] for s in satirlar}:   # aynı gün yeniden çalışınca eskiler gider
+                self.sb.table("market_discovery").delete().eq("kesif_tarihi", gun).execute()
             self.sb.table("market_discovery").upsert(
                 [{a: s.get(a) for a in KESIF_ALANLARI} for s in satirlar], on_conflict="kesif_tarihi,anahtar"
             ).execute()
