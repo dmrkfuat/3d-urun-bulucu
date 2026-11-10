@@ -92,6 +92,21 @@ PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) 
 # kelime yokken, Lens yalnız görselle ararken); yeniden aranır.
 PAZAR_KURAL_TARIHI = "2026-11-09T17:49:00+00:00"
 
+# --- Pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld'deki birebir modeli (kesif.py) ---
+KESIF_ARALIK_GUN = 7          # haftada bir (günlük analizle birlikte)
+KESIF_SORGULARI = [           # Google Alışveriş aramaları (her biri 1 SerpApi araması); aktif sezon eklenir
+    "3d baskı fidget", "3d baskı oyuncak", "3d baskı figür", "3d baskı dekoratif",
+    "3d baskı saksı", "3d baskı anahtarlık", "3d baskı masaüstü düzenleyici", "3d baskı lamba",
+]
+KESIF_EN_AZ_ILAN = 2          # en az bu kadar ayrı ilanı olan ürünler listelenir
+KESIF_EN_AZ_SITE = 2          # ve en az bu kadar farklı sitede/mağazada satılan
+KESIF_RAPOR_ADET = 12         # raporda en çok kaç ürün
+KESIF_LENS_ADET = 8           # en çok ilanlı kaç ürünün görseliyle Lens araması yapılır
+KESIF_YENILEME_GUN = 28       # aynı ürünün Lens sonucu bu kadar gün yeniden kullanılır (kota)
+KESIF_GORSEL_ESLESME = 2      # Lens'te çıkan en çok kaç MakerWorld modeli
+KESIF_ISIM_ESLESME = 2        # isimle MakerWorld aramasından en çok kaç model
+KESIF_KOTA_ESIGI = 50         # SerpApi'de bundan az hak kaldıysa keşif yapılmaz (günlük arama korunur)
+
 # --- Instagram (resmi Instagram API, "Instagram Login" ile; şifreyle giriş/bot yok) ---
 # Açıklama metni her gün ilk 10 için üretilir (anahtar gerekmez). Paylaşım için INSTAGRAM_TOKEN
 # (GitHub Secrets) ve Supabase'te supabase/guncelleme_2026-11-10_instagram.sql gerekir.

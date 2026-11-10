@@ -109,6 +109,24 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 3. Günde en fazla 3 ürün aranır (ürün başına 2 arama; `config.py` → `PAZAR_GUNLUK_ADET`), aynı ürün 14 gün içinde tekrar
    aranmaz. Görsel benzerliği kesin eşleşme değildir; sonuçlar "benzer ürün" olarak okunmalıdır.
 
+**Pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld modeli** (`kesif.py`, haftada bir)
+
+Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de satılandan başlar.
+1. Google Alışveriş'te kategori aramaları (`config.py` → `KESIF_SORGULARI`; yaklaşan sezon eklenir).
+2. Aynı ürünün ilanları kümelenir. Google Alışveriş satış adedi vermediği için talep işareti, aynı
+   ürünü satan **ayrı ilan ve site sayısıdır** (satıcılar satan ürünü kopyalar). Tek mağazanın çok
+   ürünü talep sayılmaz (sıralamada her siteden en fazla 5 ilan sayılır, en az 2 site gerekir).
+3. En çok satılan 8 ürünün fotoğrafıyla Google Lens: aynı ürünü satan diğer ilanlar eklenir ve
+   sonuçlarda MakerWorld model sayfası çıkarsa **🎯 görsel eşleşme** (birebir kaynak model) olur.
+4. Ürün adının İngilizcesiyle MakerWorld'de ücretsiz arama: **🔤 isimle bulundu**. Yalnızca en az
+   2 ayırt edici kelimenin hepsi model adında geçiyorsa; panelde görseller yan yana gösterilir.
+5. Eşleşen modelin baskı süresi ve maliyeti MakerWorld'den alınır; kâr = piyasa ortancası − maliyet.
+
+Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Çok satanlar** sekmesi.
+Kota: haftada ~18 arama (ayda ~75); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
+sonucu 28 gün yeniden kullanılır. Elle çalıştırma: `python -m urun_bulucu.kesif` (`--telegram` ile
+mesaj da gönderilir). Supabase'te bir kez `supabase/guncelleme_2026-11-10_kesif.sql` çalıştırılmalıdır.
+
 ### 6c. Instagram otomasyonu (isteğe bağlı)
 
 Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya tarayıcı otomasyonu yok).
@@ -240,6 +258,7 @@ urun_bulucu/
   sezon.py                ← sezon takvimi
   tasarimci.py            ← tasarımcı takibi
   pazar.py                ← e-ticaret araştırması (SerpApi Google Lens)
+  kesif.py                ← pazar keşfi: Türkiye'de çok satanlar → MakerWorld modeli (haftalık)
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
   instagram.py            ← Instagram açıklaması + zamanlanmış Reels paylaşımı

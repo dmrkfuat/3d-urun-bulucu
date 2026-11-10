@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import bildirim, config, maliyet, ozet, pazar, puanlama, talep, tasarimci
+from . import bildirim, config, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -84,6 +84,13 @@ def calistir(bugun: date | None = None) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"UYARI: Kayıtlı e-ticaret sonuçları okunamadı: {e}")
 
+    # Haftalık pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld'deki modeli.
+    kesif_kumeleri: list[dict] = []
+    try:
+        kesif_kumeleri, _ = kesif.calistir(depo, ayarlar, bugun, kaynak)
+    except Exception as e:  # noqa: BLE001
+        print(f"UYARI: Pazar keşfi atlandı: {e}")
+
     yol = ozet.rapor_yaz(config.RAPOR_KLASORU, bugun,
                          ozet.markdown(bugun, secimler, len(urunler), depo.ad, pazar_sonuclari))
     print(f"Özet hazır: {yol}")
@@ -95,6 +102,10 @@ def calistir(bugun: date | None = None) -> int:
             istekler = bildirim.mesajlar(bugun, secimler, ayarlar.panel_url or None,
                                          pazar_sonuclari=pazar_sonuclari, yeni_modeller=yeni_modeller,
                                          yeni_takip=yeni_takip)
+            kesif_mesaji = kesif.telegram_mesaji(bugun, kesif_kumeleri, ayarlar.panel_url or None)
+            if kesif_mesaji:
+                istekler.append({"metot": "sendMessage",
+                                 "veri": {"text": kesif_mesaji, "disable_web_page_preview": True}})
             adet = bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id, istekler)
             print(f"Telegram'a {adet} mesaj gönderildi.")
         except (bildirim.BildirimHatasi, httpx.HTTPError) as e:

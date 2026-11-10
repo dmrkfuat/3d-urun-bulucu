@@ -42,6 +42,15 @@
   .ig .satir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ig input[type=file] { font: inherit; font-size: 13px; max-width: 100%; }
   .ig button:disabled { opacity: .6; cursor: wait; }
+  .kesifler { display: flex; flex-direction: column; gap: 14px; }
+  .kesifKart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+  .yanyana { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .yanyana figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+  .yanyana img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--chip); border: 1px solid var(--line); }
+  .yanyana figcaption { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .yanyana figure.pazar figcaption { color: var(--ink); font-weight: 600; }
+  .modelSatir { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .modelSatir a { font-weight: 600; }
   select, input[type=email], input[type=text], input[type=datetime-local], textarea {
     font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
   }
@@ -112,6 +121,7 @@
         <button role="tab" data-sekme="plan" aria-selected="false">Plan</button>
         <button role="tab" data-sekme="tasarimci" aria-selected="false">Tasarımcılar</button>
         <button role="tab" data-sekme="performans" aria-selected="false">İşaretlerim</button>
+        <button role="tab" data-sekme="kesif" aria-selected="false">Çok satanlar</button>
         <button role="tab" data-sekme="instagram" aria-selected="false">Instagram</button>
       </div>
       <button class="ikincil" id="cikis">Çıkış</button>
@@ -164,6 +174,11 @@
       <div class="tablo-kap"><table id="kategoriTablo"></table></div>
       <h2>Ürünler</h2>
       <div class="tablo-kap"><table id="isaretTablo"></table></div>
+    </div>
+
+    <div id="kesifSekmesi" hidden>
+      <p class="muted">Türkiye'de çok satan 3D baskı ürünler (haftada bir). <b>İlan sayısı</b>, aynı ürünü satan ayrı ilanlardır (Google Alışveriş + görsel arama); satış adedi değil, talep işaretidir. 🎯 Görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 İsimle bulundu: görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (tahmin).</p>
+      <div id="kesifListe" class="kesifler"></div>
     </div>
 
     <div id="instagramSekmesi" hidden>
@@ -290,7 +305,7 @@
   // ------------------------------------------------------------ sekmeler
   const SEKME_YUKLE = { liste: () => kartlariCiz(), tum: () => tumYukle(), plan: () => planYukle(),
                         tasarimci: () => tasarimciYukle(), performans: () => performansYukle(),
-                        instagram: () => igYukle() };
+                        kesif: () => kesifYukle(), instagram: () => igYukle() };
   document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll("[data-sekme]").forEach((x) => {
       x.setAttribute("aria-selected", String(x === b));
@@ -472,6 +487,45 @@
     });
   }
   const igSqlIpucu = (h) => /instagram|bucket|not found|relation/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-10_instagram.sql çalıştırıldı mı?)" : "";
+
+  // ------------------------------------------------------------ çok satanlar (pazar keşfi)
+  const ESLESME = { "görsel": "🎯 görsel eşleşme", "isim": "🔤 isimle bulundu, görseli karşılaştır" };
+  async function kesifYukle() {
+    const kap = $("#kesifListe");
+    const son = await sb.from("market_discovery").select("kesif_tarihi").order("kesif_tarihi", { ascending: false }).limit(1);
+    if (son.error) { kap.innerHTML = `<div class="hata">${esc(son.error.message)}${/market_discovery|relation/i.test(son.error.message) ? " (Supabase'te supabase/guncelleme_2026-11-10_kesif.sql çalıştırıldı mı?)" : ""}</div>`; return; }
+    if (!son.data.length) { kap.innerHTML = `<div class="bos">Henüz keşif yapılmadı. Haftada bir günlük analizle birlikte çalışır.</div>`; return; }
+    const gun = son.data[0].kesif_tarihi;
+    const { data, error } = await sb.from("market_discovery").select("*").eq("kesif_tarihi", gun).order("ilan_sayisi", { ascending: false });
+    if (error) { kap.innerHTML = `<div class="hata">${esc(error.message)}</div>`; return; }
+    await planIdleriYukle();
+    kap.innerHTML = `<p class="muted">Keşif tarihi: ${esc(new Date(gun).toLocaleDateString("tr-TR", { dateStyle: "long" }))}</p>` + data.map((k, n) => {
+      const modeller = k.eslesmeler || [];
+      const siteler = Object.entries(k.siteler || {}).map(([s, a]) => `<span class="cip">${esc(s)} ${a}</span>`).join("");
+      const fiyat = k.fiyat_medyan ? `${tl(k.fiyat_min)} – ${tl(k.fiyat_max)} (ortanca ${tl(k.fiyat_medyan)})` : "fiyat yok";
+      const gorseller = `<figure class="pazar">${k.gorsel ? `<img src="${url(k.gorsel)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<figcaption>🛒 E-ticarette satılan</figcaption></figure>`
+        + modeller.map((m) => `<figure>${m.image_url ? `<img src="${url(m.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<figcaption>${m.eslesme === "görsel" ? "🎯" : "🔤"} ${esc(m.name)}</figcaption></figure>`).join("");
+      const ilanlar = (k.ilanlar || []).slice(0, 10).map((i) => `<li><a href="${url(i.link)}" target="_blank" rel="noopener">${esc(i.site)}: ${esc((i.title || "ilan").slice(0, 70))}</a>${i.price ? " — " + tl(i.price) : ""}</li>`).join("");
+      const satirlar = modeller.length ? modeller.map((m) => `<div class="modelSatir">
+          <span>${ESLESME[m.eslesme] || esc(m.eslesme)}</span>
+          <a href="${url(m.url)}" target="_blank" rel="noopener">${esc(m.name)}</a>
+          <span class="muted">${sure(m.print_time_min)} baskı · maliyet ${tl(m.cost_tl)}${m.kar_tl != null ? ` · ilan başına ~${tl(m.kar_tl)} kâr` : ""}${m.saatlik_kar_tl ? ` (saatte ~${tl(m.saatlik_kar_tl)})` : ""}</span>
+          ${m.product_id ? `<button type="button" class="ikincil" data-kesif-plan="${Number(m.product_id)}">${planIdleri.has(m.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>` : ""}
+        </div>`).join("") : `<div class="modelSatir muted">MakerWorld'de eşleşen model bulunamadı${k.mw_sorgu ? ` (aranan: "${esc(k.mw_sorgu)}")` : ""}.</div>`;
+      const diger = (k.diger_kaynaklar || []).filter((m) => m.site !== "MakerWorld").slice(0, 3)
+        .map((m) => `<a href="${url(m.link)}" target="_blank" rel="noopener">${esc(m.site)}</a>`).join(" · ");
+      return `<article class="kesifKart">
+        <div class="ust"><span class="sira">${n + 1}.</span><span class="ad">${esc(k.ad)}</span><span class="puan">${k.ilan_sayisi} ilan</span></div>
+        <div class="yanyana">${gorseller}</div>
+        <div class="cipler">${siteler}</div>
+        <div>💰 ${fiyat}</div>
+        ${satirlar}
+        ${diger ? `<div class="muted" style="font-size:13px">Diğer model siteleri: ${diger}</div>` : ""}
+        <details><summary>İlanlar (${(k.ilanlar || []).length})</summary><ul>${ilanlar}</ul></details>
+      </article>`;
+    }).join("");
+    kap.querySelectorAll("[data-kesif-plan]").forEach((b) => b.addEventListener("click", () => planaEkleCikar(Number(b.dataset.kesifPlan), b)));
+  }
 
   const IG_DURUM = { bekliyor: "⏳ Bekliyor", isleniyor: "⚙️ İşleniyor", paylasildi: "✅ Paylaşıldı", hata: "⚠️ Hata" };
   async function igYukle() {

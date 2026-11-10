@@ -57,11 +57,19 @@ class Depo(Protocol):
     def pazar_kontrol_tarihleri(self, ids: list[int]) -> dict[int, str]: ...
     def pazar_kaydet(self, satirlar: list[dict]) -> None: ...
     def pazar_kayitlari(self, ids: list[int]) -> dict[int, dict]: ...
+    # pazar keşfi (çok satanlar → MakerWorld)
+    def kesif_son_tarih(self) -> str | None: ...
+    def kesif_onceki(self, anahtarlar: list[str], en_erken: str) -> dict[str, dict]: ...
+    def kesif_kaydet(self, satirlar: list[dict]) -> None: ...
 
 
 TASARIMCI_ALANLARI = ["source_id", "uid", "name", "handle", "hit_days", "last_hit_date", "followed",
                       "auto_followed", "last_design_id", "last_checked"]
 PAZAR_ALANLARI = ["product_id", "checked_at", "found_count", "min_price", "max_price", "currency", "results"]
+KESIF_ALANLARI = ["kesif_tarihi", "anahtar", "ad", "ilan_sayisi", "siteler", "fiyat_min", "fiyat_medyan",
+                  "fiyat_max", "gorsel", "sorgu", "lens_yapildi", "mw_sorgu", "ilanlar", "eslesmeler",
+                  "diger_kaynaklar"]
+KESIF_JSON = {"siteler", "ilanlar", "eslesmeler", "diger_kaynaklar"}
 
 
 def _simdi() -> str:
@@ -110,6 +118,16 @@ create table if not exists print_plan (
   product_id integer primary key references products(id) on delete cascade,
   quantity integer not null default 1, done integer not null default 0,
   added_at text, updated_at text
+);
+create table if not exists market_discovery (
+  id integer primary key autoincrement,
+  kesif_tarihi text not null, anahtar text not null, ad text not null,
+  ilan_sayisi integer not null default 0, siteler text not null default '{}',
+  fiyat_min real, fiyat_medyan real, fiyat_max real, gorsel text, sorgu text,
+  lens_yapildi integer not null default 0, mw_sorgu text,
+  ilanlar text not null default '[]', eslesmeler text not null default '[]',
+  diger_kaynaklar text not null default '[]',
+  unique (kesif_tarihi, anahtar)
 );
 create table if not exists market_checks (
   product_id integer primary key references products(id) on delete cascade,
@@ -260,6 +278,31 @@ class SqliteDepo:
         )
         self.con.commit()
 
+    def kesif_son_tarih(self) -> str | None:
+        r = self.con.execute("select max(kesif_tarihi) as t from market_discovery").fetchone()
+        return r["t"] if r else None
+
+    def kesif_onceki(self, anahtarlar: list[str], en_erken: str) -> dict[str, dict]:
+        if not anahtarlar:
+            return {}
+        yer = ",".join("?" * len(anahtarlar))
+        sonuc: dict[str, dict] = {}
+        for r in self.con.execute(f"select * from market_discovery where anahtar in ({yer}) and kesif_tarihi >= ? "
+                                  "order by kesif_tarihi", [*anahtarlar, en_erken]):
+            d = {k: (json.loads(r[k]) if k in KESIF_JSON and r[k] else r[k]) for k in r.keys()}
+            d["lens_yapildi"] = bool(d["lens_yapildi"])
+            sonuc[d["anahtar"]] = d   # en yenisi kalır
+        return sonuc
+
+    def kesif_kaydet(self, satirlar: list[dict]) -> None:
+        alanlar = ", ".join(KESIF_ALANLARI)
+        yer = ", ".join(f":{a}" for a in KESIF_ALANLARI)
+        self.con.executemany(
+            f"insert or replace into market_discovery ({alanlar}) values ({yer})",
+            [{a: (json.dumps(s.get(a), ensure_ascii=False) if a in KESIF_JSON else s.get(a)) for a in KESIF_ALANLARI}
+             for s in satirlar])
+        self.con.commit()
+
 
 def _bool(satir: dict, *alanlar: str) -> dict:
     for a in alanlar:
@@ -372,6 +415,24 @@ class SupabaseDepo:
         if satirlar:
             self.sb.table("market_checks").upsert(
                 [{a: s.get(a) for a in PAZAR_ALANLARI} for s in satirlar], on_conflict="product_id"
+            ).execute()
+
+    def kesif_son_tarih(self) -> str | None:
+        veri = (self.sb.table("market_discovery").select("kesif_tarihi")
+                .order("kesif_tarihi", desc=True).limit(1).execute().data)
+        return veri[0]["kesif_tarihi"] if veri else None
+
+    def kesif_onceki(self, anahtarlar: list[str], en_erken: str) -> dict[str, dict]:
+        if not anahtarlar:
+            return {}
+        veri = (self.sb.table("market_discovery").select("*").in_("anahtar", anahtarlar)
+                .gte("kesif_tarihi", en_erken).order("kesif_tarihi").execute().data)
+        return {r["anahtar"]: r for r in veri}
+
+    def kesif_kaydet(self, satirlar: list[dict]) -> None:
+        if satirlar:
+            self.sb.table("market_discovery").upsert(
+                [{a: s.get(a) for a in KESIF_ALANLARI} for s in satirlar], on_conflict="kesif_tarihi,anahtar"
             ).execute()
 
 
