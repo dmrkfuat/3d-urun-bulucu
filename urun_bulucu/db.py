@@ -96,7 +96,7 @@ create table if not exists weekly_picks (
   id integer primary key autoincrement,
   pick_date text not null, rank integer not null,
   product_id integer not null references products(id),
-  score real, reason text, video_idea text,
+  score real, reason text, video_idea text, instagram_caption text,
   unique (pick_date, rank)
 );
 create table if not exists designers (
@@ -132,6 +132,8 @@ class SqliteDepo:
         for sutun, tur in YENI_SUTUNLAR.items():
             if sutun not in mevcut:
                 self.con.execute(f"alter table products add column {sutun} {tur}")
+        if "instagram_caption" not in {r["name"] for r in self.con.execute("pragma table_info(weekly_picks)")}:
+            self.con.execute("alter table weekly_picks add column instagram_caption text")
         self.con.executemany(
             "insert or ignore into sources (id, name, base_url, access_method, notes) "
             "values (:id, :name, :base_url, :access_method, :notes)",
@@ -197,10 +199,10 @@ class SqliteDepo:
     def secimleri_kaydet(self, gun: date, secimler: list[dict]) -> None:
         self.con.execute("delete from weekly_picks where pick_date=?", (gun.isoformat(),))
         self.con.executemany(
-            "insert into weekly_picks (pick_date, rank, product_id, score, reason, video_idea) "
-            "values (?,?,?,?,?,?)",
-            [(gun.isoformat(), s["rank"], s["product_id"], s["score"], s["reason"], s["video_idea"])
-             for s in secimler],
+            "insert into weekly_picks (pick_date, rank, product_id, score, reason, video_idea, instagram_caption) "
+            "values (?,?,?,?,?,?,?)",
+            [(gun.isoformat(), s["rank"], s["product_id"], s["score"], s["reason"], s["video_idea"],
+              s.get("instagram_caption")) for s in secimler],
         )
         self.con.commit()
 
@@ -318,11 +320,22 @@ class SupabaseDepo:
 
     def secimleri_kaydet(self, gun: date, secimler: list[dict]) -> None:
         self.sb.table("weekly_picks").delete().eq("pick_date", gun.isoformat()).execute()
-        if secimler:
-            self.sb.table("weekly_picks").insert(
-                [{"pick_date": gun.isoformat(), **{k: s[k] for k in
-                  ("rank", "product_id", "score", "reason", "video_idea")}} for s in secimler]
-            ).execute()
+        if not secimler:
+            return
+        satirlar = [{"pick_date": gun.isoformat(), "instagram_caption": s.get("instagram_caption"),
+                     **{k: s[k] for k in ("rank", "product_id", "score", "reason", "video_idea")}}
+                    for s in secimler]
+        try:
+            self.sb.table("weekly_picks").insert(satirlar).execute()
+        except Exception as e:  # noqa: BLE001
+            # Instagram SQL güncellemesi henüz çalıştırılmadıysa sütun yoktur; seçimler yine kaydedilsin.
+            if "instagram_caption" not in str(e):
+                raise
+            print("UYARI: weekly_picks.instagram_caption sütunu yok "
+                  "(supabase/guncelleme_2026-11-10_instagram.sql); açıklamalar kaydedilmedi.")
+            for s in satirlar:
+                s.pop("instagram_caption")
+            self.sb.table("weekly_picks").insert(satirlar).execute()
 
     # --- tasarımcılar ---
     def tasarimcilar(self, source_id: str, uids: list[int]) -> dict[int, dict]:

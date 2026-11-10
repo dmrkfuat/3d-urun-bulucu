@@ -77,6 +77,20 @@ def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> 
         ekler.pop()
 
 
+def instagram_mesaji(secimler: list[dict], adet: int = FOTOGRAFLI_ADET, sinir: int = 4096) -> str | None:
+    """İlk ürünlerin Instagram açıklamaları; <pre> bloğuna dokununca kopyalanır. Sığmayan atlanır."""
+    parcalar = [f"<b>{s['rank']}. {_e(s['urun']['name'])}</b>\n<pre>{_e(s['instagram_caption'])}</pre>"
+                for s in secimler[:adet] if s.get("instagram_caption")]
+    if not parcalar:
+        return None
+    metin = "<b>📸 Instagram metinleri</b> (dokun → kopyala; panelden video yükleyip saat seçebilirsin)"
+    for p in parcalar:
+        if len(metin) + len(p) + 2 > sinir:
+            break
+        metin += "\n\n" + p
+    return metin
+
+
 def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
              pazar_sonuclari: dict[int, dict] | None = None, yeni_modeller: list[dict] | None = None,
              yeni_takip: list[str] | None = None) -> list[dict]:
@@ -112,6 +126,10 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
     if panel_url:
         ozet += ["", f"📊 Panel: {_e(panel_url)}"]
     sonuc.append({"metot": "sendMessage", "veri": {"text": "\n".join(ozet), "disable_web_page_preview": True}})
+
+    ig = instagram_mesaji(secimler)
+    if ig:
+        sonuc.append({"metot": "sendMessage", "veri": {"text": ig, "disable_web_page_preview": True}})
 
     if yeni_modeller:
         satirlar = ["<b>🆕 Takip ettiğin tasarımcılardan yeni modeller</b>", ""]

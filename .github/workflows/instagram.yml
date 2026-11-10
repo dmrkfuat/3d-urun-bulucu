@@ -1,0 +1,38 @@
+name: Instagram paylaşımı
+
+# Panelden planlanan Reels videolarını saati gelince resmi Instagram API ile paylaşır.
+# INSTAGRAM_TOKEN secret'ı yoksa hiçbir şey yapmadan biter. Saati gelen gönderi yoksa
+# Instagram'a istek atılmaz (haftalık token yenilemesi hariç).
+# GitHub zamanlanmış görevleri birkaç dakika (yoğunlukta 15-30 dk) gecikebilir.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram
+  cancel-in-progress: false
+
+jobs:
+  paylas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Saati gelen gönderileri paylaş
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+        run: python -m urun_bulucu.instagram

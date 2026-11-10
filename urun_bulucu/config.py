@@ -92,6 +92,21 @@ PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) 
 # kelime yokken, Lens yalnız görselle ararken); yeniden aranır.
 PAZAR_KURAL_TARIHI = "2026-11-09T17:49:00+00:00"
 
+# --- Instagram (resmi Instagram API, "Instagram Login" ile; şifreyle giriş/bot yok) ---
+# Açıklama metni her gün ilk 10 için üretilir (anahtar gerekmez). Paylaşım için INSTAGRAM_TOKEN
+# (GitHub Secrets) ve Supabase'te supabase/guncelleme_2026-11-10_instagram.sql gerekir.
+INSTAGRAM_API = "https://graph.instagram.com/v25.0"   # v25.0: Temmuz 2028'e kadar geçerli
+INSTAGRAM_TOKEN_API = "https://graph.instagram.com/refresh_access_token"
+INSTAGRAM_ETIKET_ADET = 15          # açıklamadaki etiket sayısı (Instagram sınırı 30)
+INSTAGRAM_ACIKLAMA_SINIRI = 2200    # Instagram sınırı
+INSTAGRAM_TOKEN_YENILEME_GUN = 7    # token (60 gün geçerli) bu kadar günde bir yenilenir
+INSTAGRAM_BEKLEME_SN = 240          # bir çalışmada videonun işlenmesi en fazla bu kadar beklenir
+INSTAGRAM_KONTROL_ARALIGI_SN = 20
+INSTAGRAM_IMZALI_URL_SN = 6 * 3600  # Instagram'ın videoyu indirmesi için geçici bağlantı süresi
+INSTAGRAM_CALISMA_BASINA_EN_FAZLA = 3  # bir çalışmada en fazla kaç gönderi başlatılır
+INSTAGRAM_PAYLASINCA_VIDEOYU_SIL = True  # depolama dolmasın (Supabase ücretsiz: 1 GB)
+INSTAGRAM_DEPO = "instagram"        # Supabase Storage alanı (bucket) adı
+
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"
 
@@ -108,6 +123,7 @@ class Ayarlar:
     telegram_chat_id: str = ""
     panel_url: str = ""
     serpapi_key: str = ""
+    instagram_token: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -123,4 +139,5 @@ def ayarlari_oku() -> Ayarlar:
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
         panel_url=os.getenv("PANEL_URL", "").strip() or PANEL_URL,
         serpapi_key=os.getenv("SERPAPI_KEY", "").strip(),
+        instagram_token=os.getenv("INSTAGRAM_TOKEN", "").strip(),
     )

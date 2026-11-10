@@ -36,7 +36,13 @@
   .planDugme { align-self: flex-start; }
   .sekmeler button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
   .arac { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
-  select, input[type=email], input[type=text], textarea {
+  .ig { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .ig textarea { width: 100%; resize: vertical; font-size: 13px; }
+  .ig label { display: flex; flex-direction: column; gap: 4px; }
+  .ig .satir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ig input[type=file] { font: inherit; font-size: 13px; max-width: 100%; }
+  .ig button:disabled { opacity: .6; cursor: wait; }
+  select, input[type=email], input[type=text], input[type=datetime-local], textarea {
     font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
   }
   button.ana { font: inherit; border: 0; background: var(--accent); color: var(--accent-ink); padding: 8px 14px; border-radius: 8px; cursor: pointer; }
@@ -106,6 +112,7 @@
         <button role="tab" data-sekme="plan" aria-selected="false">Plan</button>
         <button role="tab" data-sekme="tasarimci" aria-selected="false">Tasarımcılar</button>
         <button role="tab" data-sekme="performans" aria-selected="false">İşaretlerim</button>
+        <button role="tab" data-sekme="instagram" aria-selected="false">Instagram</button>
       </div>
       <button class="ikincil" id="cikis">Çıkış</button>
     </header>
@@ -157,6 +164,11 @@
       <div class="tablo-kap"><table id="kategoriTablo"></table></div>
       <h2>Ürünler</h2>
       <div class="tablo-kap"><table id="isaretTablo"></table></div>
+    </div>
+
+    <div id="instagramSekmesi" hidden>
+      <p class="muted">Günlük listede bir ürünün "📸 Instagram'a planla" bölümünden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir.</p>
+      <div class="tablo-kap"><table id="igTablo"></table></div>
     </div>
   </section>
 
@@ -277,7 +289,8 @@
 
   // ------------------------------------------------------------ sekmeler
   const SEKME_YUKLE = { liste: () => kartlariCiz(), tum: () => tumYukle(), plan: () => planYukle(),
-                        tasarimci: () => tasarimciYukle(), performans: () => performansYukle() };
+                        tasarimci: () => tasarimciYukle(), performans: () => performansYukle(),
+                        instagram: () => igYukle() };
   document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll("[data-sekme]").forEach((x) => {
       x.setAttribute("aria-selected", String(x === b));
@@ -299,7 +312,7 @@
   async function listeYukle() {
     const gun = $("#gun").value;
     const { data, error } = await sb.from("weekly_picks")
-      .select("rank, score, reason, video_idea, product_id, products(*)")
+      .select("*, products(*)")  // instagram_caption sütunu SQL güncellemesinden önce yoktur
       .eq("pick_date", gun).order("rank");
     if (error) throw error;
     secimler = data.filter((r) => r.products);
@@ -358,6 +371,15 @@
           ${sosyalHtml(pazar.get(r.product_id))}
           ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
+        <details class="igAc"><summary>📸 Instagram'a planla</summary>
+          <div class="ig">
+            <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
+            <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
+            <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
+            <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
+            <div class="satir"><button type="button" class="ana igPlanla">Planla</button><span class="kaydedildi igDurum" role="status"></span></div>
+          </div>
+        </details>
         <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>
         <details class="grafikAc"><summary>İndirme geçmişi</summary><div class="grafik"><canvas></canvas></div></details>
         <div class="isaret">
@@ -402,6 +424,78 @@
     kart.querySelector(".not").addEventListener("input", () => { clearTimeout(zaman); zaman = setTimeout(kaydet, 800); });
     kart.querySelector(".grafikAc").addEventListener("toggle", (e) => { if (e.target.open) grafikCiz(pid, kart); }, { once: true });
     kart.querySelector(".planDugme").addEventListener("click", (e) => planaEkleCikar(pid, e.currentTarget));
+    igBagla(kart, pid);
+  }
+
+  // ------------------------------------------------------------ Instagram
+  const IG_DEPO = "instagram", IG_EN_BUYUK = 50 * 1024 * 1024;
+  const yerelZaman = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const varsayilanZaman = () => { const d = new Date(); d.setHours(20, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return yerelZaman(d); };
+  const etiketSayisi = (t) => (t.match(/#[\p{L}\p{N}_]/gu) || []).length;
+
+  function igBagla(kart, pid) {
+    const metin = kart.querySelector(".igMetin"), sayac = kart.querySelector(".igSayac");
+    const durumAlan = kart.querySelector(".igDurum"), dugme = kart.querySelector(".igPlanla");
+    const yaz = (t, hata = false) => { durumAlan.textContent = t; durumAlan.style.color = hata ? "var(--bad)" : ""; };
+    const say = () => { sayac.textContent = `${metin.value.length}/2200 karakter · ${etiketSayisi(metin.value)}/30 etiket`; };
+    kart.querySelector(".igAc").addEventListener("toggle", (e) => {
+      if (e.target.open && !kart.querySelector(".igZaman").value) kart.querySelector(".igZaman").value = varsayilanZaman();
+      say();
+    });
+    metin.addEventListener("input", say);
+    kart.querySelector(".igKopyala").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(metin.value); yaz("Kopyalandı ✓"); }
+      catch (e) { metin.select(); yaz("Seçildi; kopyalamak için Ctrl+C"); }
+    });
+    dugme.addEventListener("click", async () => {
+      const dosya = kart.querySelector(".igVideo").files[0];
+      const zaman = new Date(kart.querySelector(".igZaman").value);
+      const aciklama = metin.value.trim();
+      if (!dosya) return yaz("Önce videoyu seç.", true);
+      if (dosya.size > IG_EN_BUYUK) return yaz("Video 50 MB'tan büyük; telefonda 1080p olarak dışa aktarıp tekrar dene.", true);
+      if (isNaN(zaman)) return yaz("Paylaşım zamanını seç.", true);
+      if (aciklama.length > 2200 || etiketSayisi(aciklama) > 30) return yaz("Açıklama en fazla 2200 karakter ve 30 etiket olabilir.", true);
+      const mov = /quicktime/.test(dosya.type) || /\.mov$/i.test(dosya.name);
+      const yol = `${pid}/${Date.now()}.${mov ? "mov" : "mp4"}`;
+      dugme.disabled = true; yaz("Video yükleniyor...");
+      try {
+        const yk = await sb.storage.from(IG_DEPO).upload(yol, dosya, { contentType: mov ? "video/quicktime" : "video/mp4", upsert: false });
+        if (yk.error) return yaz("Video yüklenemedi: " + yk.error.message + igSqlIpucu(yk.error), true);
+        const { error } = await sb.from("instagram_posts").insert({ product_id: pid, video_path: yol, caption: aciklama, scheduled_at: zaman.toISOString() });
+        if (error) { await sb.storage.from(IG_DEPO).remove([yol]); return yaz("Planlanamadı: " + error.message + igSqlIpucu(error), true); }
+        kart.querySelector(".igVideo").value = "";
+        yaz(zaman <= new Date() ? "Planlandı ✓ İlk kontrolde (15 dk içinde) paylaşılacak." : `Planlandı ✓ ${zaman.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`);
+      } finally { dugme.disabled = false; }
+    });
+  }
+  const igSqlIpucu = (h) => /instagram|bucket|not found|relation/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-10_instagram.sql çalıştırıldı mı?)" : "";
+
+  const IG_DURUM = { bekliyor: "⏳ Bekliyor", isleniyor: "⚙️ İşleniyor", paylasildi: "✅ Paylaşıldı", hata: "⚠️ Hata" };
+  async function igYukle() {
+    const tablo = $("#igTablo");
+    const { data, error } = await sb.from("instagram_posts").select("*, products(name, url)").order("scheduled_at", { ascending: false }).limit(100);
+    if (error) { tablo.innerHTML = `<tr><td class="hata">${esc(error.message + igSqlIpucu(error))}</td></tr>`; return; }
+    if (!data.length) { tablo.innerHTML = `<tr><td class="muted">Henüz planlanmış gönderi yok. Günlük listede bir ürünün "📸 Instagram'a planla" bölümünü kullan.</td></tr>`; return; }
+    tablo.innerHTML = `<tr><th>Ürün</th><th>Zaman</th><th>Durum</th><th>Sonuç</th><th></th></tr>` + data.map((g) => `<tr data-ig="${g.id}">
+      <td>${g.products ? `<a href="${url(g.products.url)}" target="_blank" rel="noopener">${esc(g.products.name)}</a>` : "-"}
+        <details><summary>Açıklama</summary><pre>${esc(g.caption)}</pre></details></td>
+      <td>${esc(new Date(g.scheduled_at).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }))}</td>
+      <td>${IG_DURUM[g.status] || esc(g.status)}</td>
+      <td>${g.permalink ? `<a href="${url(g.permalink)}" target="_blank" rel="noopener">Instagram'da aç</a>` : g.error ? `<span class="hata" style="padding:0;border:0;background:none">${esc(g.error)}</span>` : ""}</td>
+      <td>${g.status === "hata" ? `<button type="button" class="ikincil" data-tekrar>Tekrar dene</button> ` : ""}${g.status === "isleniyor" ? "" : `<button type="button" class="ikincil" data-sil>${g.status === "bekliyor" ? "İptal" : "Sil"}</button>`}</td></tr>`).join("");
+    tablo.querySelectorAll("tr[data-ig]").forEach((tr) => {
+      const g = data.find((x) => x.id === Number(tr.dataset.ig));
+      tr.querySelector("[data-tekrar]")?.addEventListener("click", async () => {
+        const { error } = await sb.from("instagram_posts").update({ status: "bekliyor", error: null, scheduled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", g.id);
+        if (error) alert("Güncellenemedi: " + error.message); else igYukle();
+      });
+      tr.querySelector("[data-sil]")?.addEventListener("click", async () => {
+        if (!confirm(g.status === "bekliyor" ? "Bu gönderi iptal edilsin ve video silinsin mi?" : "Bu kayıt silinsin mi?")) return;
+        if (g.status !== "paylasildi") await sb.storage.from(IG_DEPO).remove([g.video_path]);
+        const { error } = await sb.from("instagram_posts").delete().eq("id", g.id);
+        if (error) alert("Silinemedi: " + error.message); else igYukle();
+      });
+    });
   }
 
   // ------------------------------------------------------------ tüm ürünler

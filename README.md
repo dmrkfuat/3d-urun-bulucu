@@ -109,6 +109,44 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
 3. Günde en fazla 3 ürün aranır (ürün başına 2 arama; `config.py` → `PAZAR_GUNLUK_ADET`), aynı ürün 14 gün içinde tekrar
    aranmaz. Görsel benzerliği kesin eşleşme değildir; sonuçlar "benzer ürün" olarak okunmalıdır.
 
+### 6c. Instagram otomasyonu (isteğe bağlı)
+
+Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya tarayıcı otomasyonu yok).
+
+**Ne yapar?**
+- Her gün ilk 10 ürünün her biri için Türkçe gönderi açıklaması yazılır: videonun ilk cümlesi, Türkçe
+  ürün adı, baskı bilgisi, "DM ile sipariş" çağrısı, tasarımcı adı ve en fazla 15 etiket
+  (MakerWorld'ün yabancı etiketleri Türkçeye çevrilir). İlk 3'ün açıklaması Telegram'a
+  dokununca kopyalanan bloklar hâlinde gelir; hepsi panelde kartın "📸 Instagram'a planla" bölümündedir.
+  **Bunun için kurulum gerekmez.**
+- Paylaşım: ürünü basıp videosunu çekersin, panelde açıklamayı düzenleyip videoyu yüklersin ve saat
+  seçersin. GitHub her 15 dakikada bir `.github/workflows/instagram.yml`'i çalıştırır; saati gelen
+  video **Reels** olarak paylaşılır, ürüne "Videosunu çektim" işareti konur, bağlantı Telegram'a gelir.
+  Paylaşılan video depodan silinir. Hata olursa Telegram'a yazılır; panelin **Instagram** sekmesinden
+  "Tekrar dene" denebilir.
+
+**Bir kerelik kurulum**
+1. Instagram hesabını **profesyonel hesaba** çevir: Ayarlar → Hesap türü ve araçlar →
+   Profesyonel hesaba geç (İşletme veya İçerik üreticisi).
+2. <https://developers.facebook.com> → **Uygulama oluştur** (tür: İşletme) → **Instagram** ürününü
+   ekle → **API setup with Instagram business login** → hesabını ekle → **Generate token**.
+   İzinler: `instagram_business_basic`, `instagram_business_content_publish`. Token 60 gün geçerlidir;
+   sistem haftada bir kendisi yeniler (yenisi Supabase'te dışarıya kapalı `gizli_ayarlar` tablosunda tutulur).
+3. Token'ı GitHub'da **Settings → Secrets and variables → Actions** altına `INSTAGRAM_TOKEN` adıyla ekle
+   (yerelde denemek için `.env` → `INSTAGRAM_TOKEN=`). Token hiçbir yere yazdırılmaz.
+4. Supabase **SQL Editor** → `supabase/guncelleme_2026-11-10_instagram.sql` → **Run**
+   (açıklama sütunu, gönderi tablosu, kapalı video deposu ve izinler).
+
+**Video şartları (Instagram):** MP4 veya MOV, 3 sn–15 dk, dikey 9:16 önerilir, en fazla 1920 px
+genişlik. Panelden yükleme sınırı 50 MB'tır (Supabase ücretsiz planı); telefonda 1080p dışa aktarmak
+yeterlidir. Instagram API ile günde en fazla 100 gönderi paylaşılabilir.
+
+**Zamanlama:** GitHub zamanlanmış görevleri birkaç dakika (yoğun saatlerde 15-30 dk) gecikebilir;
+gönderi seçtiğin saatten biraz sonra çıkabilir.
+
+**Telif notu:** Paylaşılan video ve fotoğraflar senin kendi baskının olmalı. MakerWorld'deki tasarımcı
+fotoğrafları tasarımcıya aittir; açıklamada tasarımcı adı otomatik yazılır.
+
 ### 7. Web paneli
 
 Panel `panel/` klasöründedir ve GitHub Pages ile yayınlanır (`.github/workflows/panel.yml`).
@@ -197,6 +235,7 @@ urun_bulucu/
   pazar.py                ← e-ticaret araştırması (SerpApi Google Lens)
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
+  instagram.py            ← Instagram açıklaması + zamanlanmış Reels paylaşımı
   db.py                   ← Supabase / SQLite
 tests/                    ← otomatik testler
 ```

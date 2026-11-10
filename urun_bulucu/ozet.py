@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from . import analiz, lisans, maliyet, pazar, sezon, video
+from . import analiz, instagram, lisans, maliyet, pazar, sezon, video
 from .config import KATEGORI_BASINA_EN_FAZLA, MAKERWORLD_HEPSI_SATILABILIR, OZET_ADET, YAZICI
 
 
@@ -62,7 +62,7 @@ def sec(puanli_urunler: list[dict], adet: int = OZET_ADET) -> list[dict]:
             break
     return [
         {"rank": i, "product_id": u["id"], "score": u["score"], "reason": neden(u),
-         "video_idea": video_fikri(u), "urun": u}
+         "video_idea": video_fikri(u), "instagram_caption": instagram.gonderi_metni(u), "urun": u}
         for i, u in enumerate(secilen, start=1)
     ]
 
