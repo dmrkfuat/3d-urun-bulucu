@@ -15,6 +15,9 @@ Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de SATI
    görseller yan yana gösterilir, sen doğrularsın).
 5. Eşleşen modellerin baskı süresi/maliyeti MakerWorld'den alınır; piyasa ortanca fiyatıyla
    ilan başına ve saat başına kâr hesaplanır.
+6. Trendyol yelpazesi: her kategori Google Alışveriş'in kendi "Mağazalar → Trendyol" süzgeciyle bir
+   kez daha aranır (Trendyol'a istek atılmaz; Google'ın dizini). Trendyol'daki 3D baskı ürün
+   çeşitliliği, fiyat düzeyi ve en çok ürünü olan satıcılar raporlanır; bu ilanlar kümelemeye de girer.
 
 Haftada bir (KESIF_ARALIK_GUN) günlük analizle birlikte çalışır; elle: python -m urun_bulucu.kesif
 SerpApi kotası: hafta başına ~len(sorgular) + KESIF_LENS_ADET arama (ayda ~70).
@@ -48,6 +51,17 @@ RENKLER = {
 # Tek başına ürünü tanımlamayan kelimeler: kümeleme bunlarla yapılmaz.
 GENEL = {"fidget", "oyuncak", "oyuncağı", "oyuncagi", "stres", "toy", "giderici", "atıcı", "rahatlatıcı",
          "hareketli", "masaüstü", "dekor", "süs", "hediye", "figür", "obje", "aksesuar", "mini", "büyük"}
+# Ürün TİPİ kelimeleri: aynı ürünü ayırt etmez ("Kartal Gece Lambası" ile "Baykuş Gece Lambası" farklı
+# ürünlerdir; ortak "gece lambası" onları birleştirmemeli).
+GENEL |= {"saksı", "saksısı", "saksi", "lamba", "lambası", "gece", "aplik", "kalemlik", "vazo", "vazosu",
+          "biblo", "heykel", "heykeli", "anahtarlık", "anahtarlığı", "düzenleyici", "organizer", "organizer",
+          "çiçek", "cicek", "seti", "modern", "şık", "sevimli", "tasarım", "tasarımlı", "küçük", "boy",
+          "masa", "ofis", "ev", "duvar", "dekorasyon", "aydınlatma", "minimal", "çanta", "standı", "stand",
+          "tutucu", "kutu", "kutusu", "tepsi", "tepsisi", "pilli", "ledli", "led", "üretim", "şeklinde",
+          "seklinde", "üretilmiş", "uretilmis", "boyutlu", "yazıcı", "renkli"}
+# Pazar yerlerinin markasız ürünler için kullandığı ad: satıcı değildir.
+GENEL_MARKALAR = {"genel", "markalar", "markasız", "markasiz", "diğer", "diger", "no", "brand", "tr"}
+DURAK |= {"genel", "markalar", "markasız", "fiyatı", "fiyati", "pttavm"}   # kümelemede de yok sayılır
 # Pazar yeri başlıklarında sık geçen, CEVIRI'de olmayan Türkçe kelimeler → İngilizce.
 TR_EN_EK = {
     "cetvel": "ruler", "top": "ball", "topu": "ball", "yumurta": "egg", "yumurtası": "egg",
@@ -86,9 +100,13 @@ def _kucuk(metin: str) -> str:
     return (metin or "").replace("I", "ı").replace("İ", "i").lower()
 
 
+_KATLA = str.maketrans("çğıöşü", "cgiosu")
+
+
 def _n(kelime: str) -> str:
-    """Karşılaştırma biçimi: ı → i (İngilizce 'Infinity' ile Türkçe 'KIRMIZI' aynı kurala uysun)."""
-    return kelime.replace("ı", "i")
+    """Karşılaştırma biçimi: Türkçe harfler sadeleşir ("Çok Bölmeli" = "cok Bolmeli"; İngilizce
+    'Infinity' ile Türkçe 'KIRMIZI' da aynı kurala uyar)."""
+    return kelime.translate(_KATLA)
 
 
 DURAK = {_n(k) for k in DURAK}
@@ -119,7 +137,16 @@ def ayirt_edici(kel: list[str] | set[str]) -> set[str]:
     return {_kok(k) for k in kel if k not in GENEL and _kok(k) not in GENEL}
 
 
-def gorunen_ad(baslik: str) -> str:
+def gorunen_ad(baslik: str, site: str | None = None, cekirdek: set[str] | None = None) -> str:
+    """Rapor adı: '3D Baskı' ve baştaki marka atılır ('UCSESUAR 3D Baskı Çok Bölmeli...' → 'Çok Bölmeli...')."""
+    baslik = re.sub(r"^\s*[A-Za-zÇĞİÖŞÜçğıöşü0-9.]+:\s*", "", baslik or "")   # "PTTAVM: ..." → "..."
+    baslik = re.sub(r"^\s*(?:genel\s+markalar|genel\s+tr|markas[ıi]z)\s+", "", baslik, flags=re.I)
+    on = marka_kelimeleri({"title": baslik, "site": site}, cekirdek) or []   # ürün kelimesi marka sayılmaz
+    if on:
+        sozcukler = _bas(baslik).split()
+        kalan = " ".join(sozcukler[len(on):])
+        if len(kelimeler(kalan)) >= 2:
+            baslik = kalan
     ad = re.sub(r"\b3\s?d\b\s*(?:bask[ıi](?:l[ıi]|s[ıi])?|yaz[ıi]c[ıi](?:\s+bask[ıi]s[ıi])?)?", " ",
                 _bas(baslik), flags=re.I)
     ad = re.sub(r"\s+", " ", ad).strip(" -–—|")
@@ -139,19 +166,123 @@ def satici(ilan: dict, cekirdek: set[str]) -> str:
     site = site_adi(ilan.get("site"))
     if ilan.get("pazar_yeri") is False:
         return site.lower()
-    kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
+    on = marka_kelimeleri(ilan, cekirdek)
+    if on:
+        # Markanın ilk kelimesi: "WORK3D Kartal..." ile "WORK3D Pilli Kartal..." aynı satıcı.
+        return f"{site.lower()}:{on[0]}"
     site_kel = set(re.findall(r"[a-z0-9]+", _n(_kucuk(site))))
+    kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
+    govde = [k for k in kel if k not in RENKLER and k not in site_kel]
+    return f"{site.lower()}:{' '.join(govde)[:80]}"
+
+
+def marka_kelimeleri(ilan: dict, cekirdek: set[str] | None = None) -> list[str] | None:
+    """Başlığın başındaki marka/satıcı kelimeleri (en çok 3); yoksa None."""
+    cekirdek = cekirdek or set()
+    site_kel = set(re.findall(r"[a-z0-9]+", _n(_kucuk(site_adi(ilan.get("site"))))))
+    kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
     on: list[str] = []
     for k in kel:
         if k in site_kel and not on:
             continue   # "PTTAVM: Northcity 3D Baskı ..." → site adı atlanır
-        if k in ("3d", "3", "boyutlu") or k in DURAK or k in GENEL or k in cekirdek or _kok(k) in cekirdek:
+        if (k in ("3d", "3", "boyutlu") or k.isdigit() or k in DURAK or k in GENEL or k in cekirdek
+                or _kok(k) in cekirdek):
             break
         on.append(k)
-    if on and len(on) <= 3:
-        return f"{site.lower()}:{' '.join(on)}"
-    govde = [k for k in kel if k not in RENKLER and k not in site_kel]
-    return f"{site.lower()}:{' '.join(govde)[:80]}"
+    if not on or len(on) > 3 or on[0] in GENEL_MARKALAR:
+        return None
+    return on
+
+
+def marka(ilan: dict) -> str | None:
+    """Görünen satıcı/marka adı (başlıktaki yazılışıyla): 'Mays3Dstudio', 'Atatug'."""
+    on = marka_kelimeleri(ilan)
+    if not on:
+        return None
+    sozcukler = (ilan.get("ham_baslik") or ilan.get("title") or "").split()
+    ilk = [w for w in sozcukler if _n(_kucuk(re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]", "", w)))][: len(on)]
+    if [_n(_kucuk(re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]", "", w))) for w in ilk] == on:
+        return " ".join(re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]", "", w) for w in ilk)
+    return " ".join(w.capitalize() for w in on)
+
+
+# ------------------------------------------------------------------ Trendyol yelpazesi
+def trendyol_filtresi(yanit: dict) -> str | None:
+    """Google Alışveriş yanıtındaki 'Mağazalar → Trendyol' süzgecinin belirteci (sorguya özel)."""
+    for f in yanit.get("filters") or []:
+        if _kucuk(f.get("type") or f.get("name") or "") not in ("mağazalar", "satıcılar", "stores", "sellers"):
+            continue
+        for o in f.get("options") or []:
+            if _kucuk(o.get("text") or "") in ("trendyol", "trendyol.com") and o.get("shoprs"):
+                return o["shoprs"]
+    return None
+
+
+def trendyol_ozeti(sorgu_ilanlari: dict[str, list[dict]]) -> dict:
+    """{toplam, sorgular: [{sorgu, adet, fiyat_min, fiyat_medyan, fiyat_max, ornekler}], saticilar: [{ad, adet}]}"""
+    goruldu: dict[str, dict] = {}
+    sorgular_ = []
+    for q, ilanlar in sorgu_ilanlari.items():
+        fiyatlar = [i["price"] for i in ilanlar if i.get("price")]
+        sorgular_.append({"sorgu": q, "adet": len(ilanlar),
+                          "fiyat_min": min(fiyatlar) if fiyatlar else None,
+                          "fiyat_medyan": round(statistics.median(fiyatlar)) if fiyatlar else None,
+                          "fiyat_max": max(fiyatlar) if fiyatlar else None,
+                          "ornekler": [{a: i.get(a) for a in ("title", "link", "price", "thumbnail")}
+                                       | {"marka": marka(i)} for i in ilanlar[:5]]})
+        for i in ilanlar:
+            goruldu.setdefault(i["link"], i)
+    sayac: Counter = Counter()
+    yazilis: dict[str, Counter] = {}
+    for i in goruldu.values():
+        m = marka(i)
+        if m:
+            anahtar = _n(_kucuk(m.split()[0]))
+            sayac[anahtar] += 1
+            yazilis.setdefault(anahtar, Counter())[m.split()[0]] += 1
+    return {"toplam": len(goruldu), "sorgular": sorgular_,
+            "saticilar": [{"ad": yazilis[a].most_common(1)[0][0], "adet": n}
+                          for a, n in sayac.most_common(10) if n >= 2]}
+
+
+def trendyol_markdown(o: dict | None) -> list[str]:
+    if not o or not o.get("toplam"):
+        return []
+    s = ["## Trendyol'da 3D baskı ürün yelpazesi", "",
+         f"Google Alışveriş'in Trendyol süzgeciyle (Trendyol'a istek atılmadan) {o['toplam']} farklı 3D baskı ilanı.", "",
+         "| Arama | Ürün | Fiyat aralığı | Ortanca |", "|---|---:|---|---:|"]
+    for q in o["sorgular"]:
+        aralik = f"{q['fiyat_min']:.0f}–{q['fiyat_max']:.0f} TL" if q.get("fiyat_min") else "-"
+        s.append(f"| {q['sorgu']} | {q['adet']} | {aralik} | "
+                 + (f"{q['fiyat_medyan']} TL" if q.get("fiyat_medyan") else "-") + " |")
+    if o["saticilar"]:
+        s += ["", "**En çok 3D baskı ürünü olan Trendyol satıcıları (rakipler):** "
+              + ", ".join(f"{x['ad']} ({x['adet']})" for x in o["saticilar"])]
+    s += ["", "### Kategoriye göre öne çıkan Trendyol ürünleri", ""]
+    for q in o["sorgular"]:
+        if not q["ornekler"]:
+            continue
+        s.append(f"**{q['sorgu']}**")
+        for i in q["ornekler"]:
+            link = pazar.satis_linki({**i, "site": "Trendyol"}) or i.get("link")
+            s.append(f"- [{(i.get('title') or 'ürün')[:70]}]({link})"
+                     + (f" — {i['price']:.0f} TL" if i.get("price") else ""))
+        s.append("")
+    return s
+
+
+def trendyol_telegram(o: dict | None) -> str:
+    if not o or not o.get("toplam"):
+        return ""
+    e_ = bildirim._e
+    satir = [f"<b>🛍 Trendyol 3D yelpazesi</b> ({o['toplam']} ilan)"]
+    for q in o["sorgular"]:
+        if q["adet"]:
+            satir.append(f"• {e_(q['sorgu'].replace('3d baskı ', ''))}: {q['adet']} ürün"
+                         + (f" · ortanca {q['fiyat_medyan']} TL" if q.get("fiyat_medyan") else ""))
+    if o["saticilar"]:
+        satir.append("Rakipler: " + e_(", ".join(f"{x['ad']} ({x['adet']})" for x in o["saticilar"][:6])))
+    return "\n".join(satir)
 
 
 def saticilar(ilanlar: list[dict], cekirdek: set[str]) -> dict[str, int]:
@@ -212,14 +343,18 @@ def kumele(ilanlar: list[dict]) -> list[dict]:
         def bas(i: dict) -> str:
             return i.get("ham_baslik") or i.get("title") or ""
         temsil = min(k["ilanlar"], key=lambda i: (len(kelimeler(bas(i))), len(bas(i))))
-        k["ad"] = gorunen_ad(bas(temsil))
         k["anahtar"] = " ".join(sorted(ayirt_edici(kelimeler(bas(temsil)))))[:120]
         k["kelimeler"] = kelimeler(bas(temsil))
         k["ayirt"] = set().union(*k["_uyeler"])
-        # Çekirdek: üyelerin en az yarısında geçen kelimeler (marka adları çekirdeğe girmez).
-        sayac = Counter(x for u in k["_uyeler"] for x in u)
-        k["cekirdek"] = ({x for x, n in sayac.items() if n * 2 >= len(k["_uyeler"])}
-                         if len(k["_uyeler"]) >= 2 else ayirt_edici(k["kelimeler"]))
+        # Çekirdek (ürün kelimeleri): FARKLI kelimeyle başlayan en az 2 başlıkta geçen kelimeler.
+        # Marka yalnızca kendi ilanlarında geçer ("WORK3D Kartal...", "WORK3D Pilli Kartal..." →
+        # work3d çekirdek değil; "kartal" hem "Kartal Şeklinde..." hem "WORK3D Kartal..." → çekirdek).
+        baslar: dict[str, set[str]] = {}
+        for ayirt_, kel_ in zip(k["_uyeler"], k["_kelimeler"]):
+            for x in ayirt_:
+                baslar.setdefault(x, set()).add(kel_[0] if kel_ else "")
+        k["cekirdek"] = {x for x, b in baslar.items() if len(b) >= 2}
+        k["ad"] = gorunen_ad(bas(temsil), temsil.get("site"), k["cekirdek"])
         k["gorsel"] = next((i.get("thumbnail") for i in k["ilanlar"] if i.get("thumbnail")), None)
         del k["_uyeler"], k["_kelimeler"]
     return sorted(kumeler, key=lambda k: (-satici_sayisi(k), -len(k["ilanlar"])))
@@ -243,7 +378,9 @@ def lens_incele(yanit: dict, kume: dict) -> tuple[list[dict], list[dict]]:
                                  "title": pazar.temiz_baslik(x.get("title")), "thumbnail": x.get("thumbnail")})
         else:
             site = pazar.site_bul(link, x.get("source"))
-            if site and _ilgili(x.get("title"), kume["ayirt"]) and not pazar.dijital_site_mi(link):
+            # Aynı şartlar: 3D baskı işareti olmalı (plastik enjeksiyon saksı vb. sayılmaz), dosya satışı değil.
+            if (site and _ilgili(x.get("title"), kume["ayirt"]) and not pazar.dijital_site_mi(link)
+                    and pazar.uc_d_mi(x.get("title"), x.get("source"), link)):
                 f = x.get("price") if isinstance(x.get("price"), dict) else {}
                 fiyat = f.get("extracted_value")
                 ilanlar.append({"site": site, "title": pazar.temiz_baslik(x.get("title")), "link": link,
@@ -372,19 +509,33 @@ def zamani_geldi(depo, bugun: date) -> bool:
     return son is None or (bugun - date.fromisoformat(str(son)[:10])).days >= config.KESIF_ARALIK_GUN
 
 
+def _ilanlar(yanit: dict, q: str) -> list[dict]:
+    ham = {}
+    for x in yanit.get("shopping_results") or []:
+        link = pazar.guvenli_link(x.get("link")) or pazar.guvenli_link(x.get("product_link"))
+        ham.setdefault(link, x.get("title"))
+    return [{**i, "sorgu": q, "ham_baslik": ham.get(i["link"])} for i in pazar.alisveris_sonuclari(yanit)]
+
+
 def kesfet(depo, api_key: str, bugun: date, kaynak: mw.MakerWorldKaynak | None = None,
-           client: httpx.Client | None = None) -> list[dict]:
-    """Keşfi yapar, veritabanına yazar; rapor için kümeleri döndürür."""
+           client: httpx.Client | None = None) -> tuple[list[dict], dict | None]:
+    """Keşfi yapar, veritabanına yazar; (kümeler, Trendyol özeti) döndürür."""
     kaynak = kaynak or mw.MakerWorldKaynak()
-    ilanlar = []
+    ilanlar: list[dict] = []
+    trendyol: dict[str, list[dict]] = {}
     for q in sorgular(bugun):
         yanit = pazar.alisveris_ara(api_key, q, client)
-        ham = {}
-        for x in yanit.get("shopping_results") or []:
-            link = pazar.guvenli_link(x.get("link")) or pazar.guvenli_link(x.get("product_link"))
-            ham.setdefault(link, x.get("title"))
-        for i in pazar.alisveris_sonuclari(yanit):
-            ilanlar.append({**i, "sorgu": q, "ham_baslik": ham.get(i["link"])})
+        ilanlar += _ilanlar(yanit, q)
+        belirtec = trendyol_filtresi(yanit) if config.KESIF_TRENDYOL else None
+        if belirtec:
+            try:
+                ty = pazar._istek(api_key, {"engine": "google_shopping", "q": q, "gl": "tr", "hl": "tr",
+                                            "shoprs": belirtec}, client)
+                trendyol[q] = [i for i in _ilanlar(ty, q) if site_adi(i["site"]) == "Trendyol"]
+                ilanlar += trendyol[q]
+            except (pazar.PazarHatasi, httpx.HTTPError) as e:
+                print(f"UYARI: Trendyol süzgeçli arama ({q}): {e}")
+    ilanlar = _birlestir(ilanlar, [])
     kumeler = [k for k in kumele(ilanlar) if len(k["ilanlar"]) >= config.KESIF_EN_AZ_ILAN
                and satici_sayisi(k) >= config.KESIF_EN_AZ_SATICI]
     kumeler = kumeler[: config.KESIF_RAPOR_ADET]
@@ -437,7 +588,7 @@ def kesfet(depo, api_key: str, bugun: date, kaynak: mw.MakerWorldKaynak | None =
     except Exception as e:  # noqa: BLE001 — rapor ve Telegram yine çıkar
         print(f"UYARI: Keşif kaydedilemedi: {e}\n"
               "Supabase'te supabase/guncelleme_2026-11-10_kesif.sql çalıştırıldı mı?")
-    return kumeler
+    return kumeler, (trendyol_ozeti(trendyol) if trendyol else None)
 
 
 def _birlestir(a: list[dict], b: list[dict]) -> list[dict]:
@@ -484,7 +635,7 @@ def _model_satiri(e: dict) -> str:
 ESLESME_ETIKETI = {"görsel": "🎯 görsel eşleşme", "isim": "🔤 isimle bulundu (görseli karşılaştır)"}
 
 
-def markdown(bugun: date, kumeler: list[dict]) -> str:
+def markdown(bugun: date, kumeler: list[dict], trendyol: dict | None = None) -> str:
     s = [f"# Türkiye'de çok satan 3D baskılar → MakerWorld — {bugun.isoformat()}", "",
          "Google Alışveriş'teki 3D baskı ilanları ürün ürün kümelendi. **Satıcı sayısı** = aynı ürünü satan "
          "farklı satıcılar (başlıktaki markaya göre; bir satıcının renk ilanları tek sayılır). Satış adedi "
@@ -512,10 +663,12 @@ def markdown(bugun: date, kumeler: list[dict]) -> str:
             s.append("- **Diğer model siteleri (görsel eşleşme):** "
                      + ", ".join(f"[{m['site']}]({m['link']})" for m in diger[:3]))
         s.append("")
+    s += trendyol_markdown(trendyol)
     return "\n".join(s)
 
 
-def telegram_mesaji(bugun: date, kumeler: list[dict], panel_url: str | None = None, sinir: int = 4096) -> str | None:
+def telegram_mesaji(bugun: date, kumeler: list[dict], panel_url: str | None = None, sinir: int = 4096,
+                    trendyol: dict | None = None) -> str | None:
     if not kumeler:
         return None
     e_ = bildirim._e
@@ -534,35 +687,41 @@ def telegram_mesaji(bugun: date, kumeler: list[dict], panel_url: str | None = No
             break
         metin += "\n\n" + parca
     metin += "\n\n🎯 görselle eşleşti · 🔤 isimle bulundu, görseli kontrol et"
+    ty = trendyol_telegram(trendyol)
+    if ty and len(metin) + len(ty) + 120 <= sinir:
+        metin += "\n\n" + ty
     if panel_url:
         metin += f"\n📊 Panelde görseller yan yana: {e_(panel_url)}"
     return metin
 
 
 def calistir(depo, ayarlar: config.Ayarlar, bugun: date, kaynak: mw.MakerWorldKaynak | None = None,
-             zorla: bool = False, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
-    """Zamanı geldiyse ve kota yetiyorsa keşif. (kümeler, rapor yolu)."""
+             zorla: bool = False, client: httpx.Client | None = None
+             ) -> tuple[list[dict], str | None, dict | None]:
+    """Zamanı geldiyse ve kota yetiyorsa keşif. (kümeler, rapor yolu, Trendyol özeti)."""
     if not ayarlar.serpapi_key:
-        return [], None
+        return [], None, None
     if not zorla:
         try:
             if not zamani_geldi(depo, bugun):
-                return [], None
+                return [], None, None
         except Exception as e:  # noqa: BLE001 — tablo yoksa her gün kota harcanmasın
             print(f"Pazar keşfi atlandı: kayıt tablosu okunamadı ({str(e)[:120]}). "
                   "Supabase'te supabase/guncelleme_2026-11-10_kesif.sql çalıştırıldı mı?")
-            return [], None
+            return [], None, None
     kalan = pazar.kalan_hak(ayarlar.serpapi_key, client)
     if kalan is None or kalan < config.KESIF_KOTA_ESIGI:
         print(f"Pazar keşfi atlandı: SerpApi'de kalan hak {kalan} (en az {config.KESIF_KOTA_ESIGI} gerekli).")
-        return [], None
-    kumeler = kesfet(depo, ayarlar.serpapi_key, bugun, kaynak, client)
+        return [], None, None
+    kumeler, trendyol = kesfet(depo, ayarlar.serpapi_key, bugun, kaynak, client)
     config.RAPOR_KLASORU.mkdir(parents=True, exist_ok=True)
     yol = config.RAPOR_KLASORU / f"cok-satanlar-{bugun.isoformat()}.md"
-    yol.write_text(markdown(bugun, kumeler), encoding="utf-8")
+    yol.write_text(markdown(bugun, kumeler, trendyol), encoding="utf-8")
     print(f"Pazar keşfi: {len(kumeler)} çok satan ürün, "
           f"{sum(1 for k in kumeler if any(e['eslesme'] == 'görsel' for e in k['eslesmeler']))} görsel eşleşme → {yol}")
-    return kumeler, str(yol)
+    if trendyol:
+        print(f"Trendyol yelpazesi: {trendyol['toplam']} ilan, {len(trendyol['saticilar'])} rakip satıcı")
+    return kumeler, str(yol), trendyol
 
 
 def ana() -> int:
@@ -573,8 +732,8 @@ def ana() -> int:
         return 1
     depo = depo_olustur(ayarlar)
     bugun = datetime.now(timezone.utc).date()
-    kumeler, _ = calistir(depo, ayarlar, bugun, zorla=True)
-    mesaj = telegram_mesaji(bugun, kumeler, ayarlar.panel_url or None)
+    kumeler, _, trendyol = calistir(depo, ayarlar, bugun, zorla=True)
+    mesaj = telegram_mesaji(bugun, kumeler, ayarlar.panel_url or None, trendyol=trendyol)
     if mesaj and ayarlar.telegram_token and ayarlar.telegram_chat_id and "--telegram" in sys.argv:
         bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id,
                         [{"metot": "sendMessage", "veri": {"text": mesaj, "disable_web_page_preview": True}}])

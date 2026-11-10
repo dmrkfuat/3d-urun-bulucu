@@ -105,6 +105,7 @@ KESIF_LENS_ADET = 8           # en çok ilanlı kaç ürünün görseliyle Lens 
 KESIF_YENILEME_GUN = 28       # aynı ürünün Lens sonucu bu kadar gün yeniden kullanılır (kota)
 KESIF_GORSEL_ESLESME = 2      # Lens'te çıkan en çok kaç MakerWorld modeli
 KESIF_ISIM_ESLESME = 2        # isimle MakerWorld aramasından en çok kaç model
+KESIF_TRENDYOL = True         # her sorgu Google Alışveriş'in Trendyol süzgeciyle de aranır (+1 arama/sorgu)
 KESIF_KOTA_ESIGI = 50         # SerpApi'de bundan az hak kaldıysa keşif yapılmaz (günlük arama korunur)
 
 # --- Instagram (resmi Instagram API, "Instagram Login" ile; şifreyle giriş/bot yok) ---

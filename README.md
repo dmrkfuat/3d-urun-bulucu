@@ -123,9 +123,16 @@ Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de sat�
 4. Ürün adının İngilizcesiyle MakerWorld'de ücretsiz arama: **🔤 isimle bulundu**. Yalnızca en az
    2 ayırt edici kelimenin hepsi model adında geçiyorsa; panelde görseller yan yana gösterilir.
 5. Eşleşen modelin baskı süresi ve maliyeti MakerWorld'den alınır; kâr = piyasa ortancası − maliyet.
+6. **Trendyol yelpazesi:** her kategori Google Alışveriş'in kendi "Mağazalar → Trendyol" süzgeciyle bir
+   kez daha aranır (sorgu başına +1 arama; `KESIF_TRENDYOL`). Trendyol'a hiç istek atılmaz; Google'ın
+   dizini kullanılır. Raporda kategori başına Trendyol'daki 3D baskı ürün sayısı, fiyat aralığı ve
+   ortancası, en çok ürünü olan rakip satıcılar ve öne çıkan ürünler yer alır.
+
+Trendyol/Hepsiburada sayfaları doğrudan taranmaz: arama sayfaları `robots.txt` ile otomatik
+programlara kapalıdır ve bot koruması vardır (Kasım 2026'da tek istek bile 403 aldı).
 
 Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Çok satanlar** sekmesi.
-Kota: haftada ~18 arama (ayda ~75); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
+Kota: haftada ~28 arama (ayda ~120; 10 kategori + 10 Trendyol süzgeçli + 8 görsel); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
 sonucu 28 gün yeniden kullanılır. Elle çalıştırma: `python -m urun_bulucu.kesif` (`--telegram` ile
 mesaj da gönderilir). Supabase'te bir kez `supabase/guncelleme_2026-11-10_kesif.sql` çalıştırılmalıdır.
 

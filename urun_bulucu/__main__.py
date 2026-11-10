@@ -86,8 +86,9 @@ def calistir(bugun: date | None = None) -> int:
 
     # Haftalık pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld'deki modeli.
     kesif_kumeleri: list[dict] = []
+    kesif_trendyol = None
     try:
-        kesif_kumeleri, _ = kesif.calistir(depo, ayarlar, bugun, kaynak)
+        kesif_kumeleri, _, kesif_trendyol = kesif.calistir(depo, ayarlar, bugun, kaynak)
     except Exception as e:  # noqa: BLE001
         print(f"UYARI: Pazar keşfi atlandı: {e}")
 
@@ -102,7 +103,8 @@ def calistir(bugun: date | None = None) -> int:
             istekler = bildirim.mesajlar(bugun, secimler, ayarlar.panel_url or None,
                                          pazar_sonuclari=pazar_sonuclari, yeni_modeller=yeni_modeller,
                                          yeni_takip=yeni_takip)
-            kesif_mesaji = kesif.telegram_mesaji(bugun, kesif_kumeleri, ayarlar.panel_url or None)
+            kesif_mesaji = kesif.telegram_mesaji(bugun, kesif_kumeleri, ayarlar.panel_url or None,
+                                                 trendyol=kesif_trendyol)
             if kesif_mesaji:
                 istekler.append({"metot": "sendMessage",
                                  "veri": {"text": kesif_mesaji, "disable_web_page_preview": True}})
