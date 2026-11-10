@@ -158,3 +158,13 @@ def test_tek_magazanin_cok_urunu_talep_sayilmaz():
     assert kesif.site_sayisi(tek) == 1 and kesif.site_adi("trendruum.com") == "trendruum"
     # İsimle arama tek ayırt edici kelimeyle yapılmaz (her anahtarlık eşleşirdi).
     assert kesif.ingilizce_kelimeler(["maskot", "anahtarlik"])[0] == ["keychain"]
+
+
+def test_model_sayfasi_alan_adini_dogrular():
+    assert kesif.model_sayfasi("https://makerworld.com/en/models/1106083-fidget-ruler") == ("MakerWorld", "1106083")
+    assert kesif.model_sayfasi("https://www.printables.com/model/1786092-star") == ("Printables", "1786092")
+    assert kesif.model_sayfasi("https://www.thingiverse.com/thing:12345") == ("Thingiverse", "12345")
+    assert kesif.model_sayfasi("https://kotu.example/?x=printables.com/model/1") is None
+    assert kesif.model_sayfasi("https://printables.com.kotu.example/model/1") is None
+    assert kesif.model_sayfasi("https://kotu.example/makerworld.com/models/1") is None
+    assert kesif.model_sayfasi("https://makerworld.com/tr/search/models?keyword=x") is None

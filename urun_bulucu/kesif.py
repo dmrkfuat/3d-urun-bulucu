@@ -24,6 +24,7 @@ import statistics
 import sys
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -54,13 +55,29 @@ TR_EN_EK = {
     "kumbara": "piggy bank", "lamba": "lamp", "abajur": "lamp", "isimlik": "name plate",
     "anahtarlık": "keychain", "saksı": "planter", "vazo": "vase", "mumluk": "candle holder",
 }
+# (site, alan adı, YOL deseni). Önce alan adı (veya alt alanı) doğrulanır, desen yalnızca yola
+# uygulanır: "https://baska.site/?x=printables.com/model/1" gibi bağlantılar model sayılmaz.
 MODEL_SAYFASI = [
-    ("MakerWorld", re.compile(r"makerworld\.com/(?:[a-z]{2}(?:-[a-z]{2,4})?/)?models/(\d+)", re.I)),
-    ("Printables", re.compile(r"printables\.com/(?:[a-z]{2}/)?model/(\d+)", re.I)),
-    ("Thingiverse", re.compile(r"thingiverse\.com/thing:(\d+)", re.I)),
-    ("Cults3D", re.compile(r"cults3d\.com/[a-z]{2}/(?:3d-model|3d-print|3d-bask%C4%B1|3d-baskı|modelo-3d)/"
-                           r"[^/]+/([^/?#]+)", re.I)),
+    ("MakerWorld", "makerworld.com", re.compile(r"^/(?:[a-z]{2}(?:-[a-z]{2,4})?/)?models/(\d+)", re.I)),
+    ("Printables", "printables.com", re.compile(r"^/(?:[a-z]{2}/)?model/(\d+)", re.I)),
+    ("Thingiverse", "thingiverse.com", re.compile(r"^/thing:(\d+)", re.I)),
+    ("Cults3D", "cults3d.com", re.compile(r"^/[a-z]{2}/(?:3d-model|3d-print|3d-bask%C4%B1|3d-baskı|modelo-3d)/"
+                                          r"[^/]+/([^/?#]+)", re.I)),
 ]
+
+
+def model_sayfasi(link: str) -> tuple[str, str] | None:
+    """(site, model kimliği) — bağlantı bilinen bir model sitesinin model sayfasıysa."""
+    try:
+        adres = urlsplit(link)
+    except ValueError:
+        return None
+    host = (adres.hostname or "").lower()
+    for site, alan, desen in MODEL_SAYFASI:
+        if pazar._alan_eslesir(host, alan):
+            m = desen.match(adres.path)
+            return (site, m.group(1)) if m else None
+    return None
 
 
 def _kucuk(metin: str) -> str:
@@ -173,14 +190,11 @@ def lens_incele(yanit: dict, kume: dict) -> tuple[list[dict], list[dict]]:
         link = pazar.guvenli_link(x.get("link"))
         if not link:
             continue
-        for site, desen in MODEL_SAYFASI:
-            m = desen.search(link)
-            if m:
-                if not model_ilgili_mi(x.get("title"), kume):
-                    break   # şekli benzeyen başka model (ör. sabunluk)
-                modeller.append({"site": site, "id": m.group(1), "link": link, "sira": x.get("position"),
+        sayfa = model_sayfasi(link)
+        if sayfa:
+            if model_ilgili_mi(x.get("title"), kume):   # şekli benzeyen başka model (ör. sabunluk) atlanır
+                modeller.append({"site": sayfa[0], "id": sayfa[1], "link": link, "sira": x.get("position"),
                                  "title": pazar.temiz_baslik(x.get("title")), "thumbnail": x.get("thumbnail")})
-                break
         else:
             site = pazar.site_bul(link, x.get("source"))
             if site and _ilgili(x.get("title"), kume["ayirt"]) and not pazar.dijital_site_mi(link):
