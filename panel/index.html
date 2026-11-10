@@ -501,7 +501,7 @@
     await planIdleriYukle();
     kap.innerHTML = `<p class="muted">Keşif tarihi: ${esc(new Date(gun).toLocaleDateString("tr-TR", { dateStyle: "long" }))}</p>` + data.map((k, n) => {
       const modeller = k.eslesmeler || [];
-      const siteler = Object.entries(k.siteler || {}).map(([s, a]) => `<span class="cip">${esc(s)} ${a}</span>`).join("");
+      const siteler = Object.entries(k.siteler || {}).sort((a, b) => b[1] - a[1]).map(([s, a]) => `<span class="cip">${esc(s)} ${a}</span>`).join("");
       const fiyat = k.fiyat_medyan ? `${tl(k.fiyat_min)} – ${tl(k.fiyat_max)} (ortanca ${tl(k.fiyat_medyan)})` : "fiyat yok";
       const gorseller = `<figure class="pazar">${k.gorsel ? `<img src="${url(k.gorsel)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<figcaption>🛒 E-ticarette satılan</figcaption></figure>`
         + modeller.map((m) => `<figure>${m.image_url ? `<img src="${url(m.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<figcaption>${m.eslesme === "görsel" ? "🎯" : "🔤"} ${esc(m.name)}</figcaption></figure>`).join("");
