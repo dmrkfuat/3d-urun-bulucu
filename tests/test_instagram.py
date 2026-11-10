@@ -325,3 +325,25 @@ def test_video_duzenle_gercek_ffmpeg(tmp_path):
     sure, ses = vd.bilgi(ff, tmp_path / "hazir.mp4")
     assert abs(sure - (4 + config.INSTAGRAM_SON_KART_SN)) < 0.3 and ses   # sessize ses kanalı eklendi
     assert r["kanca"] == ["%20 İNDİRİM: TEK", "PARÇA"]
+
+
+def test_video_hazirla_beklenmeyen_dosya_adini_duzenlemez(monkeypatch):
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: "ffmpeg")
+    depo = VideoDepo()
+    for yol in ["7/1.m3u8", "../x/1.mp4", "7/1.mp4/../a.txt"]:
+        yol2, notu = instagram.video_hazirla(depo, _gonderi(video_path=yol), _sahte_duzenle)
+        assert yol2 == yol and "biçimde değil" in notu
+    assert depo.indirilen == []
+
+
+@pytest.mark.skipif(not instagram.video_duzenle.ffmpeg_yolu() or not instagram.video_duzenle.font_bul(),
+                    reason="ffmpeg yok (FFMPEG_YOLU ile gösterilebilir)")
+def test_video_duzenle_mp4_kiliginda_liste_dosyasini_reddeder(tmp_path):
+    gizli = tmp_path / "gizli.txt"
+    gizli.write_text("SIR")
+    sahte = tmp_path / "giris.mp4"     # aslında HLS listesi: yerel dosyayı okutmaya çalışır
+    sahte.write_text(f"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:10.0,\nfile://{gizli.as_posix()}\n#EXT-X-ENDLIST\n")
+    with pytest.raises(instagram.video_duzenle.VideoDuzenlemeHatasi):
+        instagram.video_duzenle.duzenle(sahte, tmp_path / "c.mp4", "deneme")
+    assert not (tmp_path / "c.mp4").exists()

@@ -321,10 +321,12 @@ def video_hazirla(depo: InstagramDepo, g: dict,
         return yol, None
     if not video_duzenle.ffmpeg_yolu():
         return yol, "ffmpeg bulunamadı; video düzenlenmeden paylaşıldı"
+    if not re.fullmatch(r"\d+/\d+\.(mp4|mov)", yol or ""):   # panelin ürettiği biçim: {ürün}/{zaman}.mp4
+        return yol, "video adı beklenen biçimde değil; video düzenlenmeden paylaşıldı"
     hedef = video_duzenle.hazir_yolu(yol)
     try:
         with tempfile.TemporaryDirectory() as d:
-            giris = Path(d) / ("giris" + (Path(yol).suffix or ".mp4"))
+            giris = Path(d) / "giris.video"   # uzantı dosya adından alınmaz
             cikis = Path(d) / "hazir.mp4"
             depo.video_indir(yol, giris)
             duzenle(giris, cikis, g.get("caption") or "")

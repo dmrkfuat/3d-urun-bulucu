@@ -36,6 +36,17 @@ class VideoDuzenlemeHatasi(RuntimeError):
     pass
 
 
+# Güvenlik: yüklenen dosya ne olursa olsun yalnızca MP4/MOV olarak açılır (-f mov). Uzantısı .mp4
+# olan bir HLS/concat listesi ffmpeg'e yerel dosya okutamaz veya dış adrese istek attıramaz;
+# yalnızca yerel dosya protokolü açıktır. ffmpeg, sırları (Supabase/Instagram anahtarları)
+# içermeyen sade bir ortamla çalıştırılır.
+GIRIS_SECENEKLERI = ["-f", "mov", "-protocol_whitelist", "file"]
+
+
+def _ortam() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k.upper() in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME")}
+
+
 def ffmpeg_yolu() -> str | None:
     ozel = os.getenv("FFMPEG_YOLU", "").strip()
     if ozel and Path(ozel).is_file():
@@ -83,8 +94,8 @@ def satirlara_bol(metin: str, genislik: int = 18, en_fazla: int = 4) -> list[str
 
 def bilgi(ffmpeg: str, giris: Path) -> tuple[float, bool]:
     """(süre sn, ses var mı) — ffprobe gerekmesin diye ffmpeg'in kendi çıktısından okunur."""
-    sonuc = subprocess.run([ffmpeg, "-hide_banner", "-i", str(giris)], capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", timeout=60)
+    sonuc = subprocess.run([ffmpeg, "-hide_banner", *GIRIS_SECENEKLERI, "-i", str(giris)], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", timeout=60, env=_ortam())
     m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", sonuc.stderr)
     if not m:
         raise VideoDuzenlemeHatasi("video okunamadı (bozuk veya desteklenmeyen biçim)")
@@ -158,7 +169,8 @@ def duzenle(giris: Path, cikis: Path, aciklama: str, ffmpeg: str | None = None) 
             for i, s in enumerate(satirlar):
                 (klasor / f"{ad}{i}.txt").write_text(s, encoding="utf-8")
         filtre_metni, kanca_sn = filtre(kanca, son, sure, ses_var)
-        komut = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(Path(giris).resolve())]
+        komut = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *GIRIS_SECENEKLERI,
+                 "-i", str(Path(giris).resolve())]
         if not ses_var:
             komut += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
         komut += ["-filter_complex", filtre_metni, "-map", "[v]", "-map", "[s]" if ses_var else "1:a",
@@ -168,7 +180,7 @@ def duzenle(giris: Path, cikis: Path, aciklama: str, ffmpeg: str | None = None) 
                   "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart",
                   str(Path(cikis).resolve())]
         try:
-            sonuc = subprocess.run(komut, cwd=klasor, capture_output=True, text=True, encoding="utf-8",
+            sonuc = subprocess.run(komut, cwd=klasor, env=_ortam(), capture_output=True, text=True, encoding="utf-8",
                                    errors="replace", timeout=config.INSTAGRAM_DUZENLEME_SURESI_SN)
         except subprocess.TimeoutExpired as e:
             raise VideoDuzenlemeHatasi("video düzenleme çok uzun sürdü") from e
