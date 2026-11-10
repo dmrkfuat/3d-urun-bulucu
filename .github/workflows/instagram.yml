@@ -20,7 +20,7 @@ concurrency:
 jobs:
   paylas:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -28,6 +28,22 @@ jobs:
           python-version: "3.13"
           cache: pip
       - run: pip install -r requirements.txt
+      # ffmpeg yalnızca saati gelmiş ve düzenlenecek bir video varsa kurulur (her çalışmada değil).
+      - name: Video düzenleme gerekiyor mu
+        id: kontrol
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+        run: echo "gerekli=$(python -m urun_bulucu.instagram --ffmpeg-gerekli)" >> "$GITHUB_OUTPUT"
+      - name: ffmpeg kur
+        if: steps.kontrol.outputs.gerekli == 'true'
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-dejavu-core
+          fi
+          ffmpeg -hide_banner -version | head -1
       - name: Saati gelen gönderileri paylaş
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

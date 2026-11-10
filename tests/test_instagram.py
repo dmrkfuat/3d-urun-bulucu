@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 import httpx
+import pytest
 
 from urun_bulucu import bildirim, config, instagram, ozet
 from urun_bulucu.db import SqliteDepo
@@ -8,6 +10,12 @@ from urun_bulucu.db import SqliteDepo
 from .ornek_veri import urun
 
 SIMDI = datetime(2026, 11, 10, 17, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _duzenleme_kapali(monkeypatch):
+    """Paylaşım testleri ffmpeg'e bağlı olmasın; düzenleme testleri kendisi açar."""
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", False)
 
 
 def _urun(**ek):
@@ -81,8 +89,8 @@ class SahteDepo:
     def imzali_url(self, yol, saniye):
         return f"https://depo.example/{yol}?token=imza"
 
-    def video_sil(self, yol):
-        self.silinen.append(yol)
+    def video_sil(self, yollar):
+        self.silinen.extend(yollar)
 
     def video_isaretle(self, urun_id):
         self.isaretlenen.append(urun_id)
@@ -139,7 +147,7 @@ def test_isle_reels_olusturur_bekler_yayinlar_ve_isaretler():
     g = depo.gonderiler[1]
     assert g["status"] == "paylasildi" and g["media_id"] == "MEDYA9" and g["attempts"] == 1
     assert g["permalink"] == "https://www.instagram.com/reel/abc/"
-    assert depo.isaretlenen == [7] and depo.silinen == ["7/1.mp4"]
+    assert depo.isaretlenen == [7] and depo.silinen == ["7/1.mp4", "7/1_hazir.mp4"]
     assert depo.gonderiler[2]["status"] == "bekliyor"     # saati gelmedi
     assert len(bildirimler) == 1 and "✅" in bildirimler[0] and "Ürün &lt;A&gt;" in bildirimler[0]
 
@@ -229,3 +237,91 @@ def test_token_yenilenemezse_eskisiyle_devam(capsys):
     client, _ = _token_api(basarili=False)
     assert instagram.token_hazirla(depo, "E", SIMDI, client) == "D"
     assert "50 gün" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ video hazırlama
+class VideoDepo(SahteDepo):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.indirilen, self.yuklenen = [], {}
+
+    def video_indir(self, yol, hedef):
+        self.indirilen.append(yol)
+        Path(hedef).write_bytes(b"ham")
+
+    def video_yukle(self, yol, dosya):
+        self.yuklenen[yol] = Path(dosya).read_bytes()
+
+
+def _sahte_duzenle(giris, cikis, aciklama):
+    Path(cikis).write_bytes(b"hazir:" + Path(giris).read_bytes() + aciklama.encode()[:5])
+    return {}
+
+
+def test_video_hazirla_duzenler_yukler_ve_kapatilabilir(monkeypatch):
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: "ffmpeg")
+    depo = VideoDepo()
+    yol, notu = instagram.video_hazirla(depo, _gonderi(video_path="7/1.mov"), _sahte_duzenle)
+    assert (yol, notu) == ("7/1_hazir.mp4", None)
+    assert depo.indirilen == ["7/1.mov"] and depo.yuklenen["7/1_hazir.mp4"] == b"hazir:hamMerha"
+
+    depo = VideoDepo()   # panelde kutu kaldırıldı
+    assert instagram.video_hazirla(depo, _gonderi(video_edit=False), _sahte_duzenle) == ("7/1.mp4", None)
+    assert depo.indirilen == []
+
+
+def test_video_hazirla_basarisizsa_ozgun_videoyla_devam(monkeypatch):
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: None)
+    assert instagram.video_hazirla(VideoDepo(), _gonderi(), _sahte_duzenle) == (
+        "7/1.mp4", "ffmpeg bulunamadı; video düzenlenmeden paylaşıldı")
+
+    monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: "ffmpeg")
+
+    def bozuk(giris, cikis, aciklama):
+        raise instagram.video_duzenle.VideoDuzenlemeHatasi("video çok kısa")
+
+    yol, notu = instagram.video_hazirla(VideoDepo(), _gonderi(), bozuk)
+    assert yol == "7/1.mp4" and "video çok kısa" in notu
+
+
+def test_isle_duzenlenmis_videoyu_paylasir_notu_bildirir():
+    depo = SahteDepo([_gonderi()])
+    client, cagrilar = _api(["FINISHED"])
+    b = instagram.isle(depo, instagram.InstagramIstemci("TOKEN", client), SIMDI,
+                       hazirla=lambda d, g: ("7/1_hazir.mp4", "deneme notu"))
+    olustur = next(c for c in cagrilar if c[1].endswith("/1784/media"))
+    assert "1_hazir.mp4" in olustur[3]
+    assert depo.gonderiler[1]["status"] == "paylasildi" and "ℹ️ deneme notu" in b[0]
+
+
+def test_video_duzenle_metin_yardimcilari():
+    vd = instagram.video_duzenle
+    ac = "Tek parça basıldı, hiç montaj yok 🤯\n\n✨ İmkansız vida\n#3dbaskı"
+    assert vd.kanca_metni(ac) == "Tek parça basıldı, hiç montaj yok"
+    assert vd.kanca_metni("🤯\n#a #b") == ""
+    assert vd.tr_buyuk("hiç ışık") == "HİÇ IŞIK"
+    assert vd.satirlara_bol("TEK PARÇA BASILDI, HİÇ MONTAJ YOK") == ["TEK PARÇA BASILDI,", "HİÇ MONTAJ YOK"]
+    assert len(vd.satirlara_bol("kelime " * 30)) == 4
+    assert vd.hazir_yolu("7/1731.mov") == "7/1731_hazir.mp4"
+    f, kanca_sn = vd.filtre(["A", "B"], ["DM"], 10.0, ses_var=False)
+    assert "k1.txt" in f and "s0.txt" in f and "tpad=stop_mode=clone" in f and "[0:a]" not in f
+    assert "gte(t,10.000)" in f and kanca_sn == config.INSTAGRAM_KANCA_SN
+    f, _ = vd.filtre([], [], 4.0, ses_var=True)
+    assert "drawtext" not in f and "apad" in f
+
+
+@pytest.mark.skipif(not instagram.video_duzenle.ffmpeg_yolu() or not instagram.video_duzenle.font_bul(),
+                    reason="ffmpeg yok (FFMPEG_YOLU ile gösterilebilir)")
+def test_video_duzenle_gercek_ffmpeg(tmp_path):
+    import subprocess
+    vd = instagram.video_duzenle
+    ff = vd.ffmpeg_yolu()
+    giris = tmp_path / "ham.mp4"
+    subprocess.run([ff, "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30",
+                    "-t", "4", "-c:v", "libx264", str(giris)], check=True)
+    r = vd.duzenle(giris, tmp_path / "hazir.mp4", "%20 indirim: tek parça 🤯\n#etiket")
+    sure, ses = vd.bilgi(ff, tmp_path / "hazir.mp4")
+    assert abs(sure - (4 + config.INSTAGRAM_SON_KART_SN)) < 0.3 and ses   # sessize ses kanalı eklendi
+    assert r["kanca"] == ["%20 İNDİRİM: TEK", "PARÇA"]

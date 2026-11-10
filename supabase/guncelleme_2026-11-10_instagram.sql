@@ -21,15 +21,18 @@ create table if not exists instagram_posts (
   attempts integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  published_at timestamptz
+  published_at timestamptz,
+  video_edit boolean not null default true       -- paylaşmadan önce kanca yazısı + DM kartı eklensin mi
 );
+-- Bu dosyayı daha önce çalıştırdıysan tabloya yeni sütun eklenir:
+alter table instagram_posts add column if not exists video_edit boolean not null default true;
 create index if not exists instagram_posts_status_idx on instagram_posts (status, scheduled_at);
 alter table instagram_posts enable row level security;
 
 -- Panel: gönderi ekler (yalnızca 'bekliyor'), açıklamayı/saati değiştirir, hatalıyı tekrar
 -- 'bekliyor'a alır, işlenmekte olmayanı siler. Paylaşım sonucu alanlarını yalnızca sunucu yazar.
 grant select, insert, delete on instagram_posts to authenticated;
-grant update (caption, scheduled_at, status, error, updated_at) on instagram_posts to authenticated;
+grant update (caption, scheduled_at, status, error, updated_at, video_edit) on instagram_posts to authenticated;
 
 drop policy if exists panel_okur on instagram_posts;
 create policy panel_okur on instagram_posts for select to authenticated using (panel_izinli_mi());

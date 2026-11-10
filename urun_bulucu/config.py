@@ -106,6 +106,14 @@ INSTAGRAM_IMZALI_URL_SN = 6 * 3600  # Instagram'ın videoyu indirmesi için geç
 INSTAGRAM_CALISMA_BASINA_EN_FAZLA = 3  # bir çalışmada en fazla kaç gönderi başlatılır
 INSTAGRAM_PAYLASINCA_VIDEOYU_SIL = True  # depolama dolmasın (Supabase ücretsiz: 1 GB)
 INSTAGRAM_DEPO = "instagram"        # Supabase Storage alanı (bucket) adı
+INSTAGRAM_DEPO_SINIRI_MB = 50       # depolama alanının dosya sınırı (SQL'deki file_size_limit)
+# Paylaşmadan önce video düzenleme (ffmpeg): 9:16, başta kanca yazısı, sonda DM kartı.
+# Panelde gönderi başına kapatılabilir ("Videoyu otomatik düzenle" kutusu).
+INSTAGRAM_VIDEO_DUZENLE = True
+INSTAGRAM_KANCA_SN = 2.5            # kanca yazısı videonun ilk kaç saniyesinde görünür
+INSTAGRAM_SON_KART_SN = 2.5         # sona eklenen "DM" kartının süresi (0: eklenmez)
+INSTAGRAM_SON_KART = ("SİPARİŞ İÇİN DM AT", "İstediğin renkte basılır")
+INSTAGRAM_DUZENLEME_SURESI_SN = 400  # bir videonun düzenlenmesi en fazla bu kadar sürebilir
 
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"

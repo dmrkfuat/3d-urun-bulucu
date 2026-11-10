@@ -9,7 +9,8 @@ Akış:
 2. Sen ürünü basıp videosunu çekersin; panelden videoyu yükleyip saat seçersin
    (Supabase Storage 'instagram' alanı + instagram_posts tablosu).
 3. GitHub Actions 15 dakikada bir `python -m urun_bulucu.instagram` çalıştırır: saati gelen video
-   için Reels oluşturulur, Instagram videoyu işleyince yayınlanır, ürüne "video" işareti konur ve
+   ffmpeg ile hazırlanır (9:16, başta kanca yazısı, sonda "DM" kartı; bkz. video_duzenle.py),
+   Reels oluşturulur, Instagram videoyu işleyince yayınlanır, ürüne "video" işareti konur ve
    Telegram'a bağlantı gönderilir.
 
 Token (INSTAGRAM_TOKEN, 60 gün geçerli) haftada bir otomatik yenilenir; yenisi Supabase'teki
@@ -20,13 +21,15 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Callable, Protocol
 
 import httpx
 
-from . import analiz, bildirim, config, pazar, video
+from . import analiz, bildirim, config, pazar, video, video_duzenle
 
 # --------------------------------------------------------------------------- açıklama metni
 TEMEL_ETIKETLER = ["#3dbaskı", "#3dyazıcı", "#3dprinting", "#bambulab", "#elyapımı"]
@@ -199,7 +202,9 @@ class InstagramDepo(Protocol):
     def islenenler(self) -> list[dict]: ...
     def guncelle(self, gonderi_id: int, alanlar: dict) -> None: ...
     def imzali_url(self, yol: str, saniye: int) -> str: ...
-    def video_sil(self, yol: str) -> None: ...
+    def video_indir(self, yol: str, hedef: Path) -> None: ...
+    def video_yukle(self, yol: str, dosya: Path) -> None: ...
+    def video_sil(self, yollar: list[str]) -> None: ...
     def video_isaretle(self, urun_id: int) -> None: ...
     def urun_adi(self, urun_id: int | None) -> str | None: ...
 
@@ -236,8 +241,15 @@ class SupabaseInstagramDepo:
             raise InstagramHatasi(f"Video bağlantısı oluşturulamadı: {yol}")
         return adres
 
-    def video_sil(self, yol: str) -> None:
-        self.sb.storage.from_(config.INSTAGRAM_DEPO).remove([yol])
+    def video_indir(self, yol: str, hedef: Path) -> None:
+        hedef.write_bytes(self.sb.storage.from_(config.INSTAGRAM_DEPO).download(yol))
+
+    def video_yukle(self, yol: str, dosya: Path) -> None:
+        self.sb.storage.from_(config.INSTAGRAM_DEPO).upload(
+            yol, dosya, {"content-type": "video/mp4", "upsert": "true"})
+
+    def video_sil(self, yollar: list[str]) -> None:
+        self.sb.storage.from_(config.INSTAGRAM_DEPO).remove(yollar)
 
     def video_isaretle(self, urun_id: int) -> None:
         var = self.sb.table("product_marks").select("product_id").eq("product_id", urun_id).execute().data
@@ -295,6 +307,35 @@ def token_hazirla(depo: InstagramDepo, ortam_token: str, simdi: datetime,
     return token
 
 
+# --------------------------------------------------------------------------- video hazırlama
+def duzenlenecek_mi(g: dict) -> bool:
+    return config.INSTAGRAM_VIDEO_DUZENLE and g.get("video_edit") is not False
+
+
+def video_hazirla(depo: InstagramDepo, g: dict,
+                  duzenle: Callable[[Path, Path, str], dict] = video_duzenle.duzenle) -> tuple[str, str | None]:
+    """Paylaşılacak videonun depodaki yolu ve (varsa) not. Düzenleme olmazsa özgün video kullanılır;
+    paylaşım yine yapılır, not Telegram'a yazılır."""
+    yol = g["video_path"]
+    if not duzenlenecek_mi(g):
+        return yol, None
+    if not video_duzenle.ffmpeg_yolu():
+        return yol, "ffmpeg bulunamadı; video düzenlenmeden paylaşıldı"
+    hedef = video_duzenle.hazir_yolu(yol)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            giris = Path(d) / ("giris" + (Path(yol).suffix or ".mp4"))
+            cikis = Path(d) / "hazir.mp4"
+            depo.video_indir(yol, giris)
+            duzenle(giris, cikis, g.get("caption") or "")
+            if cikis.stat().st_size > config.INSTAGRAM_DEPO_SINIRI_MB * 1024 * 1024:
+                return yol, "düzenlenen video depolama sınırını aştı; video düzenlenmeden paylaşıldı"
+            depo.video_yukle(hedef, cikis)
+    except Exception as e:  # noqa: BLE001 — düzenleme olmasa da paylaşım sürsün
+        return yol, f"video düzenlenemedi ({str(e)[:150]}); olduğu gibi paylaşıldı"
+    return hedef, None
+
+
 # --------------------------------------------------------------------------- paylaşım
 def _bildir(ayarlar: config.Ayarlar, metinler: list[str]) -> None:
     if not (metinler and ayarlar.telegram_token and ayarlar.telegram_chat_id):
@@ -315,7 +356,8 @@ def _ad(depo: InstagramDepo, g: dict) -> str:
 
 
 def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
-         bekle: Callable[[float], None] = time.sleep) -> list[str]:
+         bekle: Callable[[float], None] = time.sleep,
+         hazirla: Callable[[InstagramDepo, dict], tuple[str, str | None]] = video_hazirla) -> list[str]:
     """Saati gelen gönderileri başlatır, işlenenleri yayınlar. Telegram metinlerini (HTML) döndürür."""
     bildirimler: list[str] = []
     gelenler = depo.zamani_gelenler(simdi.isoformat(timespec="seconds"), config.INSTAGRAM_CALISMA_BASINA_EN_FAZLA)
@@ -341,8 +383,9 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
         if sorun:
             hata(g, sorun)
             continue
+        yol, g["_not"] = hazirla(depo, g)
         try:
-            adres = depo.imzali_url(g["video_path"], config.INSTAGRAM_IMZALI_URL_SN)
+            adres = depo.imzali_url(yol, config.INSTAGRAM_IMZALI_URL_SN)
             kap = ig.reels_olustur(ig_id, adres, g.get("caption") or "")
         except (InstagramHatasi, httpx.HTTPError) as e:
             hata(g, str(e))
@@ -370,7 +413,8 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
                                             "published_at": _simdi(), "error": None})
                     _paylasim_sonrasi(depo, g)
                     bildirimler.append(f"✅ Instagram'da paylaşıldı: <b>{bildirim._e(_ad(depo, g))}</b>"
-                                       + (f"\n{bildirim._e(baglanti)}" if baglanti else ""))
+                                       + (f"\n{bildirim._e(baglanti)}" if baglanti else "")
+                                       + (f"\nℹ️ {bildirim._e(g['_not'])}" if g.get("_not") else ""))
                 elif kod in ("ERROR", "EXPIRED"):
                     hata(g, f"Instagram videoyu işleyemedi ({kod}): {aciklama or 'video biçimini kontrol et'}")
                 else:
@@ -399,9 +443,23 @@ def _paylasim_sonrasi(depo: InstagramDepo, g: dict) -> None:
         print(f"UYARI: Video işareti konamadı: {e}")
     if config.INSTAGRAM_PAYLASINCA_VIDEOYU_SIL:
         try:
-            depo.video_sil(g["video_path"])
+            depo.video_sil([g["video_path"], video_duzenle.hazir_yolu(g["video_path"])])
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: Video depodan silinemedi: {e}")
+
+
+def ffmpeg_gerekli() -> bool:
+    """GitHub Actions'ta ffmpeg kurulsun mu: saati gelmiş, düzenlenecek bir gönderi var mı.
+    (Boşuna her 15 dakikada kurulum yapılmasın.) Hata olursa False; asıl adım hatayı bildirir."""
+    ayarlar = config.ayarlari_oku()
+    if not (config.INSTAGRAM_VIDEO_DUZENLE and ayarlar.instagram_token and ayarlar.supabase_var):
+        return False
+    try:
+        depo = SupabaseInstagramDepo(ayarlar.supabase_url, ayarlar.supabase_key)
+        gelenler = depo.zamani_gelenler(_simdi(), config.INSTAGRAM_CALISMA_BASINA_EN_FAZLA)
+    except Exception:  # noqa: BLE001
+        return False
+    return any(duzenlenecek_mi(g) for g in gelenler)
 
 
 def calistir() -> int:
@@ -438,4 +496,7 @@ if __name__ == "__main__":
             akis.reconfigure(encoding="utf-8")
         except AttributeError:
             pass
+    if "--ffmpeg-gerekli" in sys.argv:
+        print("true" if ffmpeg_gerekli() else "false")
+        sys.exit(0)
     sys.exit(calistir())

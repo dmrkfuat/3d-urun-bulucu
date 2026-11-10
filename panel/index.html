@@ -167,7 +167,7 @@
     </div>
 
     <div id="instagramSekmesi" hidden>
-      <p class="muted">Günlük listede bir ürünün "📸 Instagram'a planla" bölümünden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir.</p>
+      <p class="muted">Günlük listede bir ürünün "📸 Instagram'a planla" bölümünden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video (kutu işaretliyse başına kanca yazısı, sonuna "Sipariş için DM at" kartı eklenip 9:16 yapılarak) Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir.</p>
       <div class="tablo-kap"><table id="igTablo"></table></div>
     </div>
   </section>
@@ -376,6 +376,7 @@
             <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
             <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
             <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
+            <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM at" kartı, 9:16</label>
             <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
             <div class="satir"><button type="button" class="ana igPlanla">Planla</button><span class="kaydedildi igDurum" role="status"></span></div>
           </div>
@@ -461,7 +462,9 @@
       try {
         const yk = await sb.storage.from(IG_DEPO).upload(yol, dosya, { contentType: mov ? "video/quicktime" : "video/mp4", upsert: false });
         if (yk.error) return yaz("Video yüklenemedi: " + yk.error.message + igSqlIpucu(yk.error), true);
-        const { error } = await sb.from("instagram_posts").insert({ product_id: pid, video_path: yol, caption: aciklama, scheduled_at: zaman.toISOString() });
+        const kayit = { product_id: pid, video_path: yol, caption: aciklama, scheduled_at: zaman.toISOString() };
+        if (!kart.querySelector(".igDuzenleKutu").checked) kayit.video_edit = false;  // varsayılan: düzenlenir
+        const { error } = await sb.from("instagram_posts").insert(kayit);
         if (error) { await sb.storage.from(IG_DEPO).remove([yol]); return yaz("Planlanamadı: " + error.message + igSqlIpucu(error), true); }
         kart.querySelector(".igVideo").value = "";
         yaz(zaman <= new Date() ? "Planlandı ✓ İlk kontrolde (15 dk içinde) paylaşılacak." : `Planlandı ✓ ${zaman.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`);
@@ -491,7 +494,7 @@
       });
       tr.querySelector("[data-sil]")?.addEventListener("click", async () => {
         if (!confirm(g.status === "bekliyor" ? "Bu gönderi iptal edilsin ve video silinsin mi?" : "Bu kayıt silinsin mi?")) return;
-        if (g.status !== "paylasildi") await sb.storage.from(IG_DEPO).remove([g.video_path]);
+        if (g.status !== "paylasildi") await sb.storage.from(IG_DEPO).remove([g.video_path, g.video_path.replace(/\.[^./]+$/, "") + "_hazir.mp4"]);
         const { error } = await sb.from("instagram_posts").delete().eq("id", g.id);
         if (error) alert("Silinemedi: " + error.message); else igYukle();
       });

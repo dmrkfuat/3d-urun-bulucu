@@ -124,6 +124,13 @@ Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya ta
   video **Reels** olarak paylaşılır, ürüne "Videosunu çektim" işareti konur, bağlantı Telegram'a gelir.
   Paylaşılan video depodan silinir. Hata olursa Telegram'a yazılır; panelin **Instagram** sekmesinden
   "Tekrar dene" denebilir.
+- Otomatik video düzenleme (ffmpeg, ücretsiz; panelde "Videoyu otomatik düzenle" kutusu, varsayılan
+  açık): video dikey 1080×1920'ye getirilir (yatay/kare videoda boşluk videonun bulanık hâliyle dolar),
+  ilk 2,5 saniyede açıklamanın ilk satırı büyük harflerle üstte yazar, sona 2,5 saniyelik
+  "SİPARİŞ İÇİN DM AT" kartı eklenir (son kare donar ve kararır). Emojiler videoya yazılmaz.
+  Düzenleme başarısız olursa video olduğu gibi paylaşılır ve Telegram'a not düşülür. Ayarlar:
+  `config.py` → `INSTAGRAM_VIDEO_DUZENLE`, `INSTAGRAM_KANCA_SN`, `INSTAGRAM_SON_KART…`. Yerelde
+  denemek için ffmpeg PATH'te olmalı veya `.env` → `FFMPEG_YOLU=` ile gösterilmeli.
 
 **Bir kerelik kurulum**
 1. Instagram hesabını **profesyonel hesaba** çevir: Ayarlar → Hesap türü ve araçlar →
@@ -236,6 +243,7 @@ urun_bulucu/
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
   instagram.py            ← Instagram açıklaması + zamanlanmış Reels paylaşımı
+  video_duzenle.py        ← Reels öncesi video düzenleme (ffmpeg: 9:16, kanca yazısı, DM kartı)
   db.py                   ← Supabase / SQLite
 tests/                    ← otomatik testler
 ```
