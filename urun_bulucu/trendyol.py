@@ -536,6 +536,14 @@ def ana() -> int:
     sinir = None
     if "--sinir" in sys.argv:
         sinir = int(sys.argv[sys.argv.index("--sinir") + 1])
+    if "--zamani-geldiyse" in sys.argv:   # zamanlanmış görev her gün dener; haftada bir çalışır
+        try:
+            if not zamani_geldi(depo, bugun):
+                print(f"{bugun}: bu haftanın Trendyol analizi zaten yapıldı.")
+                return 0
+        except Exception:  # noqa: BLE001 — tablo sorunu calistir'da açıklanır
+            pass
+    print(f"--- {datetime.now(timezone.utc).isoformat(timespec='seconds')} Trendyol analizi başlıyor")
     sonuc = calistir(depo, ayarlar, bugun, zorla=True, sinir=sinir)
     if sonuc is None:
         return 1
@@ -548,9 +556,19 @@ def ana() -> int:
 
 
 if __name__ == "__main__":
+    if "--gunluk" in sys.argv:   # zamanlanmış görev (pythonw, pencere yok): çıktı dosyaya eklenir
+        from pathlib import Path
+        dosya = Path(sys.argv[sys.argv.index("--gunluk") + 1])
+        dosya.parent.mkdir(parents=True, exist_ok=True)
+        sys.stdout = sys.stderr = open(dosya, "a", encoding="utf-8", buffering=1)
     for akis in (sys.stdout, sys.stderr):
         try:
             akis.reconfigure(encoding="utf-8")
         except AttributeError:
             pass
-    sys.exit(ana())
+    try:
+        sys.exit(ana())
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

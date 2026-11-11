@@ -20,3 +20,7 @@ data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Yerel zamanlanmış görevler: kayıt ve Trendyol raporları (sonuç Supabase ve Telegram'da)
+logs/
+raporlar/trendyol-*.md

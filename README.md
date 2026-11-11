@@ -132,7 +132,14 @@ Trendyol/Hepsiburada arama sayfaları taranmaz: `robots.txt` ile otomatik progra
 bot koruması vardır (Kasım 2026'da tek istek bile 403 aldı). Trendyol'un ürün sayfaları ise açıktır;
 onları aşağıdaki haftalık analiz okur.
 
-**Trendyol 3D mağaza analizi: en çok satan 3D ürünler ve aktif 3D mağazaları** (`trendyol.py`, perşembe)
+**Trendyol 3D mağaza analizi: en çok satan 3D ürünler ve aktif 3D mağazaları** (`trendyol.py`, haftada bir,
+**bu bilgisayarda**)
+
+Trendyol bulut sunucularından (GitHub Actions dahil) gelen isteği engelliyor (Kasım 2026: ilk ürün
+sayfasında 403). Bu yüzden analiz GitHub'da değil, bilgisayarındaki Windows görevinde çalışır.
+Kurulum bir kez: `powershell -ExecutionPolicy Bypass -File araclar\trendyol_gorevi_kur.ps1`. Görev
+her gün 10:00'da denenir, son analizden 7 gün geçmediyse kapanır; bilgisayar kapalıysa açılınca
+çalışır. Çıktı `logs\trendyol.log`, sonuç Supabase ve Telegram'a gider.
 
 1. **Ne okunur:** Yalnızca `robots.txt`'te açık olan ürün sayfaları (`/marka/ad-p-123`). Arama (`/sr`),
    mağaza (`/magaza/...`, kapalı `?sst=` adresine yönlenir), sıralama (`?sst=`) ve `/genel-markalar/`
@@ -151,10 +158,10 @@ onları aşağıdaki haftalık analiz okur.
    ücretsiz). İlk 3 ürünün görseliyle Lens yapılır (birebir model ve aynı ürünü satan diğer mağazalar;
    haftada 3 SerpApi araması).
 
-Sonuç: `raporlar/trendyol-TARİH.md` ve Telegram mesajı. Supabase'te bir kez
+Sonuç: Telegram mesajı ve yerel `raporlar/trendyol-TARİH.md` (depoya gönderilmez). Supabase'te bir kez
 `supabase/guncelleme_2026-11-11_trendyol.sql` çalıştırılmalıdır. Elle çalıştırma:
-`python -m urun_bulucu.trendyol` (`--telegram` ile mesaj, `--sinir 40` ile daha az sayfa). GitHub'da
-**Actions → Trendyol 3D mağaza analizi → Run workflow** ile de başlatılabilir.
+`python -m urun_bulucu.trendyol` (`--telegram` ile mesaj, `--sinir 40` ile daha az sayfa).
+Trendyol bu bağlantıyı da engellerse analiz durur ve Telegram'a bildirir; engel aşılmaya çalışılmaz.
 
 Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Çok satanlar** sekmesi.
 Kota: haftada ~28 arama (ayda ~120; 10 kategori + 10 Trendyol süzgeçli + 8 görsel); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
