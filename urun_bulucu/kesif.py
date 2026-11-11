@@ -70,6 +70,12 @@ TR_EN_EK = {
     "kalemlik": "pen holder", "kulaklık": "headphone", "kartvizitlik": "card holder", "zar": "dice",
     "kumbara": "piggy bank", "lamba": "lamp", "abajur": "lamp", "isimlik": "name plate",
     "anahtarlık": "keychain", "saksı": "planter", "vazo": "vase", "mumluk": "candle holder",
+    # Trendyol 3D mağazalarının ürün adlarında sık geçenler
+    "şapka": "hat", "askı": "hanger", "askısı": "hanger", "askılık": "hanger", "kartal": "eagle",
+    "ejderha": "dragon", "kumandalık": "remote holder", "gözlük": "glasses", "kaşıklık": "spoon rest",
+    "kapsül": "capsule", "kedi": "cat", "köpek": "dog", "ahtapot": "octopus", "dinozor": "dinosaur",
+    "aslan": "lion", "kurt": "wolf", "baykuş": "owl", "tavşan": "rabbit", "kalp": "heart",
+    "kol": "controller", "kontrolcü": "controller", "sergileme": "display",
 }
 # (site, alan adı, YOL deseni). Önce alan adı (veya alt alanı) doğrulanır, desen yalnızca yola
 # uygulanır: "https://baska.site/?x=printables.com/model/1" gibi bağlantılar model sayılmaz.

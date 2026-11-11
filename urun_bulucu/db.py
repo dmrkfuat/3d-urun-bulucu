@@ -61,8 +61,15 @@ class Depo(Protocol):
     def kesif_son_tarih(self) -> str | None: ...
     def kesif_onceki(self, anahtarlar: list[str], en_erken: str) -> dict[str, dict]: ...
     def kesif_kaydet(self, satirlar: list[dict]) -> None: ...
+    def kesif_ilanlari(self) -> list[dict]: ...
+    # Trendyol 3D mağaza analizi
+    def ty_son_tarih(self) -> str | None: ...
+    def ty_gecmis(self, en_erken: str) -> list[dict]: ...
+    def ty_kaydet(self, satirlar: list[dict]) -> None: ...
 
 
+TY_ALANLARI = ["tarih", "urun_id", "url", "ad", "marka", "magaza_id", "magaza", "kategori", "fiyat",
+               "degerlendirme", "yorum", "puan", "favori", "gorsel"]
 TASARIMCI_ALANLARI = ["source_id", "uid", "name", "handle", "hit_days", "last_hit_date", "followed",
                       "auto_followed", "last_design_id", "last_checked"]
 PAZAR_ALANLARI = ["product_id", "checked_at", "found_count", "min_price", "max_price", "currency", "results"]
@@ -133,6 +140,14 @@ create table if not exists market_checks (
   product_id integer primary key references products(id) on delete cascade,
   checked_at text not null, found_count integer not null default 0,
   min_price real, max_price real, currency text, results text not null default '[]'
+);
+create table if not exists trendyol_products (
+  id integer primary key autoincrement,
+  tarih text not null, urun_id integer not null, url text not null, ad text not null,
+  marka text, magaza_id integer, magaza text, kategori text, fiyat real,
+  degerlendirme integer not null default 0, yorum integer not null default 0, puan real,
+  favori integer not null default 0, gorsel text,
+  unique (tarih, urun_id)
 );
 """
 
@@ -305,6 +320,27 @@ class SqliteDepo:
              for s in satirlar])
         self.con.commit()
 
+    def kesif_ilanlari(self) -> list[dict]:
+        sonuc: list[dict] = []
+        for r in self.con.execute("select ilanlar from market_discovery"):
+            sonuc += json.loads(r["ilanlar"] or "[]")
+        return sonuc
+
+    def ty_son_tarih(self) -> str | None:
+        r = self.con.execute("select max(tarih) as t from trendyol_products").fetchone()
+        return r["t"] if r else None
+
+    def ty_gecmis(self, en_erken: str) -> list[dict]:
+        return [dict(r) for r in self.con.execute(
+            "select * from trendyol_products where tarih >= ? order by tarih", (en_erken,))]
+
+    def ty_kaydet(self, satirlar: list[dict]) -> None:
+        alanlar = ", ".join(TY_ALANLARI)
+        yer = ", ".join(f":{a}" for a in TY_ALANLARI)
+        self.con.executemany(f"insert or replace into trendyol_products ({alanlar}) values ({yer})",
+                             [{a: s.get(a) for a in TY_ALANLARI} for s in satirlar])
+        self.con.commit()
+
 
 def _bool(satir: dict, *alanlar: str) -> dict:
     for a in alanlar:
@@ -437,6 +473,31 @@ class SupabaseDepo:
                 self.sb.table("market_discovery").delete().eq("kesif_tarihi", gun).execute()
             self.sb.table("market_discovery").upsert(
                 [{a: s.get(a) for a in KESIF_ALANLARI} for s in satirlar], on_conflict="kesif_tarihi,anahtar"
+            ).execute()
+
+    def kesif_ilanlari(self) -> list[dict]:
+        sonuc: list[dict] = []
+        for r in self.sb.table("market_discovery").select("ilanlar").execute().data:
+            sonuc += r.get("ilanlar") or []
+        return sonuc
+
+    def ty_son_tarih(self) -> str | None:
+        veri = self.sb.table("trendyol_products").select("tarih").order("tarih", desc=True).limit(1).execute().data
+        return veri[0]["tarih"] if veri else None
+
+    def ty_gecmis(self, en_erken: str) -> list[dict]:
+        sonuc: list[dict] = []
+        while True:   # Supabase bir yanıtta en çok 1000 satır verir
+            parca = (self.sb.table("trendyol_products").select("*").gte("tarih", en_erken)
+                     .order("tarih").order("urun_id").range(len(sonuc), len(sonuc) + 999).execute().data)
+            sonuc += parca
+            if len(parca) < 1000:
+                return sonuc
+
+    def ty_kaydet(self, satirlar: list[dict]) -> None:
+        for i in range(0, len(satirlar), 200):
+            self.sb.table("trendyol_products").upsert(
+                [{a: s.get(a) for a in TY_ALANLARI} for s in satirlar[i:i + 200]], on_conflict="tarih,urun_id"
             ).execute()
 
 

@@ -128,8 +128,33 @@ Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de sat�
    dizini kullanılır. Raporda kategori başına Trendyol'daki 3D baskı ürün sayısı, fiyat aralığı ve
    ortancası, en çok ürünü olan rakip satıcılar ve öne çıkan ürünler yer alır.
 
-Trendyol/Hepsiburada sayfaları doğrudan taranmaz: arama sayfaları `robots.txt` ile otomatik
-programlara kapalıdır ve bot koruması vardır (Kasım 2026'da tek istek bile 403 aldı).
+Trendyol/Hepsiburada arama sayfaları taranmaz: `robots.txt` ile otomatik programlara kapalıdır ve
+bot koruması vardır (Kasım 2026'da tek istek bile 403 aldı). Trendyol'un ürün sayfaları ise açıktır;
+onları aşağıdaki haftalık analiz okur.
+
+**Trendyol 3D mağaza analizi: en çok satan 3D ürünler ve aktif 3D mağazaları** (`trendyol.py`, perşembe)
+
+1. **Ne okunur:** Yalnızca `robots.txt`'te açık olan ürün sayfaları (`/marka/ad-p-123`). Arama (`/sr`),
+   mağaza (`/magaza/...`, kapalı `?sst=` adresine yönlenir), sıralama (`?sst=`) ve `/genel-markalar/`
+   sayfaları okunmaz. `robots.txt` her çalışmada yeniden okunur; okunamazsa hiçbir sayfa açılmaz.
+2. **Nasıl okunur:** Kendini tanıtan kimlikle (`TRENDYOL_UA`), sayfalar arasında 3 sn beklenir, haftada en
+   çok 180 sayfa. 403/429 ya da doğrulama sayfası görülürse o hafta durulur; engel aşılmaya çalışılmaz.
+   Mağaza sahibinin kişisel bilgileri (resmi ad, e-posta, vergi no) sayfada olsa da alınmaz.
+3. **Hangi ürünler:** Önceki haftalarda takip edilenler, elle eklenenler (`TRENDYOL_TOHUMLAR`), pazar
+   keşfinin Lens sonuçlarındaki Trendyol ürünleri ve okunan sayfalardaki "benzer ürünler"den 3D baskı
+   olanlar. Başka 3D mağazalarına bu bağlantılarla ulaşılır; takip listesi her hafta büyür.
+4. **Satış ölçüsü:** Trendyol satış adedi göstermez. Ürünün değerlendirme sayısı satışla en çok örtüşen
+   açık veridir. İki hafta arasındaki **değerlendirme artışı** (+ favori artışının onda biri) satış
+   hızıdır. İlk hafta toplam sayılarla sıralanır.
+5. **Çıktı:** En çok satan 3D ürünler (mağaza, fiyat, değerlendirme, favori, haftalık artış), aktif 3D
+   mağazaları (ürün sayısı, toplam ve haftalık talep) ve ilk 8 ürün için MakerWorld modeli (isimle,
+   ücretsiz). İlk 3 ürünün görseliyle Lens yapılır (birebir model ve aynı ürünü satan diğer mağazalar;
+   haftada 3 SerpApi araması).
+
+Sonuç: `raporlar/trendyol-TARİH.md` ve Telegram mesajı. Supabase'te bir kez
+`supabase/guncelleme_2026-11-11_trendyol.sql` çalıştırılmalıdır. Elle çalıştırma:
+`python -m urun_bulucu.trendyol` (`--telegram` ile mesaj, `--sinir 40` ile daha az sayfa). GitHub'da
+**Actions → Trendyol 3D mağaza analizi → Run workflow** ile de başlatılabilir.
 
 Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Çok satanlar** sekmesi.
 Kota: haftada ~28 arama (ayda ~120; 10 kategori + 10 Trendyol süzgeçli + 8 görsel); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
@@ -268,6 +293,7 @@ urun_bulucu/
   tasarimci.py            ← tasarımcı takibi
   pazar.py                ← e-ticaret araştırması (SerpApi Google Lens)
   kesif.py                ← pazar keşfi: Türkiye'de çok satanlar → MakerWorld modeli (haftalık)
+  trendyol.py             ← Trendyol 3D mağaza analizi: en çok satanlar, aktif mağazalar (haftalık)
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
   instagram.py            ← Instagram açıklaması + zamanlanmış Reels paylaşımı

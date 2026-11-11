@@ -1,0 +1,71 @@
+name: Trendyol 3D mağaza analizi
+
+# Haftada bir: Trendyol'da en çok satan 3D baskı ürünler ve aktif 3D mağazaları → MakerWorld modeli.
+# Yalnızca robots.txt'te açık ürün sayfaları, kendini tanıtan kimlikle ve yavaş okunur (urun_bulucu/trendyol.py).
+on:
+  schedule:
+    - cron: "0 6 * * 4"    # perşembe 09:00 (Türkiye saati)
+  workflow_dispatch:
+    inputs:
+      sinir:
+        description: "En çok kaç ürün sayfası okunsun (boş: ayardaki değer)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trendyol-analiz
+  cancel-in-progress: false
+
+jobs:
+  analiz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Analizi çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          SINIR: ${{ inputs.sinir }}
+        run: |
+          set -o pipefail
+          python -m urun_bulucu.trendyol --telegram ${SINIR:+--sinir "$SINIR"} 2>&1 | tee "$RUNNER_TEMP/cikti.log"
+
+      - name: Raporu depoya kaydet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add raporlar
+          git diff --cached --quiet && exit 0
+          git commit -m "Trendyol 3D analizi: $(date -u +%F)"
+          git pull --rebase
+          git push
+
+      - name: Hata uyarısı (Telegram)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CALISMA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          SON=$(tail -n 6 "$RUNNER_TEMP/cikti.log" 2>/dev/null | cut -c1-300 || true)
+          METIN=$(printf '⚠️ Trendyol 3D analizi çalışmadı.\n\n%s\n\nAyrıntı: %s' "${SON:-Analiz adımına gelmeden durdu.}" "$CALISMA")
+          curl -s -o /dev/null -w "telegram: %{http_code}\n" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${METIN}" \
+            --data-urlencode "disable_web_page_preview=true"

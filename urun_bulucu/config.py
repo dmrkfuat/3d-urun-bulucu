@@ -108,6 +108,29 @@ KESIF_ISIM_ESLESME = 2        # isimle MakerWorld aramasından en çok kaç mode
 KESIF_TRENDYOL = True         # her sorgu Google Alışveriş'in Trendyol süzgeciyle de aranır (+1 arama/sorgu)
 KESIF_KOTA_ESIGI = 50         # SerpApi'de bundan az hak kaldıysa keşif yapılmaz (günlük arama korunur)
 
+# --- Trendyol 3D mağaza analizi (trendyol.py): en çok satan 3D ürünler ve aktif 3D mağazaları ---
+# Yalnızca robots.txt'te AÇIK olan ürün sayfaları okunur (arama, mağaza ve sıralama sayfaları kapalı;
+# okunmaz). Kendini tanıtan kimlikle, yavaş; engel (403/429/doğrulama) görülürse o hafta durur.
+TRENDYOL_ARALIK_GUN = 7
+TRENDYOL_UA = "3d-urun-bulucu/0.1 (kisisel arastirma; haftalik, yavas)"
+TRENDYOL_BEKLEME_SN = 3.0       # iki sayfa arasında en az bu kadar beklenir
+TRENDYOL_SAYFA_SINIRI = 180     # bir çalışmada en çok kaç ürün sayfası (~180 × 4 sn ≈ 12 dk)
+TRENDYOL_YENILEME_ORANI = 0.7   # sınırın bu kadarı takip edilen ürünlerin yeniden okunmasına ayrılır
+TRENDYOL_TAKIP_GUN = 35         # bu kadar gündür görülmeyen ürün takipten düşer
+TRENDYOL_RAPOR_ADET = 15        # raporda en çok satan kaç ürün
+TRENDYOL_MAGAZA_ADET = 10       # raporda kaç mağaza
+TRENDYOL_ESLESTIR_ADET = 8      # en çok satan kaç ürün için MakerWorld'de isimle model aranır (ücretsiz)
+TRENDYOL_LENS_ADET = 3          # en çok satan kaç ürünün görseliyle Lens (SerpApi; birebir model + kopyalayanlar)
+# Elle eklenen başlangıç ürünleri (ör. rakip mağazalardan). Diğerleri pazar keşfinin Lens sonuçlarından
+# ve okunan ürün sayfalarındaki "benzer ürünler" bağlantılarından gelir.
+TRENDYOL_TOHUMLAR = [
+    "https://www.trendyol.com/work3d/duvara-monte-basketbol-futbol-voleybol-topu-askisi-sik-ve-dayanikli-top-saklama-cozumu-p-871801614",
+    "https://www.trendyol.com/work3d/adaptorlu-renkli-kartal-aplik-modeli-p-919985948",
+    "https://www.trendyol.com/work3d/masaustu-top-sergileme-aparati-5-6-7-no-basketbol-5-no-futbol-voleybol-topu-uyumlu-p-1097216359",
+    "https://www.trendyol.com/work3d/minecraft-aplik-3d-baski-kabloludur-p-795707139",
+    "https://www.trendyol.com/dersan3d/sapka-duzenleyici-3-lu-aski-p-1073942083",
+]
+
 # --- Instagram (resmi Instagram API, "Instagram Login" ile; şifreyle giriş/bot yok) ---
 # Açıklama metni her gün ilk 10 için üretilir (anahtar gerekmez). Paylaşım için INSTAGRAM_TOKEN
 # (GitHub Secrets) ve Supabase'te supabase/guncelleme_2026-11-10_instagram.sql gerekir.
