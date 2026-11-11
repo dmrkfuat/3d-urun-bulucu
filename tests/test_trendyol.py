@@ -100,6 +100,18 @@ def test_aday_mi_adresten_3d_tahmini():
     assert not trendyol.aday_mi("/lefty/ahsap-raf-p-3", set())
     assert trendyol.aday_mi("/lefty/ahsap-raf-p-3", {"lefty"})            # bilinen 3D mağaza markası
     assert not trendyol.aday_mi("/genel-markalar/kartal-3d-baski-p-4", set())
+    # "3 boyutlu" tek başına 3D baskı değil (manyetik yapı blokları)
+    assert not trendyol.aday_mi("/magly/manyetik-yapi-bloklari-renkli-3-boyutlu-72-parca-p-876839630", set())
+    assert trendyol.aday_mi("/x/3-boyutlu-baski-kartal-p-1", set())
+
+
+def test_uc_d_mi_manyetik_blok_degil():
+    u = {"ad": "Magly Manyetik Yapı Blokları – Renkli 3 Boyutlu 72 Parça", "marka": "Magly", "magaza": "Magly",
+         "yol": "/magly/manyetik-yapi-bloklari-renkli-3-boyutlu-72-parca-p-876839630"}
+    assert not trendyol.uc_d_mi(u)
+    assert trendyol.uc_d_mi({**u, "marka": "BASKIMARKETİM"})                       # 3D baskı mağazası
+    assert trendyol.uc_d_mi({**u, "ad": "Kartal 3D Baskı Lamba", "marka": "X", "magaza": "Y"})
+    assert not trendyol.uc_d_mi({**u, "ad": "Kartal 3D baskı STL dosyası", "marka": "3D Dosya"})
 
 
 def test_tara_kurallara_uyar_ve_benzerlerden_3d_magazalara_ulasir():

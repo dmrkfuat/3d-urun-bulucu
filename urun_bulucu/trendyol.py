@@ -163,10 +163,19 @@ def urun_ayikla(html: str, yol: str) -> dict | None:
     }
 
 
+# Trendyol'da "3 boyutlu" tek başına 3D baskı değildir (manyetik yapı blokları, 3 boyutlu puzzle...):
+# yalnızca "baskı/yazıcı" ile birlikte sayılır.
+UC_D = re.compile(r"3\s?d\s?(?:bask[ıi]|print|printed|printing|yaz[ıi]c[ıi])|(?:3|üç|uc)\s?boyutlu\s?(?:bask|yaz)"
+                  r"|3d-printed|\bpla\b|\bpetg\b|filament", re.I)
+
+
 def uc_d_mi(u: dict) -> bool:
     """3D baskı ürün mü: adında/adresinde 3D baskı işareti ya da marka/mağaza adında '3d', 'baskı'."""
     metin = f"{u['ad']} {u['yol'].replace('-', ' ')}"
-    return pazar.uc_d_mi(metin, f"{u.get('marka') or ''} {u.get('magaza') or ''}".strip() or None)
+    if pazar.DIJITAL.search(u["ad"]):
+        return False
+    satici = f"{u.get('marka') or ''} {u.get('magaza') or ''}"
+    return bool(UC_D.search(metin) or pazar.UC_D_SATICI.search(satici))
 
 
 def aday_mi(yol: str, bilinen_markalar: set[str]) -> bool:
@@ -178,7 +187,7 @@ def aday_mi(yol: str, bilinen_markalar: set[str]) -> bool:
     if marka in HARIC_MARKALAR:
         return False
     return (marka in bilinen_markalar or bool(pazar.UC_D_SATICI.search(marka))
-            or bool(pazar.UC_D.search(ad.replace("-", " "))))
+            or bool(UC_D.search(ad.replace("-", " "))))
 
 
 class Okuyucu:
