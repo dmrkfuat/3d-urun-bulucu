@@ -136,6 +136,9 @@ TRENDYOL_TOHUMLAR = [
 # (GitHub Secrets) ve Supabase'te supabase/guncelleme_2026-11-10_instagram.sql gerekir.
 INSTAGRAM_API = "https://graph.instagram.com/v25.0"   # v25.0: Temmuz 2028'e kadar geçerli
 INSTAGRAM_TOKEN_API = "https://graph.instagram.com/refresh_access_token"
+# Meta panelindeki "Unified login" Facebook türü token verir (EAA… ile başlar, süresi dolmaz):
+# graph.facebook.com üzerinden çalışır, yenilenmez ve hesap kimliği INSTAGRAM_HESAP_ID'den okunur.
+INSTAGRAM_FB_API = "https://graph.facebook.com/v25.0"
 INSTAGRAM_ETIKET_ADET = 15          # açıklamadaki etiket sayısı (Instagram sınırı 30)
 INSTAGRAM_ACIKLAMA_SINIRI = 2200    # Instagram sınırı
 INSTAGRAM_TOKEN_YENILEME_GUN = 7    # token (60 gün geçerli) bu kadar günde bir yenilenir
@@ -171,6 +174,7 @@ class Ayarlar:
     panel_url: str = ""
     serpapi_key: str = ""
     instagram_token: str = ""
+    instagram_hesap_id: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -187,4 +191,5 @@ def ayarlari_oku() -> Ayarlar:
         panel_url=os.getenv("PANEL_URL", "").strip() or PANEL_URL,
         serpapi_key=os.getenv("SERPAPI_KEY", "").strip(),
         instagram_token=os.getenv("INSTAGRAM_TOKEN", "").strip(),
+        instagram_hesap_id=os.getenv("INSTAGRAM_HESAP_ID", "").strip(),
     )

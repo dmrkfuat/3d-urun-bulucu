@@ -347,3 +347,58 @@ def test_video_duzenle_mp4_kiliginda_liste_dosyasini_reddeder(tmp_path):
     with pytest.raises(instagram.video_duzenle.VideoDuzenlemeHatasi):
         instagram.video_duzenle.duzenle(sahte, tmp_path / "c.mp4", "deneme")
     assert not (tmp_path / "c.mp4").exists()
+
+
+# ------------------------------------------------------------------ Facebook türü token (Unified login)
+FB_TOKEN = "EAAtest"
+
+
+def _fb_api():
+    cagrilar = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "graph.facebook.com"
+        assert request.url.params.get("access_token") == FB_TOKEN
+        yol = request.url.path
+        cagrilar.append((request.method, yol))
+        if yol.endswith("/me"):
+            return httpx.Response(200, json=[])          # gerçek API'deki gibi işe yaramaz yanıt
+        if yol.endswith("/1784") and request.method == "GET":
+            return httpx.Response(200, json={"id": "1784", "username": "nozzlelabb"})
+        if yol.endswith("/1784/media"):
+            return httpx.Response(200, json={"id": "KAP1"})
+        if yol.endswith("/KAP1"):
+            return httpx.Response(200, json={"status_code": "FINISHED", "status": ""})
+        if yol.endswith("/1784/media_publish"):
+            return httpx.Response(200, json={"id": "MEDYA9"})
+        if yol.endswith("/MEDYA9"):
+            return httpx.Response(200, json={"permalink": "https://www.instagram.com/reel/abc/"})
+        return httpx.Response(404, json={"error": {"message": "yok"}})
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), cagrilar
+
+
+def test_facebook_tokeni_graph_facebook_ve_hesap_kimligiyle_paylasir():
+    depo = SahteDepo([_gonderi()])
+    client, cagrilar = _fb_api()
+    ig = instagram.InstagramIstemci(FB_TOKEN, client, hesap_id="1784")
+    b = instagram.isle(depo, ig, SIMDI, bekle=lambda s: None)
+    assert depo.gonderiler[1]["status"] == "paylasildi" and "✅" in b[0]
+    assert not any(c[1].endswith("/me") for c in cagrilar)
+    assert any(c[1].endswith("/1784/media_publish") for c in cagrilar)
+
+
+def test_facebook_tokeni_hesap_kimligi_yoksa_gonderi_hataya_alinir():
+    depo = SahteDepo([_gonderi()])
+    client, cagrilar = _fb_api()
+    instagram.isle(depo, instagram.InstagramIstemci(FB_TOKEN, client), SIMDI)
+    assert depo.gonderiler[1]["status"] == "hata" and "INSTAGRAM_HESAP_ID" in depo.gonderiler[1]["error"]
+    assert cagrilar == []
+
+
+def test_facebook_tokeni_yenilenmez_ve_depoya_yazilmaz():
+    depo = SahteDepo()
+    client, cagrilar = _token_api()
+    assert instagram.token_hazirla(depo, FB_TOKEN, SIMDI, client) == FB_TOKEN
+    assert cagrilar == [] and "instagram_token" not in depo.gizli
+    assert instagram.facebook_tokeni_mi(FB_TOKEN) and not instagram.facebook_tokeni_mi("IGAAx")

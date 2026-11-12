@@ -51,4 +51,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+          # Facebook türü (EAA…) token için paylaşılacak hesap (@nozzlelabb); gizli değil.
+          INSTAGRAM_HESAP_ID: ${{ vars.INSTAGRAM_HESAP_ID || '17841480431263019' }}
         run: python -m urun_bulucu.instagram

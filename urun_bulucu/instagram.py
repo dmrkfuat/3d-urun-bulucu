@@ -13,8 +13,11 @@ Akış:
    Reels oluşturulur, Instagram videoyu işleyince yayınlanır, ürüne "video" işareti konur ve
    Telegram'a bağlantı gönderilir.
 
-Token (INSTAGRAM_TOKEN, 60 gün geçerli) haftada bir otomatik yenilenir; yenisi Supabase'teki
-kapalı gizli_ayarlar tablosunda tutulur (panel ve dışarısı göremez).
+İki tür token desteklenir:
+- Instagram türü (IG… ile başlar, "API setup with Instagram login"): graph.instagram.com, 60 gün
+  geçerli, haftada bir otomatik yenilenir; yenisi Supabase'teki kapalı gizli_ayarlar tablosunda tutulur.
+- Facebook türü (EAA… ile başlar, "API setup with Unified login"): graph.facebook.com, süresi dolmaz,
+  yenilenmez; paylaşılacak hesabın kimliği INSTAGRAM_HESAP_ID'den okunur.
 """
 from __future__ import annotations
 
@@ -135,10 +138,18 @@ class InstagramHatasi(RuntimeError):
     pass
 
 
+def facebook_tokeni_mi(token: str) -> bool:
+    """Meta'nın Facebook türü token'ları 'EAA' ile başlar (Instagram türü 'IG' ile)."""
+    return token.startswith("EAA")
+
+
 class InstagramIstemci:
-    def __init__(self, token: str, client: httpx.Client | None = None) -> None:
+    def __init__(self, token: str, client: httpx.Client | None = None, hesap_id: str = "") -> None:
         self.token = token
         self.client = client or httpx.Client(timeout=60)
+        self.hesap_id = hesap_id
+        self.facebook = facebook_tokeni_mi(token)
+        self.api = config.INSTAGRAM_FB_API if self.facebook else config.INSTAGRAM_API
 
     def _yanit(self, yanit: httpx.Response) -> dict:
         try:
@@ -152,15 +163,21 @@ class InstagramIstemci:
         return veri
 
     def _get(self, yol: str, **params) -> dict:
-        return self._yanit(self.client.get(f"{config.INSTAGRAM_API}/{yol}",
+        return self._yanit(self.client.get(f"{self.api}/{yol}",
                                            params={**params, "access_token": self.token}))
 
     def _post(self, yol: str, **veri) -> dict:
-        return self._yanit(self.client.post(f"{config.INSTAGRAM_API}/{yol}",
+        return self._yanit(self.client.post(f"{self.api}/{yol}",
                                             params={"access_token": self.token}, data=veri))
 
     def hesap(self) -> dict:
         """{'user_id', 'username'}: paylaşımda kullanılan profesyonel hesap kimliği."""
+        if self.facebook:
+            # Facebook türü token'da /me Instagram hesabını vermez; kimlik ayardan gelir.
+            if not self.hesap_id:
+                raise InstagramHatasi("Facebook türü token için INSTAGRAM_HESAP_ID gerekli")
+            veri = self._get(self.hesap_id, fields="id,username")
+            return {"user_id": veri.get("id") or self.hesap_id, "username": veri.get("username")}
         veri = self._get("me", fields="user_id,username")
         if isinstance(veri.get("data"), list) and veri["data"]:
             veri = veri["data"][0]
@@ -286,7 +303,10 @@ def _ozet(token: str) -> str:
 def token_hazirla(depo: InstagramDepo, ortam_token: str, simdi: datetime,
                   client: httpx.Client | None = None) -> str:
     """Kullanılacak token: GitHub'daki token değişmediyse depodaki (yenilenmiş) token.
-    Son yenilemeden INSTAGRAM_TOKEN_YENILEME_GUN geçtiyse yeniler. Token hiç yazdırılmaz."""
+    Son yenilemeden INSTAGRAM_TOKEN_YENILEME_GUN geçtiyse yeniler. Token hiç yazdırılmaz.
+    Facebook türü token (süresi dolmaz) yenilenmez ve depoya yazılmaz."""
+    if facebook_tokeni_mi(ortam_token):
+        return ortam_token
     kaynak = _ozet(ortam_token)
     kayit = depo.gizli_oku("instagram_token")
     if kayit and kayit.get("kaynak") == kaynak and kayit.get("deger"):
@@ -476,7 +496,7 @@ def calistir() -> int:
     simdi = datetime.now(timezone.utc)
     try:
         token = token_hazirla(depo, ayarlar.instagram_token, simdi)
-        bildirimler = isle(depo, InstagramIstemci(token), simdi)
+        bildirimler = isle(depo, InstagramIstemci(token, hesap_id=ayarlar.instagram_hesap_id), simdi)
     except (InstagramHatasi, httpx.HTTPError) as e:
         print(f"HATA: {e}")
         _bildir(ayarlar, [f"⚠️ Instagram görevi çalışmadı: {bildirim._e(str(e)[:300])}"])

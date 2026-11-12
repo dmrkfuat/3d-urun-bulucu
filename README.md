@@ -198,6 +198,12 @@ Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya ta
    ekle → **API setup with Instagram business login** → hesabını ekle → **Generate token**.
    İzinler: `instagram_business_basic`, `instagram_business_content_publish`. Token 60 gün geçerlidir;
    sistem haftada bir kendisi yeniler (yenisi Supabase'te dışarıya kapalı `gizli_ayarlar` tablosunda tutulur).
+   Panelde bu seçenek yerine **API setup with Unified login** varsa: uygulamayı bir **Business
+   portfolio**'ya bağla, aynı sayfadaki **Generate access tokens** adımında hesabını ekleyip
+   **Generate token** de. Bu token `EAA…` ile başlar, süresi dolmaz, yenilenmez; hesabın altındaki
+   sayı (Instagram hesap kimliği) `INSTAGRAM_HESAP_ID` olarak verilir (`.env`; GitHub'da
+   `.github/workflows/instagram.yml` içinde @nozzlelabb'nin kimliği varsayılan, Variables →
+   `INSTAGRAM_HESAP_ID` ile değiştirilebilir). İçgörüler için `instagram_manage_insights` izni de eklenmeli.
 3. Token'ı GitHub'da **Settings → Secrets and variables → Actions** altına `INSTAGRAM_TOKEN` adıyla ekle
    (yerelde denemek için `.env` → `INSTAGRAM_TOKEN=`). Token hiçbir yere yazdırılmaz.
 4. Supabase **SQL Editor** → `supabase/guncelleme_2026-11-10_instagram.sql` → **Run**
