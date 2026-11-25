@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import bildirim, config, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
+from . import bildirim, config, gorsel, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -42,8 +42,7 @@ def calistir(bugun: date | None = None) -> int:
 
     # Daha önce e-ticarette aranmış ürünlerde fiyat piyasaya göre önerilir (puanlamadan önce).
     try:
-        kayitlar = {pid: o for pid, o in depo.pazar_kayitlari([u["id"] for u in urunler]).items()
-                    if pazar.gecerli_mi(o)}
+        kayitlar = pazar.kayitlari_oku(depo, urunler)   # yalnızca aynı ürün sayılan sonuçların fiyatı
         print(f"Piyasaya göre fiyat: {len(maliyet.piyasaya_uygula(urunler, kayitlar))} ürün")
     except Exception as e:  # noqa: BLE001 — fiyat maliyetten kalır
         print(f"UYARI: Piyasa fiyatları okunamadı: {e}")
@@ -57,6 +56,10 @@ def calistir(bugun: date | None = None) -> int:
 
     # --- İsteğe bağlı ekler: biri hata verirse uyarı yazılır, analiz durmaz ---
     yeni_takip, yeni_modeller, pazar_sonuclari = [], [], {}
+    # İlan fotoğrafları MakerWorld görseliyle karşılaştırılır (ANTHROPIC_API_KEY varsa); önce bugün aranan
+    # ürünler, sonra ilk 10'un kayıtlı ilanları (sıraya göre, GORSEL_CALISMA_SINIRI ürüne kadar).
+    dogrulayici = (gorsel.Dogrulayici(ayarlar.anthropic_key)
+                   if ayarlar.anthropic_key and config.GORSEL_DOGRULAMA else None)
     try:
         yeni_takip = tasarimci.isabetleri_isle(depo, bugun, secimler)
         yeni_modeller = tasarimci.yeni_modelleri_bul(depo, kaynak)
@@ -66,15 +69,17 @@ def calistir(bugun: date | None = None) -> int:
         print(f"UYARI: Tasarımcı takibi atlandı: {e}")
     if ayarlar.serpapi_key:
         try:
-            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key)
+            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key, dogrulayici=dogrulayici)
             print(f"E-ticaret araması: {len(aranan)} ürün arandı.")
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: E-ticaret araması atlandı: {e}")
     try:
         # Rapor ve Telegram için bugünkü ilk 10'un kayıtlı tüm arama sonuçları (önceki günlerde
         # aranmış olanlar dahil); yalnızca 3D şartıyla yapılmış aramalar.
-        pazar_sonuclari = {pid: o for pid, o in depo.pazar_kayitlari([s["product_id"] for s in secimler]).items()
-                           if pazar.gecerli_mi(o)}
+        pazar_sonuclari = pazar.kayitlari_oku(depo, [s["urun"] for s in secimler], dogrulayici)
+        if dogrulayici and dogrulayici.kontrol_edilen:
+            print(f"Görsel doğrulama: {dogrulayici.kontrol_edilen} ürün, {dogrulayici.girdi_token} girdi + "
+                  f"{dogrulayici.cikti_token} çıktı token (~${dogrulayici.maliyet_usd():.3f})")
         # Bugün ilk kez aranan ürünlerin fiyatı da piyasaya göre güncellenir (puan yarın etkilenir).
         guncel = maliyet.piyasaya_uygula([s["urun"] for s in secimler], pazar_sonuclari)
         for u in guncel:

@@ -15,6 +15,13 @@ ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hash
   Lens (SerpApi; GIF kapaklar yerine gerçek baskı fotoğrafı) ve aynı metinle Google Alışveriş araması.
   Görsel eşleşmeler yalnızca başlığı ürünle ilgili bir kelime içeriyorsa sayılır; Temu/DHgate gibi
   yurt dışı toptan siteler bağımsız mağaza sayılmaz.
+  **Aynı ürün şartı:** bir sonuç ancak başlığında modelin ayırt edici kavramları geçerse "aynı ürün"
+  sayılır (tür/sezon kelimeleri — figür, süs, yılbaşı, fidget, kutu — sayılmaz). Görsel eşleşmede en az
+  2 kavram (model tek kavramlıysa o), metin aramasında model en az 2 kavramlı olmalı ve ikisi de geçmeli.
+  Örn. "Personalized Reindeer Sweater Ornament" için {geyik, kazak} gerekir; her geyik figürü sayılmaz.
+  Yalnızca aynı ürünler fiyata, piyasa bonusuna ve satış bağlantılarına girer; diğerleri "aynı
+  kategoride, farklı ürün" olarak ayrı gösterilir. Kayıtlı sonuçlar her gün bu kurala göre yeniden
+  işaretlenir (yeni arama yapılmaz). Klavye switch'i gibi "3D baskı için" satılan parçalar elenir.
   Arama metnine ürün tipi eklenir (ad + MakerWorld etiketlerinden: "grinch mini figür", "yılbaşı süsü").
   3'ten az sonuç gelirse ve SerpApi'de 40'tan fazla hak kaldıysa daha geniş metinle ("fidget" →
   "stres oyuncağı") bir arama daha yapılır (`PAZAR_YEDEK_ARAMA`). **Yalnızca 3D baskı ürünler** karşılaştırılır (fabrika
@@ -108,6 +115,13 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
    `SERPAPI_KEY` adıyla ekleyin.
 3. Günde en fazla 3 ürün aranır (ürün başına 2 arama; `config.py` → `PAZAR_GUNLUK_ADET`), aynı ürün 14 gün içinde tekrar
    aranmaz. Görsel benzerliği kesin eşleşme değildir; sonuçlar "benzer ürün" olarak okunmalıdır.
+4. **Fotoğrafla doğrulama (isteğe bağlı, ücretli):** bulunan ilanların fotoğrafları MakerWorld görseliyle
+   Claude'a (Anthropic API, `gorsel.py`) gösterilir; her ilan için "aynı / farklı / belirsiz" kararı alınır.
+   Karar varsa başlıktaki kelimelerden önce gelir (başlığı eksik ama fotoğrafı aynı ilan da bulunur);
+   "belirsiz" veya anahtar yoksa kelime kuralı geçerlidir. <https://platform.claude.com> → API Keys'ten
+   anahtar alıp `.env` içine `ANTHROPIC_API_KEY=` olarak yazın ve GitHub Secrets'a aynı adla ekleyin.
+   Ürün başına tek istek, bir çalışmada en çok 10 ürün (`GORSEL_CALISMA_SINIRI`); her çalışmada kullanılan
+   token ve tahmini ücret yazdırılır. Kararı verilen ilan bir daha sorulmaz.
 
 **Pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld modeli** (`kesif.py`, haftada bir)
 
@@ -243,7 +257,7 @@ Bir kerelik kurulum:
 | Kısa baskı | 10 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
 | Lisans | 5 | Satılabilir > NC (yalnızca içerik) > belirsiz |
 | Bonus | +5 / +5 / +5 | Etsy talep listesiyle eşleşme; MakerWorld "Trending" listesinde olma; sezon ürünü |
-| Piyasa bonusu | −5…+5 | E-ticarette aranmış ürünlerde: Türkiye'deki 3D baskı benzerlerinin ortancası maliyetin ≥5 katı +5, ≥3 katı +3, 1,5 katından az −3; 12+ satış sonucu (kalabalık pazar) −2 |
+| Piyasa bonusu | −5…+5 | E-ticarette aranmış ürünlerde: Türkiye'de satılan AYNI ürünün fiyat ortancası maliyetin ≥5 katı +5, ≥3 katı +3, 1,5 katından az −3; 12+ satış sonucu (kalabalık pazar) −2 |
 
 Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
 
@@ -254,7 +268,7 @@ Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
 Gram ve süre modelin P1S profilinden gelir. Varsayılanlar `config.py`'de: 800 TL/kg, saatlik 3 TL,
 %10 fire, ×3, en az 50 TL. Etsy/kargo ücreti ve işçilik dahil değildir.
 
-**Piyasaya göre fiyat:** ürün e-ticarette aranmışsa ve en az 3 fiyatlı 3D baskı benzeri bulunduysa
+**Piyasaya göre fiyat:** ürün e-ticarette aranmışsa ve en az 3 fiyatlı **aynı ürün** bulunduysa
 önerilen fiyat `ortanca × 0,9` olur (rekabetçi), ama maliyetin 1,5 katının altına inmez
 (`PIYASA_FIYAT_ORANI`, `PIYASA_EN_AZ_KAR_CARPANI`). Raporda maliyete göre fiyat da yazılır.
 Ayarlar (`kategoriler`, `kısa baskı süresi`, özet adedi) `urun_bulucu/config.py` dosyasındadır.

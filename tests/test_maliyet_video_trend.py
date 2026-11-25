@@ -139,9 +139,17 @@ def test_sqlite_yeni_sutunlar_ve_eski_dosya(tmp_path):
 
 
 # ---------------------------------------------------------------- piyasaya göre fiyat ve satış puanı
-def _pazar_kaydi(fiyatlar, satis=None):
+def _pazar_kaydi(fiyatlar, satis=None, birebir=True):
     return {"found_count": satis if satis is not None else len(fiyatlar),
-            "results": [{"site": "Trendyol", "price": f, "kaynak": "metin"} for f in fiyatlar]}
+            "results": [{"site": "Trendyol", "price": f, "kaynak": "metin", "birebir": birebir} for f in fiyatlar]}
+
+
+def test_piyasa_fiyati_yalniz_ayni_urunlerden():
+    # Aynı kategorideki farklı ürünlerin fiyatı (birebir değil) önerilen fiyatı değiştirmez
+    u = urun(1, "Clicky Clicker", 10, 100, print_time_min=19, weight_g=3, cost_tl=3.0, price_tl=50,
+             hourly_profit_tl=148.4)
+    assert maliyet.piyasaya_uygula([u], {1: _pazar_kaydi([200, 250, 300, 5200], birebir=False)}) == []
+    assert u["price_tl"] == 50 and "piyasa" not in u
 
 
 def test_piyasaya_gore_fiyat():

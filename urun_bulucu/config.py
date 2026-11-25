@@ -92,6 +92,15 @@ PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) 
 # kelime yokken, Lens yalnız görselle ararken); yeniden aranır.
 PAZAR_KURAL_TARIHI = "2026-11-09T17:49:00+00:00"
 
+# --- Görsel doğrulama (gorsel.py): ilan fotoğrafı MakerWorld modeliyle aynı ürün mü? (Claude API) ---
+# ANTHROPIC_API_KEY yoksa yapılmaz; o zaman yalnızca başlıktaki kelimelere bakılır (pazar.ayni_urun_mu).
+GORSEL_DOGRULAMA = True
+GORSEL_MODEL = "claude-opus-5-5"
+GORSEL_CALISMA_SINIRI = 10      # bir çalışmada en çok kaç ürünün ilanları görselle kontrol edilir (ürün başına 1 istek)
+GORSEL_EN_FAZLA_ADAY = 15       # bir istekte en çok kaç ilan görseli
+GORSEL_GIRDI_USD_M = 4.0        # Claude Opus 5.5 fiyatı ($ / 1M token): yalnızca harcama tahmini için
+GORSEL_CIKTI_USD_M = 20.0
+
 # --- Pazar keşfi: Türkiye'de çok satan 3D baskılar → MakerWorld'deki birebir modeli (kesif.py) ---
 KESIF_ARALIK_GUN = 7          # haftada bir (günlük analizle birlikte)
 KESIF_SORGULARI = [           # Google Alışveriş aramaları (her biri 1 SerpApi araması); aktif sezon eklenir
@@ -175,6 +184,7 @@ class Ayarlar:
     serpapi_key: str = ""
     instagram_token: str = ""
     instagram_hesap_id: str = ""
+    anthropic_key: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -192,4 +202,5 @@ def ayarlari_oku() -> Ayarlar:
         serpapi_key=os.getenv("SERPAPI_KEY", "").strip(),
         instagram_token=os.getenv("INSTAGRAM_TOKEN", "").strip(),
         instagram_hesap_id=os.getenv("INSTAGRAM_HESAP_ID", "").strip(),
+        anthropic_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
     )

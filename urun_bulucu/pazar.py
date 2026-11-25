@@ -94,7 +94,7 @@ def _tl_mi(para: str | None) -> bool:
 # ---------------------------------------------------------------- Türkçe arama metni
 # Çok kelimeli ifadeler tek kelimelerden önce çevrilir.
 IFADELER = {
-    "cable car": "teleferik", "phone stand": "telefon standı", "phone holder": "telefon tutucu",
+    "santa claus": "noel baba", "cable car": "teleferik", "phone stand": "telefon standı", "phone holder": "telefon tutucu",
     "pen holder": "kalemlik", "pencil holder": "kalemlik", "desk organizer": "masa düzenleyici",
     "cable organizer": "kablo düzenleyici", "key holder": "anahtarlık", "tealight holder": "mumluk",
     "candle holder": "mumluk", "christmas tree": "yılbaşı ağacı", "fidget toy": "fidget oyuncak",
@@ -142,6 +142,7 @@ CEVIRI = {
     "navidad": "yılbaşı", "natal": "yılbaşı", "natale": "yılbaşı", "maceta": "saksı", "llavero": "anahtarlık",
     "chaveiro": "anahtarlık", "portachiavi": "anahtarlık", "papai": "noel baba",
     "reindeer": "geyik", "deer": "geyik", "snowflake": "kar tanesi", "angel": "melek", "elf": "elf",
+    "cake": "kek", "chain": "zincir", "locket": "madalyon", "pendant": "kolye ucu", "knit": "örgü",
 }
 GURULTU = {
     "print", "printed", "printing", "in", "place", "pip", "no", "ams", "tpu", "the", "a", "an", "for", "with",
@@ -149,6 +150,7 @@ GURULTU = {
     "free", "sell", "support", "supports", "without", "multi", "color", "colour", "plate", "set", "kit",
     "custom", "extra", "long", "big", "small", "large", "new", "best", "my", "your", "simple", "cool",
     "stile", "maglia", "natalizio", "style", "edition", "model", "design", "project", "file", "files",
+    "glue", "needed", "required", "part", "parts", "piece", "pieces",
 }
 
 
@@ -351,6 +353,10 @@ UC_D = re.compile(
 UC_D_SATICI = re.compile(r"3\s?d|bask[ıi]|print", re.I)
 DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|digital|download"
                      r"|\b(?:print|printer|printable|3d)\s?files?\b", re.I)
+# 3D baskı İÇİN satılan parça/malzeme (klavye switch'i, yazıcı yedek parçası): basılmış ürün değildir.
+# ("Clicker Blue Switch 3D Baskı İçin 1000 adet", "Mavi Clicker Switch, 3D Projeler için")
+PARCA = re.compile(r"(?:bask[ıi]|yaz[ıi]c[ıi]|projeler[iı]?|printer|printing)\s+[iİı][çc]in\b|\bfor\s+3d\s+print"
+                   r"|yedek\s+par[çc]a|\bnozzle\b|\bekstr[üu]der\b|\bhotend\b", re.I)
 
 
 # Dijital model dosyası satan/paylaşan siteler: fiziksel ürün satmazlar, karşılaştırmaya girmez.
@@ -377,7 +383,7 @@ def yabanci_pazar_mi(link: str | None, satici: str | None = None) -> bool:
 
 def uc_d_mi(baslik: str | None, satici: str | None = None, link: str | None = None) -> bool:
     baslik = baslik or ""
-    if DIJITAL.search(baslik) or dijital_site_mi(link, satici):
+    if DIJITAL.search(baslik) or PARCA.search(baslik) or dijital_site_mi(link, satici):
         return False
     return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
 
@@ -415,8 +421,8 @@ def satis_yerleri(o: dict | None, en_fazla: int = 3) -> list[dict]:
                      key=lambda r: (not r.get("pazar_yeri"), r.get("price") is None, r.get("price") or 0))
     secilen, siteler = [], set()
     for r in adaylar:
-        if r.get("kaynak") == "sosyal":
-            continue  # sosyal medya ayrı gösterilir (sosyal_yerler)
+        if r.get("kaynak") == "sosyal" or not r.get("birebir"):
+            continue  # sosyal medya ayrı gösterilir (sosyal_yerler); farklı ürünler satış yeri değildir
         link = satis_linki(r)
         if (not link or r["site"] in siteler or dijital_site_mi(r.get("link"), r.get("site"))
                 or DIJITAL.search(r.get("title") or "")):
@@ -451,6 +457,156 @@ def bagimsiz_etiket(satici: str | None) -> str | None:
         if alan.split(".")[0] in sade or pazar_adi.lower().replace(" ", "") in sade:
             return f"{ad} (bağımsız)"
     return ad
+
+
+# ---------------------------------------------------------------- aynı ürün mü?
+# Bir satış sonucunun MakerWorld modeliyle AYNI ürün sayılması için başlığında modelin ayırt edici
+# kavramları geçmelidir. Tür, sezon ve süsleme kelimeleri ayırt edici değildir: her geyik figürü
+# "geyik kazak süsü", her fiyonklu kutu "file hediye kutusu", her klik sesli oyuncak "Clicky Clicker"
+# değildir (Kasım 2026: fiyatların çoğu böyle alakasız ürünlerden geliyordu).
+#
+# Kural (bkz. ayni_urun_mu):
+# - Görsel eşleşme (Lens, görsele benzediği için gelmiş): ayırt edici kavramların en az ikisi
+#   (model tek kavramlıysa o) başlıkta geçmeli.
+# - Metin araması (Google Alışveriş, yalnızca kelimelere göre gelmiş): görsel bir doğrulama yok;
+#   model en az iki ayırt edici kavrama sahip olmalı ve en az ikisi başlıkta geçmeli.
+# Yalnızca aynı ürün sayılan sonuçlar fiyat istatistiğine, önerilen fiyata ve piyasa bonusuna girer;
+# diğerleri "aynı kategoride" olarak ayrıca gösterilir.
+GENEL_KAVRAMLAR = {
+    # sezon / tema
+    "christmas", "xmas", "holiday", "holidays", "festive", "winter", "halloween", "easter", "valentine",
+    "yılbaşı", "yilbasi", "noel", "yeni", "yıl", "yil", "sezon", "kış", "kis", "cadılar", "bayramı",
+    # genel ürün ve kullanım sözcükleri
+    "gift", "gifts", "toy", "toys", "fidget", "stress", "relief", "desk", "home", "kids", "art", "decor",
+    "decoration", "decorative", "ornament", "ornaments", "figure", "figurine", "statue", "holder", "stand",
+    "box", "organizer", "display", "case", "cover", "accessory", "keychain", "lamp", "light", "vase",
+    "planter", "pot", "tray", "hook", "hanger", "frame", "collection", "personalized", "personalised",
+    "custom", "customizable", "cute", "tiny", "little", "ultimate", "simple", "flexible", "articulated",
+    "flexi", "toy", "game", "kit", "fun", "cool", "funny", "satisfying", "mechanical", "sensory", "tactile",
+    "spinner", "çark", "çarkı", "dark", "black", "white", "red", "green", "blue",
+    "hediye", "hediyelik", "oyuncak", "oyuncağı", "stres", "giderici", "süs", "süsü", "dekor", "dekoratif",
+    "dekorasyon", "figür", "figürü", "biblo", "heykel", "tutucu", "standı", "kutu", "kutusu",
+    "düzenleyici", "masa", "masaüstü", "kişiye", "özel", "sevimli", "minik", "anahtarlık", "lamba",
+    "vazo", "saksı", "tepsi", "askı", "çerçeve", "seti", "eklemli", "hareketli", "dokunsal", "mekanik",
+}
+
+
+_KATLA = str.maketrans("çğıöşüâî", "cgiosuai")
+
+
+def _norm(metin: str | None) -> str:
+    """Karşılaştırma biçimi: Türkçe büyük/küçük harf, sonra Türkçe harfler sadeleşir (ç→c, ğ→g...)."""
+    return (metin or "").replace("I", "ı").replace("İ", "i").lower().translate(_KATLA)
+
+
+_GENEL_N = {_norm(k) for k in GENEL_KAVRAMLAR}
+_GURULTU_N = {_norm(k) for k in GURULTU}
+
+
+def _genel(ifade: str) -> bool:
+    return all(k in _GENEL_N or k in _GURULTU_N for k in _norm(ifade).split())
+
+
+def kavramlar(ad: str | None) -> list[set[str]]:
+    """Model adının ayırt edici kavramları; her kavram İngilizce ve Türkçe biçimleriyle
+    (ör. "Personalized Reindeer Sweater Ornament" → [{reindeer, geyik}, {sweater, kazak}]).
+    Tamamı büyük harfle yazılmış bilinmeyen kelimeler (çoğunlukla tasarımcı/marka, "MYLITOS") atılır."""
+    ham = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", ad or "")
+    metin = " ".join(k.lower() for k in ham)
+    sonuc: list[set[str]] = []
+    for ifade, tr in IFADELER.items():
+        if re.search(rf"\b{ifade}\b", metin):
+            metin = re.sub(rf"\b{ifade}\b", " ", metin)
+            if not (_genel(ifade) and _genel(tr)):
+                sonuc.append({_norm(ifade), _norm(tr)})
+    kalan = set(metin.split())
+    for orijinal in ham:
+        k = orijinal.lower()
+        if k not in kalan or len(k) < 3 or _norm(k) in _GURULTU_N:
+            continue
+        kalan.discard(k)
+        tr = CEVIRI.get(k) or CEVIRI.get(k.rstrip("s"))
+        if tr is None and orijinal.isupper() and len(orijinal) > 1:
+            continue   # bilinmeyen BÜYÜK HARF kelime: marka/tasarımcı
+        if _genel(k) or (tr and _genel(tr)):
+            continue
+        bicimler = {_norm(k)} | ({_norm(tr)} if tr else set())
+        if not any(bicimler & s for s in sonuc):
+            sonuc.append(bicimler)
+    return sonuc
+
+
+def _kelime_uyar(bicim: str, kelime: str) -> bool:
+    """Başlıktaki kelime bu biçimle mi başlıyor? Türkçe ekler ve yumuşama serbest
+    ("geyik" → "geyiği", "kazak" → "kazaklı"); kısa biçimlerde (≤3 harf) yalnızca tam kelime ve çoğul."""
+    if len(bicim) <= 3:
+        return kelime in (bicim, bicim + "s")
+    kok = bicim[:-1] if len(bicim) >= 5 and bicim[-1] in "kptc" else bicim
+    return kelime.startswith(kok)
+
+
+def _gecer(bicim: str, kelimeler: list[str], kullanilan: set[int]) -> set[int] | None:
+    """Biçimin başlıkta geçtiği kelime sıraları (henüz başka kavrama sayılmamış kelimelerde); yoksa None."""
+    parca = bicim.split()
+    for i in range(len(kelimeler) - len(parca) + 1):
+        yer = set(range(i, i + len(parca)))
+        if not yer & kullanilan and all(_kelime_uyar(p, kelimeler[i + j]) for j, p in enumerate(parca)):
+            return yer
+    return None
+
+
+def ayni_urun_mu(r: dict, kav: list[set[str]]) -> bool:
+    """Satış sonucu modelle aynı ürün mü. Görsel karar ("ayni"/"farkli", bkz. gorselle_kontrol) varsa o
+    geçerlidir; yoksa veya "belirsiz"se başlıktaki kavramlara bakılır (kurallar yukarıda)."""
+    if r.get("kaynak") == "sosyal":
+        return False
+    if r.get("gorsel_karar") in ("ayni", "farkli"):
+        return r["gorsel_karar"] == "ayni"
+    if not kav:
+        return False
+    if r.get("kaynak") != "görsel" and len(kav) < 2:
+        return False
+    kelimeler = re.findall(r"[a-z0-9]+", _norm(r.get("title")))
+    # Başlıktaki bir kelime yalnızca bir kavrama sayılır ("spinner" hem "spin" hem "spinner" olmasın).
+    kullanilan: set[int] = set()
+    eslesen = 0
+    for k in sorted(kav, key=lambda k: -max(len(b) for b in k)):   # uzun biçimler önce
+        yer = next((y for b in sorted(k, key=len, reverse=True) if (y := _gecer(b, kelimeler, kullanilan))), None)
+        if yer:
+            kullanilan |= yer
+            eslesen += 1
+    return eslesen >= min(2, len(kav))
+
+
+def gorselle_kontrol(sonuclar: list[dict], urun: dict, dogrulayici) -> tuple[list[dict], bool]:
+    """Görsel kararı olmayan (küçük görselli) satış sonuçlarını MakerWorld görseliyle karşılaştırır
+    (gorsel.Dogrulayici). (yeni liste, değişti mi). Doğrulayıcı yoksa, hakkı bittiyse ya da hata olursa
+    sonuçlar olduğu gibi döner; o zaman kelime kuralı geçerli kalır ve sonraki çalışmada yeniden denenir."""
+    if dogrulayici is None or not dogrulayici.hakki_var or not urun.get("image_url"):
+        return sonuclar, False
+    adaylar = [i for i, r in enumerate(sonuclar)
+               if r.get("kaynak") != "sosyal" and r.get("thumbnail") and "gorsel_karar" not in r]
+    if not adaylar:
+        return sonuclar, False
+    from . import gorsel
+
+    try:
+        kararlar = dogrulayici.karsilastir(urun.get("name") or "", urun["image_url"],
+                                           [(sonuclar[i].get("title") or "", sonuclar[i]["thumbnail"]) for i in adaylar])
+    except gorsel.GorselHatasi as e:
+        print(f"UYARI: Görsel doğrulama atlandı ({(urun.get('name') or '')[:40]}): {e}")
+        return sonuclar, False
+    yeni = list(sonuclar)
+    for j, i in enumerate(adaylar):
+        karar, neden = kararlar.get(j, ("belirsiz", "ilan görseli kontrol edilemedi"))
+        yeni[i] = {**sonuclar[i], "gorsel_karar": karar, "gorsel_neden": neden}
+    return yeni, True
+
+
+def isaretle(sonuclar: list[dict], ad: str | None) -> list[dict]:
+    """Satış sonuçlarına 'birebir' (aynı ürün mü) işareti koyar; sosyal medya sonuçlarına dokunmaz."""
+    kav = kavramlar(ad)
+    return [r if r.get("kaynak") == "sosyal" else {**r, "birebir": ayni_urun_mu(r, kav)} for r in sonuclar]
 
 
 # ---------------------------------------------------------------- ayıklama
@@ -616,25 +772,72 @@ def fiyat_kumesi(sonuclar: list[dict]) -> list[float]:
 
 
 def _fiyat_kumesi(sonuclar: list[dict]) -> list[float]:
-    """Fiyat istatistiği: tüm fiyatlı 3D baskı sonuçlar; ortancadan 5 kat uzak uç değerler atılır."""
-    fiyatlar = [r["price"] for r in sonuclar if r.get("price") is not None]
+    """Fiyat istatistiği: yalnızca AYNI ürün sayılan (birebir) fiyatlı sonuçlar; ortancadan 5 kat
+    uzak uç değerler atılır. Aynı kategorideki farklı ürünlerin fiyatı katılmaz."""
+    fiyatlar = [r["price"] for r in sonuclar if r.get("price") is not None and r.get("birebir")]
     if len(fiyatlar) < 3:
         return fiyatlar
     orta = statistics.median(fiyatlar)
     return [f for f in fiyatlar if orta / 5 <= f <= orta * 5]
 
 
-def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None) -> dict:
+def ayni_urunler(o: dict | None) -> list[dict]:
+    return [r for r in (o or {}).get("results") or [] if r.get("kaynak") != "sosyal" and r.get("birebir")]
+
+
+def benzer_urunler(o: dict | None) -> list[dict]:
+    """Aynı kategoride ama aynı ürün sayılmayan satış sonuçları (fiyata katılmaz)."""
+    return [r for r in (o or {}).get("results") or [] if r.get("kaynak") != "sosyal" and not r.get("birebir")]
+
+
+def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None, ad: str | None = None) -> dict:
+    """`ad` (MakerWorld model adı) verilirse sonuçlar aynı ürün kurallarıyla işaretlenir."""
+    if ad is not None:
+        sonuclar = isaretle(sonuclar, ad)
     fiyatlar = _fiyat_kumesi(sonuclar)
     return {
         "product_id": product_id,
         "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "found_count": sum(1 for r in sonuclar if r.get("kaynak") != "sosyal"),   # satış sitesi sonuçları
+        # aynı ürün sayılan satış sitesi sonuçları (sosyal medya ve aynı kategorideki farklı ürünler hariç)
+        "found_count": sum(1 for r in sonuclar if r.get("kaynak") != "sosyal" and r.get("birebir")),
         "min_price": min(fiyatlar) if fiyatlar else None,
         "max_price": max(fiyatlar) if fiyatlar else None,
         "currency": "TL" if fiyatlar else None,
-        "results": [{**r, "sorgu": sorgu} for r in sonuclar],  # hangi Türkçe metinle arandığı görünsün
+        # hangi Türkçe metinle arandığı görünsün (yeniden işaretlemede kayıtlı metin korunur)
+        "results": [{**r, "sorgu": sorgu if sorgu is not None else r.get("sorgu")} for r in sonuclar],
     }
+
+
+def yeniden_ozetle(o: dict, ad: str | None) -> dict:
+    """Kayıtlı arama sonucunu bugünkü aynı ürün kurallarıyla yeniden işaretler (yeni arama yapılmaz)."""
+    return {**ozetle(o["product_id"], list(o.get("results") or []), None, ad or ""),
+            "checked_at": o.get("checked_at")}
+
+
+def kayitlari_oku(depo, urunler: list[dict], dogrulayici=None) -> dict[int, dict]:
+    """Ürünlerin kayıtlı e-ticaret sonuçları (güncel kurallarla yapılmış aramalar), aynı ürün
+    işaretleri bugünkü kurallarla yenilenmiş olarak. `dogrulayici` verilirse henüz görsel kararı olmayan
+    ilanlar ürün sırasıyla (sınır dolana kadar) görselle kontrol edilir. İşareti değişen kayıtlar
+    veritabanına geri yazılır ki panel de aynısını göstersin. SerpApi hakkı harcanmaz."""
+    sirali = [u for u in urunler if u.get("id") is not None]
+    kayitlar = depo.pazar_kayitlari([u["id"] for u in sirali])
+    sonuc, degisen = {}, []
+    for u in sirali:
+        o = kayitlar.get(u["id"])
+        if not gecerli_mi(o):
+            continue
+        sonuclar, _ = gorselle_kontrol(list(o.get("results") or []), u, dogrulayici)
+        pid = u["id"]
+        yeni = yeniden_ozetle({**o, "results": sonuclar}, u.get("name"))
+        sonuc[pid] = yeni
+        if any(yeni.get(k) != o.get(k) for k in ("found_count", "min_price", "max_price", "currency", "results")):
+            degisen.append(yeni)
+    if degisen:
+        try:
+            depo.pazar_kaydet(degisen)
+        except Exception as e:  # noqa: BLE001 — rapor yine doğru işaretlerle yazılır
+            print(f"UYARI: Aynı ürün işaretleri veritabanına yazılamadı: {e}")
+    return sonuc
 
 
 def medyan(o: dict) -> float | None:
@@ -708,29 +911,34 @@ def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
         return None
 
 
-def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None) -> dict[int, dict]:
-    """Seçilen ürünleri arar, veritabanına yazar; {product_id: özet} döndürür (bugün aranmış olanlar)."""
+def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None,
+             dogrulayici=None) -> dict[int, dict]:
+    """Seçilen ürünleri arar (varsa ilanları görselle de kontrol eder), veritabanına yazar;
+    {product_id: özet} döndürür (bugün aranmış olanlar)."""
     hedefler = secilecekler(secimler, depo.pazar_kontrol_tarihleri([s["product_id"] for s in secimler]))
     ozetler = {}
     for s in hedefler:
         sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
-        ozetler[s["product_id"]] = ozetle(s["product_id"], sonuclar, sorgu)
+        sonuclar, _ = gorselle_kontrol(sonuclar, s["urun"], dogrulayici)
+        ozetler[s["product_id"]] = ozetle(s["product_id"], sonuclar, sorgu, s["urun"].get("name") or "")
     depo.pazar_kaydet(list(ozetler.values()))
     return ozetler
 
 
 def fiyat_yazi(o: dict, onerilen_fiyat: float | None = None) -> str:
-    if not o or not o.get("found_count"):
-        return "3D baskı benzeri satışta bulunamadı"
+    ayni, benzer = ayni_urunler(o), len(benzer_urunler(o))
+    ek = f" (aynı kategoride {benzer} farklı ürün; fiyata katılmadı)" if benzer else ""
+    if not ayni:
+        return "Aynı ürün Türkiye'de satışta bulunamadı" + ek
     sayac: dict[str, int] = {}
-    for r in o["results"]:
-        if r.get("kaynak") != "sosyal":
-            sayac[r["site"]] = sayac.get(r["site"], 0) + 1
+    for r in ayni:
+        sayac[r["site"]] = sayac.get(r["site"], 0) + 1
     siteler = ", ".join(f"{s} {n}" for s, n in sorted(sayac.items(), key=lambda x: -x[1])[:4])
-    metin = f"3D baskı benzeri: {siteler}"
-    if o.get("min_price") is not None:
-        md = medyan(o)
-        metin += f" · {o['min_price']:.0f}–{o['max_price']:.0f} TL (ortanca {md:.0f} TL)"
+    metin = f"Aynı ürün satışta: {siteler}"
+    fiyatlar = _fiyat_kumesi(o["results"])
+    if fiyatlar:
+        metin += (f" · {min(fiyatlar):.0f}–{max(fiyatlar):.0f} TL "
+                  f"(ortanca {statistics.median(fiyatlar):.0f} TL)")
         if onerilen_fiyat:
             metin += f" · senin önerilen fiyatın {onerilen_fiyat:.0f} TL"
-    return metin
+    return metin + ek

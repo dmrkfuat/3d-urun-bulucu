@@ -433,7 +433,16 @@ def isim_uyar(baslik: str | None, ayirt_en: list[str]) -> bool:
     MakerWorld araması indirme sayısına göre sıraladığı için ilgisiz popüler modeller de gelir."""
     adlar = set(re.findall(r"[a-z0-9]+", (baslik or "").lower()))
     adlar |= {a[:-1] for a in adlar if a.endswith("s")}
-    return bool(ayirt_en) and all(set(w.split()) <= adlar for w in ayirt_en)
+    if not (ayirt_en and all(set(w.split()) <= adlar for w in ayirt_en)):
+        return False
+    # Model adında aranmayan başka ayırt edici kelimeler varsa (en fazla 1'e izin) farklı bir üründür:
+    # "tactile ruler" ≠ "Safe Tactile Compass & Ruler", "tree ornament" ≠ "Christmas tree with
+    # ornament, hands, flexible legs". Genel kelimeler (fidget, toy, christmas...) sayılmaz.
+    aranan = {w for k in ayirt_en for w in k.split()}
+    diger = {a for a in re.findall(r"[a-z]+", (baslik or "").lower())
+             if len(a) >= 3 and a not in aranan and a.rstrip("s") not in aranan
+             and a not in pazar.GURULTU and pazar._norm(a) not in pazar._GENEL_N}
+    return len(diger) <= 1
 
 
 def ingilizce_sorgu(kel: list[str], en_fazla: int = 3) -> str | None:

@@ -36,6 +36,10 @@ def test_ingilizce_kelimeler_ve_siki_isim_eslesmesi():
     assert kesif.isim_uyar("Tactile Fidget Rulers", ["tactile", "ruler"])
     assert not kesif.isim_uyar("OTF Fidget Knife - Ruler - Comb", ["tactile", "ruler"])
     assert kesif.isim_uyar("Pen Holder Cat", ["pen holder"]) and not kesif.isim_uyar("x", [])
+    # Aranmayan başka ayırt edici kelimeler varsa farklı ürün (2026-11-17 keşfindeki hatalı eşleşmeler)
+    assert not kesif.isim_uyar("Safe Tactile Compass & Ruler (Print in place)", ["tactile", "ruler"])
+    assert not kesif.isim_uyar("Christmas tree with ornament, hands, flexible legs", ["tree", "ornament"])
+    assert kesif.isim_uyar("Infinity Cube Fidget (Print-in-place)", ["infinity cube"])
 
 
 def test_lens_incele_model_sayfasi_ve_ilgili_ilanlar():

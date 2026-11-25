@@ -272,18 +272,30 @@
     varMi ? planIdleri.delete(pid) : planIdleri.add(pid);
     if (dugme) dugme.textContent = planIdleri.has(pid) ? "✓ Planda" : "📋 Plana ekle";
   }
+  // Satış sonuçları: "birebir" işaretli olanlar MakerWorld modeliyle AYNI ürün (sunucudaki
+  // pazar.ayni_urun_mu kuralı); diğerleri aynı kategoride farklı ürünlerdir, fiyata katılmaz.
+  const ayniUrunler = (o) => ((o && o.results) || []).filter((r) => r.kaynak !== "sosyal" && r.birebir);
+  const benzerUrunler = (o) => ((o && o.results) || []).filter((r) => r.kaynak !== "sosyal" && !r.birebir);
   const pazarYazi = (o, onerilen) => {
     if (!o) return "";
-    if (!o.found_count) return "🛒 3D baskı benzeri satışta bulunamadı";
+    const ayni = ayniUrunler(o), benzer = benzerUrunler(o).length;
+    const ek = benzer ? ` (aynı kategoride ${benzer} farklı ürün; fiyata katılmadı)` : "";
+    if (!ayni.length) return "🛒 Aynı ürün Türkiye'de satışta bulunamadı" + ek;
     const sayac = {};
-    (o.results || []).filter((r) => r.kaynak !== "sosyal").forEach((r) => { sayac[r.site] = (sayac[r.site] || 0) + 1; });
+    ayni.forEach((r) => { sayac[r.site] = (sayac[r.site] || 0) + 1; });
     const siteler = Object.entries(sayac).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([s, n]) => `${s} ${n}`).join(", ");
-    if (o.min_price == null) return `🛒 3D baskı benzeri: ${siteler}`;
     const ortanca = (d) => { const k = [...d].sort((a, b) => a - b); return k.length % 2 ? k[(k.length - 1) / 2] : (k[k.length / 2 - 1] + k[k.length / 2]) / 2; };
-    let kume = (o.results || []).filter((r) => r.price != null).map((r) => r.price);
+    let kume = ayni.filter((r) => r.price != null).map((r) => r.price);
+    if (!kume.length) return `🛒 Aynı ürün satışta: ${siteler}` + ek;
     if (kume.length >= 3) { const m = ortanca(kume); kume = kume.filter((f) => f >= m / 5 && f <= m * 5); }  // uç değerler (sunucuyla aynı kural)
-    return `🛒 3D baskı benzeri: ${siteler} · ${Math.round(o.min_price)}–${Math.round(o.max_price)} TL (ortanca ${Math.round(ortanca(kume))} TL)` +
-      (onerilen ? ` · senin fiyatın ${Math.round(onerilen)} TL` : "");
+    return `🛒 Aynı ürün satışta: ${siteler} · ${Math.round(Math.min(...kume))}–${Math.round(Math.max(...kume))} TL (ortanca ${Math.round(ortanca(kume))} TL)` +
+      (onerilen ? ` · senin fiyatın ${Math.round(onerilen)} TL` : "") + ek;
+  };
+  const satisSatiri = (x) => `<li>${esc(x.site)}: <a href="${url(satisLinki(x))}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.pazar_yeri === false ? ' <span class="muted">(bağımsız mağaza)</span>' : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}${x.gorsel_karar === "ayni" ? ' <span class="muted">✓ fotoğraf aynı</span>' : ""}${x.gorsel_neden ? ` <span class="muted" title="${esc(x.gorsel_neden)}">ⓘ</span>` : ""}</li>`;
+  const pazarListesi = (o) => {
+    const ayni = ayniUrunler(o), benzer = benzerUrunler(o);
+    return (ayni.length ? `<p style="margin:6px 0 2px"><b>Aynı ürün</b></p><ul style="margin:0;padding-left:18px">${ayni.slice(0, 10).map(satisSatiri).join("")}</ul>` : "")
+      + (benzer.length ? `<p class="muted" style="margin:8px 0 2px">Aynı kategoride, farklı ürünler (fiyata katılmadı)</p><ul class="muted" style="margin:0;padding-left:18px">${benzer.slice(0, 5).map(satisSatiri).join("")}</ul>` : "");
   };
   const grafikler = new Map();
 
@@ -381,8 +393,7 @@
         </div>
         <p class="neden">${esc(r.reason)}</p>
         ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
-          <ul style="margin:6px 0 0;padding-left:18px">${(pazar.get(r.product_id).results || []).filter((x) => x.kaynak !== "sosyal").slice(0, 10).map((x) =>
-            `<li>${esc(x.site)}: <a href="${url(satisLinki(x))}" target="_blank" rel="noopener">${esc((x.title || "ürün").slice(0, 60))}</a>${x.price != null ? ` — ${Math.round(x.price)} TL` : ""}${x.pazar_yeri === false ? ' <span class="muted">(bağımsız mağaza)</span>' : ""}${x.kaynak === "görsel" ? ' <span class="muted">(görsel eşleşme)</span>' : ""}</li>`).join("")}</ul>
+          ${pazarListesi(pazar.get(r.product_id))}
           ${sosyalHtml(pazar.get(r.product_id))}
           ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
         <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>

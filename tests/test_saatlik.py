@@ -26,9 +26,11 @@ def test_mesajda_satis_baglantilari():
     secimler = [{"rank": 1, "score": 90, "product_id": 7,
                  "products": {"name": "Ring", "url": "https://makerworld.com/en/models/7"}}]
     o = {"results": [{"site": "Trendyol", "pazar_yeri": True, "title": "Yüzük 3D Baskı", "price": 135.0,
-                      "link": "https://www.trendyol.com/a/b-p-9"},
+                      "link": "https://www.trendyol.com/a/b-p-9", "birebir": True},
                      {"site": "Pixu3D", "pazar_yeri": False, "title": "Yüzük", "price": 179.0,
-                      "link": "https://www.google.com/search?prds=2"}]}
+                      "link": "https://www.google.com/search?prds=2", "birebir": True},
+                     {"site": "n11", "pazar_yeri": True, "title": "Başka ürün", "price": 99.0,   # aynı ürün değil
+                      "link": "https://www.n11.com/urun/x"}]}
     m = saatlik.mesaj("2026-11-09", secimler, None, datetime(2026, 11, 9, 18, 0, tzinfo=timezone.utc),
                       pazar_sonuclari={7: o})
     assert ("   🛒 <a href=\"https://www.trendyol.com/a/b-p-9\">Trendyol</a> 135 TL · "

@@ -118,8 +118,8 @@ def markdown(gun: date, secimler: list[dict], toplam: int, depo_adi: str,
                  + (f" — {r['price']:.0f} TL" if r.get("price") is not None else "")
                  + (" (bağımsız mağaza)" if r.get("pazar_yeri") is False else "")
                  + (" (görsel eşleşme)" if r.get("kaynak") == "görsel" else "")
-                 for r in [x for x in pazar_sonuclari[s["product_id"]]["results"]
-                           if x.get("kaynak") != "sosyal"][:6]]
+                 + (" ✓ fotoğraf aynı" if r.get("gorsel_karar") == "ayni" else "")
+                 for r in pazar.ayni_urunler(pazar_sonuclari[s["product_id"]])[:6]]
               if s["product_id"] in pazar_sonuclari else []),
             *([f"- **{pazar.sosyal_yazi(pazar_sonuclari[s['product_id']])}**"]
               + [f"  - {r['site']}: [{(r.get('title') or 'gönderi')[:60]}]({r['link']}){pazar.sosyal_etiket(r)}"

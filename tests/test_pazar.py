@@ -112,14 +112,83 @@ def test_ayikla_ve_ozetle(monkeypatch):
     assert [(r["site"], r["price"], r["pazar_yeri"]) for r in m] == [
         ("Trendyol", 134.99, True), ("Pixu3D", 179.0, False), ("Pixu3D", 229.0, False),
         ("Pixu3D", 65918.87, False), ("Hepsiburada", 279.0, True)]
+    # İşaretlenmemiş (aynı ürün olduğu doğrulanmamış) sonuçlar fiyata katılmaz
     o = pazar.ozetle(5, pazar.birlestir(g, m), "fidget yüzük 3d baskı")
-    # 65.918 TL uç değer istatistikten atılır (ortancanın 5 katından fazla)
-    assert (o["min_price"], o["max_price"], o["currency"]) == (134.99, 279.0, "TL")
+    assert (o["found_count"], o["min_price"], pazar.medyan(o)) == (0, None, None)
+    assert pazar.fiyat_yazi(o, 65) == ("Aynı ürün Türkiye'de satışta bulunamadı "
+                                       "(aynı kategoride 7 farklı ürün; fiyata katılmadı)")
+    # Aynı ürün sayılanlar: 65.918 TL uç değer istatistikten atılır (ortancanın 5 katından fazla)
+    o = pazar.ozetle(5, [{**r, "birebir": True} for r in pazar.birlestir(g, m)], "fidget yüzük 3d baskı")
+    assert (o["found_count"], o["min_price"], o["max_price"], o["currency"]) == (7, 134.99, 279.0, "TL")
     assert pazar.medyan(o) == 204.0
     assert o["results"][0]["sorgu"] == "fidget yüzük 3d baskı"
-    assert pazar.fiyat_yazi(o, 65) == ("3D baskı benzeri: Pixu3D 3, Trendyol 2, Etsy 1, Hepsiburada 1 · "
+    assert pazar.fiyat_yazi(o, 65) == ("Aynı ürün satışta: Pixu3D 3, Trendyol 2, Etsy 1, Hepsiburada 1 · "
                                        "135–279 TL (ortanca 204 TL) · senin önerilen fiyatın 65 TL")
-    assert pazar.fiyat_yazi(pazar.ozetle(5, [])) == "3D baskı benzeri satışta bulunamadı"
+    assert pazar.fiyat_yazi(pazar.ozetle(5, [])) == "Aynı ürün Türkiye'de satışta bulunamadı"
+
+
+# ---------------------------------------------------------------- aynı ürün mü? (Kasım 2026 gerçek örnekleri)
+def _s(title, kaynak="metin", price=None):
+    return {"site": "Trendyol", "title": title, "kaynak": kaynak, "price": price, "pazar_yeri": True}
+
+
+def test_kavramlar():
+    k = lambda ad: [sorted(x) for x in pazar.kavramlar(ad)]   # noqa: E731
+    assert k("Personalized Reindeer Sweater Ornament") == [["geyik", "reindeer"], ["kazak", "sweater"]]
+    assert k("MYLITOS MINI GRINCH") == [["grinch"]]                       # büyük harf marka atılır
+    assert k("Thermoformed Christmas gift box") == [["thermoformed"]]     # sezon/tür kelimeleri genel
+    assert k("Knitted Santa Claus - No AMS, No Glue") == [["noel baba", "santa claus"], ["knitted", "orgu"]]
+    assert k("The Dark Spin - Batarang Fidget Spinner") == [["spin"], ["batarang"]]
+    assert k("Fidget Toy") == []
+
+
+def test_ayni_urun_metin_aramasi_iki_kavram_ister():
+    ad = "Personalized Reindeer Sweater Ornament"
+    o = pazar.ozetle(1, [_s("Geyik Duvar Dekorasyonu 3D Baskı", price=319.0),
+                         _s("Geometrik Geyik Figür Seti – 2'li 20 cm 3D Yazıcı Baskı", price=719.0),
+                         _s("Geyik Desenli Kazaklı Yılbaşı Süsü 3D Baskı", price=150.0)], None, ad)
+    assert [r["birebir"] for r in o["results"]] == [False, False, True]   # "geyik" tek başına yetmez
+    assert (o["found_count"], o["min_price"]) == (1, 150.0)
+    # Tek kavramlı modelde metin araması hiçbir zaman aynı ürün sayılmaz (görsel doğrulama yok)
+    o = pazar.ozetle(1, [_s("Hivhestin Fidget Grinch Figür 3D Baskı", price=599.0)], None, "MYLITOS MINI GRINCH")
+    assert o["found_count"] == 0
+
+
+def test_ayni_urun_gorsel_eslesme():
+    ad = "MYLITOS MINI GRINCH"
+    o = pazar.ozetle(1, [_s("YAMAN3D 20'li Mini Grinch Figür Seti – Noel Şapkalı", "görsel", 200.0),
+                         _s("Anka Atolye Sevimli Yılbaşı Canavarı Monitör Figürü 3D Baskı", "görsel", 261.0)],
+                     None, ad)
+    assert [r["birebir"] for r in o["results"]] == [True, False]
+    # Görsel eşleşmede de iki kavramlı modelde iki kavram gerekir (yalnızca "noel baba" farklı üründür)
+    o = pazar.ozetle(1, [_s("3D Baskı Mini Noel Baba Figürü", "görsel", 719.0),
+                         _s("3D Baskı Örgü Dokulu Noel Baba Figürü", "görsel", 299.0)],
+                     None, "Knitted Santa Claus - No AMS, No Glue")
+    assert [r["birebir"] for r in o["results"]] == [False, True]
+
+
+def test_ayni_urun_kelime_iki_kavrama_sayilmaz_ve_parca_ilanlari():
+    ad = "The Dark Spin - Batarang Fidget Spinner"
+    assert not pazar.ayni_urun_mu(_s("Jiroskopik Fidget Spinner 3D Baskı"), pazar.kavramlar(ad))  # spin ⊂ spinner
+    # Klavye switch'i ve yazıcı parçası 3D baskı ürün değildir
+    assert not pazar.uc_d_mi("Clicker Blue Switch 3D Baskı İçin 1000 adet")
+    assert not pazar.uc_d_mi("Mavi Clicker Switch, 3D Projeler için - 10 Adet")
+    assert pazar.uc_d_mi("3D Baskı Clicker Fidget Oyuncak")
+
+
+def test_kayitlari_oku_yeniden_isaretler_ve_yazar(tmp_path):
+    depo = SqliteDepo(tmp_path / "t.db")
+    u = urun(None, "Personalized Reindeer Sweater Ornament", 1, 1)
+    pid = depo.urunleri_kaydet([u])[("makerworld", u["external_id"])]
+    eski = {"product_id": pid, "checked_at": "2026-11-20T10:00:00+00:00", "found_count": 1,
+            "min_price": 319.0, "max_price": 319.0, "currency": "TL",
+            "results": [{**_s("Geyik Duvar Dekorasyonu 3D Baskı", price=319.0), "sorgu": "geyik kazak süs 3d baskı"}]}
+    depo.pazar_kaydet([eski])
+    o = pazar.kayitlari_oku(depo, [{**u, "id": pid}])[pid]
+    assert (o["found_count"], o["min_price"], o["checked_at"]) == (0, None, "2026-11-20T10:00:00+00:00")
+    assert o["results"][0]["sorgu"] == "geyik kazak süs 3d baskı" and o["results"][0]["birebir"] is False
+    kayit = depo.pazar_kayitlari([pid])[pid]                 # panel de aynı işareti görsün
+    assert (kayit["found_count"], kayit["results"][0]["birebir"]) == (0, False)
 
 
 def test_yalniz_pazar_yerleri_ayari(monkeypatch):
@@ -176,7 +245,9 @@ def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):
     client = httpx.Client(transport=httpx.MockTransport(handler))
     sonuc = pazar.calistir(depo, secimler, "K", client)
     assert istekler == ["google_lens", "google_shopping"]
-    assert sonuc[pid]["found_count"] == 7
+    # 7 satış sonucu kaydedilir ama hiçbiri "Flexy" + "yüzük" içermediği için aynı ürün sayılmaz
+    assert len(sonuc[pid]["results"]) == 7 and sonuc[pid]["found_count"] == 0
+    assert all(r["birebir"] is False for r in sonuc[pid]["results"])
     assert pazar.calistir(depo, secimler, "K", client) == {}   # 14 gün içinde tekrar aranmaz
     assert len(istekler) == 2
 
@@ -194,14 +265,16 @@ def test_hata_ve_bos_sonuc():
 def test_rapor_ve_telegram():
     u = urun(1, "Ring", 10, 100, image_url="https://cdn.example/1.png", price_tl=65)
     secimler = ozet.sec(puanlama.puanla([u], {}, date(2026, 11, 9)))
-    o = {secimler[0]["product_id"]: pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS),
-                                                                    pazar.alisveris_sonuclari(ALISVERIS)))}
+    sonuclar = pazar.birlestir(pazar.lens_sonuclari(LENS), pazar.alisveris_sonuclari(ALISVERIS))
+    sonuclar = [{**r, "birebir": r["site"] != "Hepsiburada"} for r in sonuclar]   # biri farklı ürün
+    o = {secimler[0]["product_id"]: pazar.ozetle(1, sonuclar)}
     md = ozet.markdown(date(2026, 11, 9), secimler, 1, "SQLite", o)
-    assert "**Türkiye'de satışta:** 3D baskı benzeri: Pixu3D 3" in md and "senin önerilen fiyatın 65 TL" in md
-    assert "  - Trendyol: [Print Forge Studio 3D Baskı Katlanabilir Yüzük](https://www.trendyol.com/x/y-p-1)" \
-           " (görsel eşleşme)" in md or "  - Trendyol: [Print Forge 3D Baskı Katlanabilir Yüzük]" in md
+    assert "**Türkiye'de satışta:** Aynı ürün satışta: Pixu3D 3" in md and "senin önerilen fiyatın 65 TL" in md
+    assert "(aynı kategoride 1 farklı ürün; fiyata katılmadı)" in md
+    assert "  - Trendyol: [Print Forge 3D Baskı Katlanabilir Yüzük]" in md
+    assert "PLA Fidget Yıldızı" not in md                    # farklı ürün bağlantı olarak listelenmez
     m = bildirim.mesajlar(date(2026, 11, 9), secimler, pazar_sonuclari=o)
-    assert "🛒 3D baskı benzeri: Pixu3D 3" in m[0]["veri"]["caption"]
+    assert "🛒 Aynı ürün satışta: Pixu3D 3" in m[0]["veri"]["caption"]
 
 
 # ---------------------------------------------------------------- satış bağlantıları
@@ -216,10 +289,12 @@ def test_satis_linki_ve_yerleri():
               "link": "https://www.google.com/search?prds=2", "price": 179.0}
     assert pazar.satis_linki(magaza) == "https://www.google.com/search?prds=2"
 
-    o = {"results": [magaza, google, dogrudan,
-                     {**google, "price": 199.0, "title": "Başka"},                     # aynı site: tek bağlantı
-                     {"site": "Etsy", "pazar_yeri": True, "title": "Ring", "price": 150.0,
-                      "link": "https://www.etsy.com/listing/5"}]}
+    o = {"results": [{**r, "birebir": True} for r in [
+        magaza, google, dogrudan,
+        {**google, "price": 199.0, "title": "Başka"},                     # aynı site: tek bağlantı
+        {"site": "Etsy", "pazar_yeri": True, "title": "Ring", "price": 150.0, "link": "https://www.etsy.com/listing/5"}]]
+        + [{"site": "n11", "pazar_yeri": True, "title": "Farklı ürün", "price": 20.0,   # aynı ürün değil: gösterilmez
+            "link": "https://www.n11.com/urun/1", "birebir": False}]}
     yerler = pazar.satis_yerleri(o)
     # önce pazar yerleri (fiyatlı ucuzdan pahalıya, fiyatsız sonra), her siteden bir tane, en fazla 3
     assert [(y["site"], y["price"]) for y in yerler] == [("Etsy", 150.0), ("Hepsiburada", 199.0), ("Trendyol", None)]
@@ -227,7 +302,8 @@ def test_satis_linki_ve_yerleri():
 
 
 def test_telegram_satis_baglantilari_ve_uzunluk():
-    o = pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS), pazar.alisveris_sonuclari(ALISVERIS)))
+    o = pazar.ozetle(1, [{**r, "birebir": True} for r in
+                         pazar.birlestir(pazar.lens_sonuclari(LENS), pazar.alisveris_sonuclari(ALISVERIS))])
     s = {"rank": 1, "score": 90, "product_id": 1,
          "urun": urun(1, "Ring", 1, 1, image_url="https://cdn.example/1.png", price_tl=65)}
     yazi = bildirim.urun_yazisi(s, o)
@@ -300,8 +376,9 @@ def test_sosyal_medya_sonuclari():
     assert [(r["site"], r["tr"], r["satis"]) for r in s] == [
         ("Instagram", True, True), ("TikTok", False, False), ("Facebook", False, False)]
     assert all(r["kaynak"] == "sosyal" and r["price"] is None for r in s)
-    o = pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS_TR), []) + s)
-    assert o["found_count"] == 3                       # sosyal medya satış sitesi sayılmaz
+    o = pazar.ozetle(1, pazar.birlestir(pazar.lens_sonuclari(LENS_TR), []) + s, None, "Ring")
+    assert o["found_count"] == 1                       # yalnızca "Yüzüğü"; sosyal medya satış sitesi sayılmaz
+    assert all("birebir" not in r for r in o["results"] if r["kaynak"] == "sosyal")
     assert pazar.sosyal_yazi(o) == "Sosyal medyada: Facebook 1, Instagram 1, TikTok 1 (1 Türkçe, 1 satış belirtili)"
     assert "Instagram" not in pazar.fiyat_yazi(o)
     assert all(y["site"] != "Instagram" for y in pazar.satis_yerleri(o))
