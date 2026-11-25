@@ -14,6 +14,41 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 JPEG = b"\xff\xd8\xff" + b"0" * 100
 
 
+@pytest.fixture(autouse=True)
+def _dns_yok(monkeypatch, request):
+    """Testlerde DNS sorgusu yapılmaz: *.example adresleri herkese açık sayılır."""
+    if request.node.name != "test_guvenli_adres":
+        monkeypatch.setattr(gorsel, "guvenli_adres",
+                            lambda u: (u or "").startswith("https://") and ".example/" in u)
+
+
+def test_guvenli_adres():
+    # IP adresleri DNS'e gitmeden çözülür: yerel ağ, localhost ve bulut iç servisleri reddedilir
+    assert not gorsel.guvenli_adres("https://127.0.0.1/a.png")
+    assert not gorsel.guvenli_adres("https://169.254.169.254/latest/meta-data")
+    assert not gorsel.guvenli_adres("https://192.168.1.1/a.png")
+    assert not gorsel.guvenli_adres("https://10.0.0.5/a.png")
+    assert not gorsel.guvenli_adres("https://[::1]/a.png")
+    assert not gorsel.guvenli_adres("http://8.8.8.8/a.png")              # https değil
+    assert not gorsel.guvenli_adres(None)
+    assert gorsel.guvenli_adres("https://8.8.8.8/a.png")
+
+
+def test_yonlendirme_her_adimda_denetlenir():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/ic":
+            return httpx.Response(302, headers={"location": "https://192.168.1.1/a.png"})
+        if request.url.path == "/dis":
+            return httpx.Response(302, headers={"location": "/a.png"})
+        if request.url.path == "/dongu":
+            return httpx.Response(302, headers={"location": "/dongu"})
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    assert gorsel.indir("https://t.example/ic", http) is None              # iç ağa yönlendirme
+    assert gorsel.indir("https://t.example/dis", http)["source"]["media_type"] == "image/png"
+    assert gorsel.indir("https://t.example/dongu", http) is None           # sonsuz yönlendirme
+
+
 def _http():
     def handler(request: httpx.Request) -> httpx.Response:
         yol = request.url.path

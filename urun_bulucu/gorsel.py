@@ -13,9 +13,11 @@ tahmini ücret her çalışmada yazdırılır. Bir çalışmada en çok GORSEL_C
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
+import socket
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -60,12 +62,35 @@ class GorselHatasi(RuntimeError):
     pass
 
 
-def indir(url: str | None, client: httpx.Client) -> dict | None:
-    """Görseli indirir → API görsel bloğu (base64); uygun değilse None."""
-    if not url or not url.startswith("https://"):
-        return None
+def guvenli_adres(url: str | None) -> bool:
+    """Yalnızca https ve herkese açık internet adresleri: ilan görsel adresleri dışarıdan (SerpApi/Google)
+    geldiği için yerel ağa, localhost'a veya bulut sunucusunun iç servislerine (169.254.x) istek atılmaz."""
+    parca = urlsplit(url or "")
+    if parca.scheme != "https" or not parca.hostname:
+        return False
     try:
-        yanit = client.get(url, headers={"User-Agent": config.TRENDYOL_UA}, follow_redirects=True)
+        adresler = {a[4][0] for a in socket.getaddrinfo(parca.hostname, parca.port or 443)}
+    except (OSError, UnicodeError):
+        return False
+    try:
+        return bool(adresler) and all(ipaddress.ip_address(a.split("%")[0]).is_global for a in adresler)
+    except ValueError:
+        return False
+
+
+def indir(url: str | None, client: httpx.Client) -> dict | None:
+    """Görseli indirir → API görsel bloğu (base64); uygun değilse None. Yönlendirmeler elle izlenir
+    (en çok 3) ve her adımda adres yeniden denetlenir."""
+    try:
+        for _ in range(4):
+            if not guvenli_adres(url):
+                return None
+            yanit = client.get(url, headers={"User-Agent": config.TRENDYOL_UA}, follow_redirects=False)
+            if not yanit.is_redirect:
+                break
+            url = urljoin(url, yanit.headers.get("location") or "")
+        else:
+            return None
     except httpx.HTTPError:
         return None
     tur = (yanit.headers.get("content-type") or "").split(";")[0].strip().lower()
