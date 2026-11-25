@@ -187,9 +187,12 @@ mesaj da gönderilir). Supabase'te bir kez `supabase/guncelleme_2026-11-10_kesif
 Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya tarayıcı otomasyonu yok).
 
 **Ne yapar?**
-- Her gün ilk 10 ürünün her biri için Türkçe gönderi açıklaması yazılır: videonun ilk cümlesi, Türkçe
-  ürün adı, baskı bilgisi, "DM ile sipariş" çağrısı, tasarımcı adı ve en fazla 15 etiket
-  (MakerWorld'ün yabancı etiketleri Türkçeye çevrilir). İlk 3'ün açıklaması Telegram'a
+- Her gün ilk 10 ürünün her biri için Türkçe gönderi açıklaması yazılır. `ANTHROPIC_API_KEY` varsa
+  metni Claude yazar (ürün bilgisi + kapak görseliyle tek istek, günde ~0,15 $): kısa bir kanca (ilk
+  satır; videoda da yazı olarak çıkar), ürünü anlatan doğal bir gövde, "DM ile sipariş" çağrısı ve
+  çoğu Türkçe 8-12 etiket (kodla denetlenir: marka/yazıcı, tasarımcı, sayılı etiketler atılır).
+  Anahtar yoksa veya hata olursa şablon metin kullanılır (etiketler MakerWorld'den, Türkçeye
+  çevrilerek). İkisinde de tasarımcı adı, baskı süresi, yazıcı adı ve fiyat yazmaz. İlk 3'ün açıklaması Telegram'a
   dokununca kopyalanan bloklar hâlinde gelir; hepsi panelde kartın "📸 Instagram'a planla" bölümündedir.
   **Bunun için kurulum gerekmez.**
 - Paylaşım: ürünü basıp videosunu çekersin, panelde açıklamayı düzenleyip videoyu yüklersin ve saat
@@ -236,7 +239,8 @@ Paylaşılan video depodan silinmeden önce bağlantısıyla birlikte Telegram'a
 gönderi seçtiğin saatten biraz sonra çıkabilir.
 
 **Telif notu:** Paylaşılan video ve fotoğraflar senin kendi baskının olmalı. MakerWorld'deki tasarımcı
-fotoğrafları tasarımcıya aittir; açıklamada tasarımcı adı otomatik yazılır.
+fotoğrafları tasarımcıya aittir. Açıklamada tasarımcı adı yazılmaz; lisansı atıf isteyen (ör. CC BY)
+modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
 
 ### 7. Web paneli
 

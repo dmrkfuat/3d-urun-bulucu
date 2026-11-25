@@ -148,7 +148,11 @@ INSTAGRAM_TOKEN_API = "https://graph.instagram.com/refresh_access_token"
 # Meta panelindeki "Unified login" Facebook türü token verir (EAA… ile başlar, süresi dolmaz):
 # graph.facebook.com üzerinden çalışır, yenilenmez ve hesap kimliği INSTAGRAM_HESAP_ID'den okunur.
 INSTAGRAM_FB_API = "https://graph.facebook.com/v25.0"
-INSTAGRAM_ETIKET_ADET = 15          # açıklamadaki etiket sayısı (Instagram sınırı 30)
+# Açıklamaları Claude yazar (ANTHROPIC_API_KEY varsa; ilk 10 için günde tek istek, birkaç sent).
+# Kapalıysa veya hata olursa şablon metin kullanılır. Tasarımcı, süre, makine adı hiçbirinde yazmaz.
+INSTAGRAM_LLM_ACIKLAMA = True
+INSTAGRAM_ACIKLAMA_MODEL = "claude-opus-5-5"
+INSTAGRAM_ETIKET_ADET = 15         # açıklamadaki etiket sayısı (Instagram sınırı 30)
 INSTAGRAM_ACIKLAMA_SINIRI = 2200    # Instagram sınırı
 INSTAGRAM_TOKEN_YENILEME_GUN = 7    # token (60 gün geçerli) bu kadar günde bir yenilenir
 INSTAGRAM_BEKLEME_SN = 240          # bir çalışmada videonun işlenmesi en fazla bu kadar beklenir

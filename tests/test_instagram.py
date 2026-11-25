@@ -27,8 +27,10 @@ def _urun(**ek):
 def test_gonderi_metni_turkce_ve_sinirlar_icinde():
     m = instagram.gonderi_metni(_urun())
     assert "✨ İmkansız vida" in m                        # Türkçe ad, büyük İ
-    assert "59 dk baskı" in m and "2 renk" in m
-    assert "DM" in m and "Tasarım: Tasarımcı (MakerWorld)" in m
+    assert "2 renk" in m and "DM" in m
+    # Tasarımcı, baskı süresi ve yazıcı adı yazılmaz (kanca da süre içermez)
+    assert "Tasarımcı" not in m and "dk" not in m and "dakika" not in m
+    assert "P1S" not in m and "bambu" not in m.lower()
     etiketler = [k for k in m.split() if k.startswith("#")]
     assert "#3dbaskı" in etiketler and "#yılbaşı" in etiketler   # navidad → yılbaşı
     assert "#navidad" not in etiketler and "#mini" not in etiketler
@@ -45,7 +47,7 @@ def test_metni_dogrula_sinirlar():
 def test_ozet_secimlerinde_aciklama_var_ve_sqlite_kaydeder(tmp_path):
     u = _urun(score=80, score_detail={"populerlik": 0.5, "artis": 0.5, "sure": 0.5})
     secim = ozet.sec([u])[0]
-    assert secim["instagram_caption"].startswith(instagram.video.kancalar(u)[0])
+    assert secim["instagram_caption"].startswith(instagram.kanca(u))
     depo = SqliteDepo(tmp_path / "t.db")
     depo.urunleri_kaydet([u])
     secim["product_id"] = depo.con.execute("select id from products").fetchone()[0]

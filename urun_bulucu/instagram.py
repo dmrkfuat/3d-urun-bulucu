@@ -32,10 +32,12 @@ from typing import Callable, Protocol
 
 import httpx
 
-from . import analiz, bildirim, config, pazar, video, video_duzenle
+from . import bildirim, config, pazar, video, video_duzenle
 
 # --------------------------------------------------------------------------- açıklama metni
-TEMEL_ETIKETLER = ["#3dbaskı", "#3dyazıcı", "#3dprinting", "#bambulab", "#elyapımı"]
+TEMEL_ETIKETLER = ["#3dbaskı", "#3dyazıcı", "#3dprinting", "#elyapımı"]
+# Yazıcı/marka ve kaynak site etiketleri açıklamaya girmez.
+MAKINE_ETIKETI = re.compile(r"bambu|p1s|p1p|x1c|a1mini|prusa|creality|ender|makerworld", re.IGNORECASE)
 KATEGORI_ETIKETLERI = {
     "Fidget ve oyuncak": ["#fidget", "#stresoyuncağı", "#oyuncak"],
     "Eklemli figür": ["#figür", "#eklemlifigür", "#koleksiyon"],
@@ -47,7 +49,8 @@ KATEGORI_ETIKETLERI = {
 # Tek başına anlamsız/çok genel MakerWorld etiketleri.
 ETIKET_GURULTU = {"mini", "little", "small", "tiny", "cute", "new", "test", "holiday", "3d", "print",
                   "3d print", "3d printing", "papa noel", "santa claus", "micro", "bad", "good",
-                  "collection", "model", "design", "toy"}
+                  "collection", "model", "design", "toy", "ams", "noams", "no ams", "no-ams", "multipart",
+                  "multi part", "print in place", "printinplace", "multicolor", "multi color", "home"}
 KATEGORI_CUMLESI = {
     "Fidget ve oyuncak": "🌀 Elinden bırakamayacağın bir stres oyuncağı.",
     "Eklemli figür": "🦎 Her parçası hareketli, masanın yeni maskotu.",
@@ -81,7 +84,7 @@ def _turkce_etiketler(urun: dict) -> list[str]:
     sonuc = []
     for ham in urun.get("tags") or []:
         k = str(ham).strip().lower()
-        if k in ETIKET_GURULTU:
+        if k in ETIKET_GURULTU or re.search(r"\d", k):   # sayılı etiketler: christmastree20, xmax2026
             continue
         tr = pazar.CEVIRI.get(k) or pazar.CEVIRI.get(k.rstrip("s"))
         sonuc.append(tr.replace(" ", "") if tr else str(ham))
@@ -93,29 +96,31 @@ def etiketler(urun: dict, en_fazla: int | None = None) -> list[str]:
     sonuc: list[str] = []
     for e in [*TEMEL_ETIKETLER, *KATEGORI_ETIKETLERI.get(urun.get("category"), []),
               *video.etiketler({**urun, "tags": _turkce_etiketler(urun)}, en_fazla=30)]:
-        if e.lower() not in {x.lower() for x in sonuc}:
+        if e.lower() not in {x.lower() for x in sonuc} and not MAKINE_ETIKETI.search(e):
             sonuc.append(e)
     return sonuc[:en_fazla]
 
 
+def kanca(urun: dict) -> str:
+    """Açıklamanın ilk satırı: baskı süresi veya maliyet geçmeyen ilk video kancası."""
+    for k in video.kancalar(urun):
+        if not re.search(r"dakika|maliyet", k, re.IGNORECASE):
+            return k
+    return "3D yazıcıda böyle basılıyor 👀"
+
+
 def gonderi_metni(urun: dict) -> str:
-    """Instagram açıklaması: kanca, Türkçe ad, baskı bilgisi, satış çağrısı, tasarımcı, etiketler."""
-    satirlar = [video.kancalar(urun)[0], "", f"✨ {baslik(urun)}"]
-    bilgi = []
-    if urun.get("print_time_min"):
-        bilgi.append(f"⏱ {analiz.sure_yazi(urun['print_time_min']).lstrip('~')} baskı")
+    """Şablon Instagram açıklaması (Claude yazamazsa): kanca, Türkçe ad, satış çağrısı, etiketler.
+    Tasarımcı, baskı süresi ve yazıcı adı yazılmaz."""
+    satirlar = [kanca(urun), "", f"✨ {baslik(urun)}"]
     if (urun.get("color_count") or 0) >= 2:
-        bilgi.append(f"🎨 {urun['color_count']} renk")
-    bilgi.append("Bambu Lab P1S")
-    satirlar.append(" · ".join(bilgi))
+        satirlar.append(f"🎨 {urun['color_count']} renk")
     sezon_notu = (urun.get("score_detail") or {}).get("sezon")
     if sezon_notu:
         satirlar.append(f"{sezon_notu.split(':')[0]} için şimdiden sipariş ver.")
     elif urun.get("category") in KATEGORI_CUMLESI:
         satirlar.append(KATEGORI_CUMLESI[urun["category"]])
     satirlar += ["", "🎨 İstediğin renkte basabilirim.", "📩 Sipariş ve fiyat için DM at!"]
-    if urun.get("creator"):
-        satirlar.append(f"Tasarım: {urun['creator']} (MakerWorld)")
     etiket = " ".join(etiketler(urun))
     govde = "\n".join(satirlar)
     sinir = config.INSTAGRAM_ACIKLAMA_SINIRI - len(etiket) - 2

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import bildirim, config, gorsel, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
+from . import aciklama, bildirim, config, gorsel, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
 from .db import depo_olustur
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -52,6 +52,13 @@ def calistir(bugun: date | None = None) -> int:
     depo.puanlari_kaydet(puanli)
 
     secimler = ozet.sec(puanli)
+    if ayarlar.anthropic_key and config.INSTAGRAM_LLM_ACIKLAMA:
+        try:
+            k = aciklama.claude_ile_yaz(secimler, ayarlar.anthropic_key)
+            print(f"Instagram açıklamaları (Claude): {k['yazilan']}/{len(secimler)} ürün, {k['girdi_token']} girdi + "
+                  f"{k['cikti_token']} çıktı token (~${k['maliyet_usd']:.3f})")
+        except Exception as e:  # noqa: BLE001 — şablon metinler kalır
+            print(f"UYARI: Instagram açıklamaları Claude ile yazılamadı, şablon kullanıldı: {e}")
     depo.secimleri_kaydet(bugun, secimler)
 
     # --- İsteğe bağlı ekler: biri hata verirse uyarı yazılır, analiz durmaz ---
