@@ -9,6 +9,7 @@ analiz yalnızca diğer kaynaklarla devam eder.
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -192,6 +193,26 @@ def profil_sec(tasarim: dict) -> dict | None:
     return min(profiller, key=oncelik)
 
 
+# Profil adındaki tabla adedi: "PIES ESTABLES X 60", "MONOCROMO X01", "4x", "10 pcs", "set of 6".
+# Yazıcı adları ("X1C", "X2D") ve ölçüler ("256 x 256", "0.2mm") adet sayılmaz.
+ADET_DESENLERI = [
+    re.compile(r"(?<![a-z0-9])(?<!\d\s)x\s?0*(\d{1,3})(?![\w.])", re.I),
+    re.compile(r"(?<![\w.])(\d{1,3})\s?x(?!\w)(?!\s*\d)", re.I),
+    re.compile(r"(?<![\w.])(\d{1,3})\s?(?:pcs|pieces|piezas|pzas|pz|adet|copies|st[üu]ck|stk|pezzi|unidades|uds|units)\b",
+               re.I),
+    re.compile(r"\bset\s+of\s+(\d{1,3})\b", re.I),
+]
+
+
+def tabla_adedi(baslik: str | None) -> int:
+    """Profilin bir tablada kaç adet bastığı (adından); bilinmiyorsa 1."""
+    for desen in ADET_DESENLERI:
+        m = desen.search(baslik or "")
+        if m and 1 <= int(m.group(1)) <= 500:
+            return int(m.group(1))
+    return 1
+
+
 def _malzeme(profil: dict | None) -> str | None:
     turler: list[str] = []
     for f in (profil or {}).get("instanceFilaments") or []:
@@ -201,12 +222,12 @@ def _malzeme(profil: dict | None) -> str | None:
     return ", ".join(turler[:3]) or None
 
 
-def filament_listesi(profil: dict | None) -> list[dict]:
-    """Profildeki filamentler: [{"type": "PLA", "color": "#5E43B7", "grams": 21.0}]"""
+def filament_listesi(profil: dict | None, adet: int = 1) -> list[dict]:
+    """Profildeki filamentler, bir parça için: [{"type": "PLA", "color": "#5E43B7", "grams": 21.0}]"""
     sonuc = []
     for f in (profil or {}).get("instanceFilaments") or []:
         try:
-            gram = round(float(f.get("usedG") or 0), 1)
+            gram = round(float(f.get("usedG") or 0) / max(1, adet), 1)
         except (TypeError, ValueError):
             gram = 0.0
         sonuc.append({"type": (f.get("type") or "?").strip(), "color": (f.get("color") or "").upper() or None,
@@ -235,9 +256,12 @@ def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -
     etiketler = [str(t) for t in tasarim.get("tags") or [] if t][:30]
     metin = analiz.temiz_metin(tasarim.get("summary"))
     profil = profil_sec(tasarim)
+    # Profil tablaya birden çok kopya yerleştirmişse ("X 60") süre, gram ve filament BİR parça içindir:
+    # tablanın tamamı tek ürün sayılırsa maliyet ve fiyat adet kadar şişer.
+    adet = tabla_adedi((profil or {}).get("title"))
 
     sure_sn = _sayi((profil or {}).get("prediction"))
-    sure_dk = round(sure_sn / 60) if sure_sn else analiz.baski_suresi_dk(metin)
+    sure_dk = max(1, round(sure_sn / 60 / adet)) if sure_sn else analiz.baski_suresi_dk(metin)
 
     ozellikler = analiz.gorsel_ozellikler(tasarim.get("title"), " ".join(etiketler), metin)
     if profil is not None:
@@ -249,7 +273,8 @@ def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -
 
     lisans_metni = tasarim.get("license") or None
     tid = tasarim["id"]
-    gram = _sayi((profil or {}).get("weight")) or None
+    tabla_gram = _sayi((profil or {}).get("weight")) or None
+    gram = max(1, round(tabla_gram / adet)) if tabla_gram else None
     tahmin = maliyet.hesapla(gram, sure_dk) or {}
     return {
         "source_id": KAYNAK_ID,
@@ -279,5 +304,9 @@ def urune_cevir(tasarim: dict, kategori: str, trend_sirasi: int | None = None) -
         "trend_rank": trend_sirasi,
         "creator_uid": _sayi((tasarim.get("designCreator") or {}).get("uid")) or None,
         "creator_handle": (tasarim.get("designCreator") or {}).get("handle") or None,
-        "filaments": filament_listesi(profil),
+        "filaments": filament_listesi(profil, adet),
+        # veritabanına yazılmaz; raporda "60'lık tablada basılır" bilgisi için
+        "tabla_adedi": adet,
+        "tabla_suresi_dk": round(sure_sn / 60) if sure_sn else None,
+        "tabla_gram": tabla_gram,
     }

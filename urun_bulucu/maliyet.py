@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import statistics
 
-from . import config, pazar
+from . import analiz, config, pazar
 
 
 def hesapla(gram: int | None, dakika: int | None) -> dict | None:
@@ -70,7 +70,12 @@ def yazi(urun: dict) -> str:
     maliyet_fiyati = urun.get("maliyet_fiyati") or d.get("maliyet_fiyati")
     fiyat = f"önerilen fiyat ~{urun['price_tl']} TL"
     if piyasa:
-        fiyat += (f" (Türkiye'deki {piyasa['fiyatli']} benzerin ortancası {piyasa['medyan']} TL'ye göre; "
+        fiyat += (f" (Türkiye'deki {piyasa['fiyatli']} aynı ürünün ortancası {piyasa['medyan']} TL'ye göre; "
                   f"maliyete göre {maliyet_fiyati} TL olurdu)")
+    tabla = ""
+    if (urun.get("tabla_adedi") or 1) > 1:
+        tabla = (f" · parça başına; MakerWorld profili bir tablada {urun['tabla_adedi']} adet basar"
+                 + (f" ({analiz.sure_yazi(urun['tabla_suresi_dk'])}, {urun.get('tabla_gram')} g)"
+                    if urun.get("tabla_suresi_dk") else ""))
     return (f"~{urun['cost_tl']:.0f} TL maliyet ({urun.get('weight_g')} g filament) · {fiyat} · "
-            f"saat başına ~{urun['hourly_profit_tl']:.0f} TL kazanç")
+            f"saat başına ~{urun['hourly_profit_tl']:.0f} TL kazanç{tabla}")

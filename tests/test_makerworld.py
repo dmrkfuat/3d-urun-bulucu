@@ -65,6 +65,37 @@ def test_lisans_ayari_kapaliyken_lisansa_gore(monkeypatch):
     assert urune_cevir(mw_tasarim(2, "X", 1, 1, lisans="BY"), "Ev")["license_flag"] == "ticari_serbest"
 
 
+def test_tabla_adedi_profil_adindan():
+    from urun_bulucu.kaynaklar.makerworld import tabla_adedi
+    assert tabla_adedi("PIES ESTABLES X 60 0.2mm layer, 3 walls, 10% infill") == 60
+    assert tabla_adedi("GORRO ROJO X78 0.2mm layer") == 78
+    assert tabla_adedi("MONOCROMO X01 0.2mm layer") == 1
+    assert tabla_adedi("Full plate 4x keychains") == 4
+    assert tabla_adedi("10 pcs per plate") == 10 and tabla_adedi("Set of 6 coasters") == 6
+    # Yazıcı adları, ölçüler ve katman kalınlığı adet değildir
+    assert tabla_adedi("X2D specific - PETG / PLA - 0.2mm layer") == 1
+    assert tabla_adedi("X1C 0.16mm, 256 x 256 plate") == 1
+    assert tabla_adedi("0.2mm layer, 2 walls, 15% infill") == 1 and tabla_adedi(None) == 1
+
+
+def test_cok_adetli_tabla_parca_basina_hesaplanir():
+    # Mini Grinch (2026-11-25): seçilen profil 60 adetlik tablaydı (645 dk, 171 g) ve tek ürün sayılıyordu
+    t = mw_tasarim(1, "MYLITOS MINI GRINCH", 1, 1, profiller=[
+        {"id": 1, "baslik": "PIES ESTABLES X 60 0.2mm layer", "sure_sn": 38688, "gram": 171}])
+    t["instances"][0]["instanceFilaments"] = [{"type": "PLA", "color": "#61c680", "usedG": "99"}]
+    u = urune_cevir(t, "Hediyelik")
+    assert (u["print_time_min"], u["weight_g"], u["tabla_adedi"]) == (11, 3, 60)
+    assert (u["tabla_suresi_dk"], u["tabla_gram"]) == (645, 171)
+    assert u["filaments"] == [{"type": "PLA", "color": "#61C680", "grams": 1.6}]
+    assert u["cost_tl"] < 5 and u["price_tl"] == 50                     # tabla için 183 → 550 TL'ydi
+    from urun_bulucu import maliyet
+    assert "bir tablada 60 adet basar (~10 sa 45 dk, 171 g)" in maliyet.yazi(u)
+    # Tek parçalık profilde değişiklik yok
+    tek = urune_cevir(mw_tasarim(2, "Vase", 1, 1, profiller=[{"id": 1, "sure_sn": 3600, "gram": 40}]), "Ev")
+    assert (tek["print_time_min"], tek["weight_g"], tek["tabla_adedi"]) == (60, 40, 1)
+    assert "tablada" not in maliyet.yazi(tek)
+
+
 def test_ams_metinden_degil_profilden():
     # Başlık "multicolor" dese de profil tek renkse AMS etiketi verilmez (ve tersi).
     tek = urune_cevir(mw_tasarim(1, "Multicolor Vase", 1, 1, profiller=[{"id": 1, "renk": 1}]), "Ev")
