@@ -140,6 +140,22 @@ def mesajlar(gun: date, secimler: list[dict], panel_url: str | None = None, *,
     return sonuc
 
 
+def video_gonder(token: str, chat_id: str, dosya, aciklama: str, client: httpx.Client | None = None) -> None:
+    """Video dosyasını Telegram'a yükler (sendVideo; botlar için en fazla 50 MB). Açıklama HTML."""
+    client = client or httpx.Client(timeout=180)
+    with open(dosya, "rb") as f:
+        yanit = client.post(f"{API}/bot{token}/sendVideo",
+                            data={"chat_id": chat_id, "caption": aciklama[:1024], "parse_mode": "HTML",
+                                  "supports_streaming": "true"},
+                            files={"video": ("instagram.mp4", f, "video/mp4")})
+    if yanit.status_code != 200:
+        try:
+            neden = yanit.json().get("description")
+        except ValueError:
+            neden = yanit.text[:200]
+        raise BildirimHatasi(f"Telegram {yanit.status_code}: {neden}")
+
+
 def gonder(token: str, chat_id: str, istekler: list[dict], client: httpx.Client | None = None) -> int:
     client = client or httpx.Client(timeout=30)
     gonderilen = 0

@@ -296,6 +296,76 @@ def test_isle_duzenlenmis_videoyu_paylasir_notu_bildirir():
     assert depo.gonderiler[1]["status"] == "paylasildi" and "ℹ️ deneme notu" in b[0]
 
 
+def test_isle_paylasilan_videoyu_telegrama_gonderir_sonra_siler(monkeypatch):
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    depo = VideoDepo([_gonderi()])
+    giden = []
+
+    def gonder(dosya, metin):
+        giden.append((Path(dosya).read_bytes(), metin))
+
+    client, _ = _api(["FINISHED"])
+    b = instagram.isle(depo, instagram.InstagramIstemci("TOKEN", client), SIMDI,
+                       hazirla=lambda d, g: ("7/1_hazir.mp4", None), video_gonder=gonder)
+    assert depo.indirilen == ["7/1_hazir.mp4"]            # düzenlenmiş hâli gönderilir
+    assert giden[0][0] == b"ham" and "✅" in giden[0][1] and "reel/abc" in giden[0][1]
+    assert b == [] and depo.silinen == ["7/1.mp4", "7/1_hazir.mp4"]   # yazılı bildirim tekrar gelmez
+
+
+def test_isle_video_telegrama_gidemezse_yazili_bildirim(monkeypatch):
+    class HazirsizDepo(VideoDepo):
+        def video_indir(self, yol, hedef):
+            if yol.endswith("_hazir.mp4"):
+                raise RuntimeError("yok")
+            super().video_indir(yol, hedef)
+
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    depo = HazirsizDepo([_gonderi()])
+    giden = []
+    client, _ = _api(["FINISHED"])
+    b = instagram.isle(depo, instagram.InstagramIstemci("TOKEN", client), SIMDI,
+                       hazirla=lambda d, g: ("7/1.mp4", "düzenlenemedi"), video_gonder=lambda d, m: giden.append(m))
+    assert depo.indirilen == ["7/1.mp4"] and len(giden) == 1 and b == []   # özgün videoya düşer
+
+    def bozuk(dosya, metin):
+        raise bildirim.BildirimHatasi("Telegram 413: too large")
+
+    depo = VideoDepo([_gonderi()])
+    client, _ = _api(["FINISHED"])
+    b = instagram.isle(depo, instagram.InstagramIstemci("TOKEN", client), SIMDI, video_gonder=bozuk)
+    assert len(b) == 1 and "✅" in b[0] and depo.gonderiler[1]["status"] == "paylasildi"
+
+
+def test_telegram_video_gonder_dosyayi_yukler(tmp_path):
+    istekler = []
+
+    def handler(request):
+        istekler.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    dosya = tmp_path / "v.mp4"
+    dosya.write_bytes(b"VIDEO")
+    bildirim.video_gonder("T", "42", dosya, "✅ <b>x</b>", httpx.Client(transport=httpx.MockTransport(handler)))
+    r = istekler[0]
+    assert r.url.path == "/botT/sendVideo" and b"VIDEO" in r.content and b'name="chat_id"' in r.content
+    with pytest.raises(bildirim.BildirimHatasi, match="413"):
+        bildirim.video_gonder("T", "42", dosya, "x", httpx.Client(transport=httpx.MockTransport(
+            lambda r: httpx.Response(413, json={"description": "too large"}))))
+
+
+def test_kirpma_filtresi(monkeypatch):
+    vd = instagram.video_duzenle
+    assert vd.kirpma({"sag": 0.1}) == "crop=trunc(iw*0.9000/2)*2:trunc(ih*1.0000/2)*2:trunc(iw*0.0000):trunc(ih*0.0000)"
+    assert vd.kirpma({"sol": 0.1, "ust": 0.05, "alt": 0.05}).endswith(":trunc(iw*0.1000):trunc(ih*0.0500)")
+    assert vd.kirpma({}) is None
+    with pytest.raises(vd.VideoDuzenlemeHatasi):
+        vd.kirpma({"sol": 0.5, "sag": 0.4})
+    monkeypatch.setattr(config, "INSTAGRAM_KIRP", {"sag": 0.1})
+    assert vd.filtre([], [], 4.0, ses_var=False)[0].startswith("[0:v]crop=trunc(iw*0.9000/2)*2:")
+    monkeypatch.setattr(config, "INSTAGRAM_KIRP", {})
+    assert vd.filtre([], [], 4.0, ses_var=False)[0].startswith("[0:v]split=2")
+
+
 def test_video_duzenle_metin_yardimcilari():
     vd = instagram.video_duzenle
     ac = "Tek parça basıldı, hiç montaj yok 🤯\n\n✨ İmkansız vida\n#3dbaskı"

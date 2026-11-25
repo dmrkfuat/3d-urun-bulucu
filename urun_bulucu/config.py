@@ -156,11 +156,18 @@ INSTAGRAM_KONTROL_ARALIGI_SN = 20
 INSTAGRAM_IMZALI_URL_SN = 6 * 3600  # Instagram'ın videoyu indirmesi için geçici bağlantı süresi
 INSTAGRAM_CALISMA_BASINA_EN_FAZLA = 3  # bir çalışmada en fazla kaç gönderi başlatılır
 INSTAGRAM_PAYLASINCA_VIDEOYU_SIL = True  # depolama dolmasın (Supabase ücretsiz: 1 GB)
+# Paylaşılan video (düzenlenmişse düzenlenmiş hâli) silinmeden önce Telegram'a gönderilir; kopyası
+# sende kalır. Telegram botları en fazla 50 MB yükleyebilir; büyükse yalnızca bağlantı gelir.
+INSTAGRAM_VIDEOYU_TELEGRAMA_GONDER = True
+TELEGRAM_VIDEO_SINIRI_MB = 50
 INSTAGRAM_DEPO = "instagram"        # Supabase Storage alanı (bucket) adı
 INSTAGRAM_DEPO_SINIRI_MB = 50       # depolama alanının dosya sınırı (SQL'deki file_size_limit)
 # Paylaşmadan önce video düzenleme (ffmpeg): 9:16, başta kanca yazısı, sonda DM kartı.
 # Panelde gönderi başına kapatılabilir ("Videoyu otomatik düzenle" kutusu).
 INSTAGRAM_VIDEO_DUZENLE = True
+# Düzenlemede önce kenarlardan kırpılacak oran (0.10 = görüntünün %10'u), sonra 9:16'ya getirilir.
+# Örn. sağdaki yazıcı kapısı kenarı: {"sag": 0.10}. Bir eksende toplam en fazla %80.
+INSTAGRAM_KIRP = {"sol": 0.0, "sag": 0.10, "ust": 0.0, "alt": 0.0}
 INSTAGRAM_KANCA_SN = 2.5            # kanca yazısı videonun ilk kaç saniyesinde görünür
 INSTAGRAM_SON_KART_SN = 2.5         # sona eklenen "DM" kartının süresi (0: eklenmez)
 INSTAGRAM_SON_KART = ("SİPARİŞ İÇİN DM AT", "İstediğin renkte basılır")

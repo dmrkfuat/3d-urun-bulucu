@@ -227,6 +227,11 @@ Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya ta
 genişlik. Panelden yükleme sınırı 50 MB'tır (Supabase ücretsiz planı); telefonda 1080p dışa aktarmak
 yeterlidir. Instagram API ile günde en fazla 100 gönderi paylaşılabilir.
 
+**Düzenleme ve kopya:** Düzenlemede video önce kenarlarından kırpılır (`config.py` →
+`INSTAGRAM_KIRP`; şimdilik sağdan %10, yazıcı kapısının kenarı), sonra 9:16'ya getirilir.
+Paylaşılan video depodan silinmeden önce bağlantısıyla birlikte Telegram'a gönderilir
+(`INSTAGRAM_VIDEOYU_TELEGRAMA_GONDER`; 50 MB'tan büyükse yalnızca bağlantı gelir).
+
 **Zamanlama:** GitHub zamanlanmış görevleri birkaç dakika (yoğun saatlerde 15-30 dk) gecikebilir;
 gönderi seçtiğin saatten biraz sonra çıkabilir.
 

@@ -11,7 +11,7 @@ Akış:
 3. GitHub Actions 15 dakikada bir `python -m urun_bulucu.instagram` çalıştırır: saati gelen video
    ffmpeg ile hazırlanır (9:16, başta kanca yazısı, sonda "DM" kartı; bkz. video_duzenle.py),
    Reels oluşturulur, Instagram videoyu işleyince yayınlanır, ürüne "video" işareti konur ve
-   Telegram'a bağlantı gönderilir.
+   paylaşılan video bağlantısıyla birlikte Telegram'a gönderilir (sonra depodan silinir).
 
 İki tür token desteklenir:
 - Instagram türü (IG… ile başlar, "API setup with Instagram login"): graph.instagram.com, 60 gün
@@ -379,8 +379,11 @@ def _ad(depo: InstagramDepo, g: dict) -> str:
 
 def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
          bekle: Callable[[float], None] = time.sleep,
-         hazirla: Callable[[InstagramDepo, dict], tuple[str, str | None]] = video_hazirla) -> list[str]:
-    """Saati gelen gönderileri başlatır, işlenenleri yayınlar. Telegram metinlerini (HTML) döndürür."""
+         hazirla: Callable[[InstagramDepo, dict], tuple[str, str | None]] = video_hazirla,
+         video_gonder: Callable[[Path, str], None] | None = None) -> list[str]:
+    """Saati gelen gönderileri başlatır, işlenenleri yayınlar. Telegram metinlerini (HTML) döndürür.
+    video_gonder verilirse paylaşılan video bildirim metniyle birlikte ona verilir (Telegram'a yüklenir);
+    gönderilen videonun bildirimi ayrıca metin olarak dönmez."""
     bildirimler: list[str] = []
     gelenler = depo.zamani_gelenler(simdi.isoformat(timespec="seconds"), config.INSTAGRAM_CALISMA_BASINA_EN_FAZLA)
     islenen = depo.islenenler()
@@ -433,10 +436,11 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
                     baglanti = ig.kalici_baglanti(medya) if medya else None
                     depo.guncelle(g["id"], {"status": "paylasildi", "media_id": medya, "permalink": baglanti,
                                             "published_at": _simdi(), "error": None})
-                    _paylasim_sonrasi(depo, g)
-                    bildirimler.append(f"✅ Instagram'da paylaşıldı: <b>{bildirim._e(_ad(depo, g))}</b>"
-                                       + (f"\n{bildirim._e(baglanti)}" if baglanti else "")
-                                       + (f"\nℹ️ {bildirim._e(g['_not'])}" if g.get("_not") else ""))
+                    metin = (f"✅ Instagram'da paylaşıldı: <b>{bildirim._e(_ad(depo, g))}</b>"
+                             + (f"\n{bildirim._e(baglanti)}" if baglanti else "")
+                             + (f"\nℹ️ {bildirim._e(g['_not'])}" if g.get("_not") else ""))
+                    if not _paylasim_sonrasi(depo, g, metin, video_gonder):
+                        bildirimler.append(metin)   # video gönderilemediyse bildirim yazıyla gelir
                 elif kod in ("ERROR", "EXPIRED"):
                     hata(g, f"Instagram videoyu işleyemedi ({kod}): {aciklama or 'video biçimini kontrol et'}")
                 else:
@@ -456,18 +460,48 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
     return bildirimler
 
 
-def _paylasim_sonrasi(depo: InstagramDepo, g: dict) -> None:
-    """Ürüne 'videosunu çektim' işareti; depolamadaki video silinir. Hata paylaşımı bozmaz."""
+def _videoyu_gonder(depo: InstagramDepo, g: dict, metin: str, gonder: Callable[[Path, str], None]) -> bool:
+    """Paylaşılan videoyu (düzenlenmiş hâli varsa o) depodan indirip gönderir. Başarılıysa True."""
+    yollar = [video_duzenle.hazir_yolu(g["video_path"]), g["video_path"]] if duzenlenecek_mi(g) else [g["video_path"]]
+    with tempfile.TemporaryDirectory() as d:
+        dosya = Path(d) / "paylasilan.mp4"
+        for yol in yollar:   # düzenleme başarısız olduysa _hazir dosyası yoktur; özgün video paylaşılmıştır
+            try:
+                depo.video_indir(yol, dosya)
+                break
+            except Exception:  # noqa: BLE001
+                continue
+        else:
+            print("UYARI: Paylaşılan video Telegram için indirilemedi.")
+            return False
+        if dosya.stat().st_size > config.TELEGRAM_VIDEO_SINIRI_MB * 1024 * 1024:
+            print("UYARI: Video Telegram sınırından büyük; yalnızca bağlantı gönderilecek.")
+            return False
+        try:
+            gonder(dosya, metin)
+        except Exception as e:  # noqa: BLE001 — video gitmezse bildirim yazıyla gider
+            print(f"UYARI: Video Telegram'a gönderilemedi: {str(e)[:200]}")
+            return False
+    return True
+
+
+def _paylasim_sonrasi(depo: InstagramDepo, g: dict, metin: str = "",
+                      video_gonder: Callable[[Path, str], None] | None = None) -> bool:
+    """Ürüne 'videosunu çektim' işareti; istenirse video Telegram'a gönderilir; sonra depolamadaki video
+    silinir. Hata paylaşımı bozmaz. Video gönderildiyse True."""
     try:
         if g.get("product_id"):
             depo.video_isaretle(g["product_id"])
     except Exception as e:  # noqa: BLE001
         print(f"UYARI: Video işareti konamadı: {e}")
+    gonderildi = bool(video_gonder and config.INSTAGRAM_VIDEOYU_TELEGRAMA_GONDER
+                      and _videoyu_gonder(depo, g, metin, video_gonder))
     if config.INSTAGRAM_PAYLASINCA_VIDEOYU_SIL:
         try:
             depo.video_sil([g["video_path"], video_duzenle.hazir_yolu(g["video_path"])])
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: Video depodan silinemedi: {e}")
+    return gonderildi
 
 
 def ffmpeg_gerekli() -> bool:
@@ -494,9 +528,14 @@ def calistir() -> int:
         return 0
     depo = SupabaseInstagramDepo(ayarlar.supabase_url, ayarlar.supabase_key)
     simdi = datetime.now(timezone.utc)
+    video_gonder = None
+    if ayarlar.telegram_token and ayarlar.telegram_chat_id:
+        def video_gonder(dosya: Path, metin: str) -> None:
+            bildirim.video_gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id, dosya, metin)
     try:
         token = token_hazirla(depo, ayarlar.instagram_token, simdi)
-        bildirimler = isle(depo, InstagramIstemci(token, hesap_id=ayarlar.instagram_hesap_id), simdi)
+        bildirimler = isle(depo, InstagramIstemci(token, hesap_id=ayarlar.instagram_hesap_id), simdi,
+                           video_gonder=video_gonder)
     except (InstagramHatasi, httpx.HTTPError) as e:
         print(f"HATA: {e}")
         _bildir(ayarlar, [f"⚠️ Instagram görevi çalışmadı: {bildirim._e(str(e)[:300])}"])

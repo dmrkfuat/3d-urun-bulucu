@@ -1,5 +1,6 @@
 """Reels videosunu paylaşmadan önce hazırlar (ffmpeg; ücretsiz, yapay zekâ servisi yok).
 
+- Önce kenarlardan INSTAGRAM_KIRP oranında kırpılır (ör. sağdan %10).
 - Görüntü dikey 1080x1920'ye (9:16) getirilir; yatay/kare videoların boşluğu videonun
   bulanıklaştırılmış hâliyle doldurulur (siyah bant yok).
 - İlk INSTAGRAM_KANCA_SN saniyede açıklamanın ilk satırı (kanca) büyük harflerle üstte yazar.
@@ -114,12 +115,26 @@ def _yazi(dosya: str, boyut: int, y: str, sart: str, kutu: bool) -> str:
     return f
 
 
+def kirpma(oranlar: dict | None = None) -> str | None:
+    """Kenar kırpma filtresi (config.INSTAGRAM_KIRP; oranlar 0-1); kırpılacak bir şey yoksa None.
+    Boyutlar çift sayıya yuvarlanır (yuv420p)."""
+    k = config.INSTAGRAM_KIRP if oranlar is None else oranlar
+    sol, sag, ust, alt = (max(0.0, float(k.get(a) or 0)) for a in ("sol", "sag", "ust", "alt"))
+    if sol + sag > 0.8 or ust + alt > 0.8:
+        raise VideoDuzenlemeHatasi("kırpma oranı çok büyük (bir eksende en fazla %80)")
+    if not (sol or sag or ust or alt):
+        return None
+    return (f"crop=trunc(iw*{1 - sol - sag:.4f}/2)*2:trunc(ih*{1 - ust - alt:.4f}/2)*2"
+            f":trunc(iw*{sol:.4f}):trunc(ih*{ust:.4f})")
+
+
 def filtre(kanca: list[str], son: list[str], sure: float, ses_var: bool) -> tuple[str, float]:
     """filter_complex metni ve kanca süresi. Metin dosyaları: k0.txt…, s0.txt…"""
     kanca_sn = min(config.INSTAGRAM_KANCA_SN, max(sure - 0.5, 0.5))
     son_sn = config.INSTAGRAM_SON_KART_SN
+    kirp = kirpma()
     v = [
-        f"[0:v]split=2[a][b]",
+        f"[0:v]{kirp + ',' if kirp else ''}split=2[a][b]",
         f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,"
         f"scale={GENISLIK}:{YUKSEKLIK}[arka]",
         f"[b]scale={GENISLIK}:{YUKSEKLIK}:force_original_aspect_ratio=decrease[on]",
