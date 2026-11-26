@@ -6,6 +6,21 @@
 <meta name="robots" content="noindex">
 <title>3D Ürün Paneli</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f6fdf'/><path d='M9 21l7 4 7-4V11l-7-4-7 4z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/><path d='M9 11l7 4 7-4M16 15v10' fill='none' stroke='white' stroke-width='2'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Preflight kapalı: panelin mevcut stilleri bozulmasın. Forms eklentisi yok: girdi stillerini tüm sayfada değiştirirdi.
+  tailwind.config = { corePlugins: { preflight: false }, theme: { extend: {
+    colors: { "on-tertiary-container": "#76ffc2", "tertiary-fixed-dim": "#4edea3", "on-surface-variant": "#444654", "inverse-primary": "#b8c3ff", "primary-fixed": "#dde1ff", "on-surface": "#0d1c2e", "surface-dim": "#ccdbf3", "on-primary": "#ffffff", "on-secondary-fixed-variant": "#004c6e", "surface-container-high": "#dce9ff", "on-primary-fixed": "#001355", "primary": "#1a40c2", "inverse-surface": "#233144", "tertiary": "#005b3d", "background": "#f8f9ff", "error-container": "#ffdad6", "surface-bright": "#f8f9ff", "secondary": "#006591", "on-primary-fixed-variant": "#0736ba", "on-primary-container": "#e2e5ff", "surface": "#f8f9ff", "primary-fixed-dim": "#b8c3ff", "error": "#ba1a1a", "inverse-on-surface": "#eaf1ff", "on-secondary-fixed": "#001e2f", "on-secondary-container": "#004666", "on-secondary": "#ffffff", "surface-variant": "#d5e3fc", "on-tertiary-fixed": "#002113", "outline-variant": "#c4c5d6", "secondary-fixed": "#c9e6ff", "outline": "#747686", "on-error": "#ffffff", "secondary-fixed-dim": "#89ceff", "on-error-container": "#93000a", "surface-container-lowest": "#ffffff", "tertiary-fixed": "#6ffbbe", "surface-container-highest": "#d5e3fc", "on-tertiary-fixed-variant": "#005236", "on-background": "#0d1c2e", "primary-container": "#3b5bdb", "surface-container": "#e6eeff", "surface-container-low": "#eff4ff", "surface-tint": "#3052d2", "on-tertiary": "#ffffff", "tertiary-container": "#007650", "secondary-container": "#39b8fd" },
+    borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+    spacing: { "gutter-lg": "1.5rem", "space-lg": "1.25rem", "space-xl": "2rem", "space-sm": "0.5rem", "space-xs": "0.25rem", "margin-desktop": "2rem", "margin": "1.5rem", "space-md": "0.75rem", "gutter": "1rem", "margin-mobile": "1rem" },
+    fontFamily: { "label-md": ["Inter"], "headline-md": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "label-sm": ["Inter"], "label-lg": ["Inter"], "body-sm": ["Inter"], "body-md": ["Inter"], "headline-xl": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"] },
+    fontSize: { "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.01em", fontWeight: "500" }], "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "-0.015em", fontWeight: "600" }], "headline-sm": ["18px", { lineHeight: "24px", letterSpacing: "-0.01em", fontWeight: "600" }], "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }], "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.03em", fontWeight: "600" }], "label-lg": ["14px", { lineHeight: "20px", fontWeight: "600" }], "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }], "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }], "headline-xl": ["36px", { lineHeight: "44px", letterSpacing: "-0.025em", fontWeight: "700" }], "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "700" }] }
+  } } };
+</script>
 <style>
   :root {
     --bg: #f6f7f9; --panel: #ffffff; --ink: #16181d; --muted: #5f6673; --line: #e3e6eb;
@@ -45,20 +60,9 @@
   .siparisForm { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; align-items: end; margin-bottom: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
   .siparisForm label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
   .siparisForm .genis { grid-column: 1 / -1; }
-  .sipKpi { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
-  .sipKpi > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-  .sipKpi b { font-size: 22px; font-variant-numeric: tabular-nums; }
-  .sipYeni { margin-bottom: 14px; }
-  .sipYeni > summary { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; list-style: none; }
-  .sipYeni > summary::-webkit-details-marker { display: none; }
-  .sipYeni[open] > summary { margin-bottom: 10px; }
-  .sipFiltre { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 10px; }
-  .sipFiltre input[type=text] { flex: 1; min-width: 180px; }
-  .sipCheck { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
-  #siparisTablo tr.sip-yeni td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
-  #siparisTablo tr.sip-basiliyor td:first-child { box-shadow: inset 4px 0 0 var(--warn); }
-  #siparisTablo tr.sip-hazir td:first-child, #siparisTablo tr.sip-kargoda td:first-child, #siparisTablo tr.sip-teslim td:first-child { box-shadow: inset 4px 0 0 var(--ok); }
-  #siparisTablo tr.sip-iptal { opacity: .55; }
+  .tw { color: #0d1c2e; font-family: Inter, system-ui, sans-serif; }
+  .tw [hidden] { display: none !important; }
+  .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-smoothing: antialiased; font-feature-settings: 'liga'; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   td select { padding: 4px 6px; }
   .kesifler { display: flex; flex-direction: column; gap: 14px; }
   .kesifKart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
@@ -206,29 +210,84 @@
     </div>
 
     <div id="siparisSekmesi" hidden>
-      <p class="muted">Gelen siparişleri buraya yaz. Sattığın ürünler ve kategoriler günlük listede öne çıkar (+3 / +1..+2 puan). Baskı bitince <b>gerçek süre ve gramı</b> girersen, en az 3 siparişten sonra maliyet tahmini senin yazıcına göre düzeltilir. Müşterinin adını/adresini yazma; kısa bir not yeter.</p>
-      <div id="siparisOzet" class="sipKpi"></div>
-      <details class="sipYeni"><summary>+ Yeni sipariş</summary>
-      <form id="siparisFormu" class="siparisForm" autocomplete="off">
-        <label class="genis">Ürün (listeden seç ya da yaz)<input type="text" id="sipUrun" list="sipUrunler" maxlength="200" required></label>
-        <datalist id="sipUrunler"></datalist>
-        <label>Adet<input type="number" id="sipAdet" min="1" max="1000" value="1" required></label>
-        <label>Renk<input type="text" id="sipRenk" maxlength="100"></label>
-        <label>Tutar (TL, toplam)<input type="number" id="sipFiyat" min="0" step="0.01"></label>
-        <label>Kanal<select id="sipKanal"></select></label>
-        <label>Gerçek süre (dk, toplam)<input type="number" id="sipSure" min="1"></label>
-        <label>Gerçek filament (g, toplam)<input type="number" id="sipGram" min="1"></label>
-        <label class="genis">Not<input type="text" id="sipNot" maxlength="500" placeholder="ör. hediye paketi istedi"></label>
-        <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span></div>
-      </form>
-      </details>
-      <div class="sipFiltre">
-        <select id="sipFiltreDurum" aria-label="Durum filtresi"></select>
-        <select id="sipFiltreKanal" aria-label="Kanal filtresi"></select>
-        <input type="text" id="sipAra" placeholder="Ürün, renk veya not ara..." aria-label="Siparişlerde ara">
-        <label class="sipCheck"><input type="checkbox" id="sipOdenmemis"> Sadece ödenmemiş</label>
+    <div class="tw">
+      <div class="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 my-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-headline-lg text-headline-lg text-on-surface">Sipariş Yönetimi</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-primary-container/10 text-primary font-label-sm text-label-sm uppercase tracking-wider">Sipariş Takibi</span>
+          </div>
+          <p class="font-body-sm text-body-sm text-outline mt-1">Siparişleri, üretim durumunu ve ödemeleri tek yerden takip et. Müşterinin adını ya da adresini yazma; kısa bir not yeter.</p>
+        </div>
+        <button type="button" id="sipYeniAc" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-on-primary font-label-md text-label-md shadow-md hover:bg-primary/95 shrink-0">
+          <span class="material-symbols-outlined text-[18px]">add_shopping_cart</span><span>Yeni sipariş</span>
+        </button>
       </div>
-      <div class="tablo-kap"><table id="siparisTablo"></table></div>
+
+      <div id="sipFormKart" class="bg-white rounded-xl shadow-sm p-4 mb-4" hidden>
+        <form id="siparisFormu" class="siparisForm" autocomplete="off" style="margin:0">
+          <label class="genis">Ürün (listeden seç ya da yaz)<input type="text" id="sipUrun" list="sipUrunler" maxlength="200" required></label>
+          <datalist id="sipUrunler"></datalist>
+          <label>Adet<input type="number" id="sipAdet" min="1" max="1000" value="1" required></label>
+          <label>Renk<input type="text" id="sipRenk" maxlength="100"></label>
+          <label>Tutar (TL, toplam)<input type="number" id="sipFiyat" min="0" step="0.01"></label>
+          <label>Kanal<select id="sipKanal"></select></label>
+          <label>Gerçek süre (dk, toplam)<input type="number" id="sipSure" min="1"></label>
+          <label>Gerçek filament (g, toplam)<input type="number" id="sipGram" min="1"></label>
+          <label class="genis">Not<input type="text" id="sipNot" maxlength="500" placeholder="ör. hediye paketi istedi"></label>
+          <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span></div>
+        </form>
+      </div>
+
+      <div id="siparisOzet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+
+      <div class="bg-white rounded-xl shadow-sm p-3 mb-3 flex flex-col gap-3">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface">
+              <span class="material-symbols-outlined text-[18px] text-secondary">donut_large</span>
+              <span class="font-label-sm text-label-sm text-outline">Durum:</span>
+              <select id="sipFiltreDurum" class="bg-transparent font-label-md text-label-md font-semibold outline-none cursor-pointer" aria-label="Durum filtresi"></select>
+            </label>
+            <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface">
+              <span class="material-symbols-outlined text-[18px] text-on-surface-variant">storefront</span>
+              <span class="font-label-sm text-label-sm text-outline">Kanal:</span>
+              <select id="sipFiltreKanal" class="bg-transparent font-label-md text-label-md font-semibold outline-none cursor-pointer" aria-label="Kanal filtresi"></select>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
+              <input type="checkbox" id="sipOdenmemis" class="w-4 h-4 accent-primary cursor-pointer">
+              <span class="font-label-md text-label-md text-error font-semibold">Sadece ödenmemiş</span>
+            </label>
+          </div>
+          <button type="button" id="sipCsv" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors shrink-0">
+            <span class="material-symbols-outlined text-[18px] text-outline">download</span><span>Dışa aktar (CSV)</span>
+          </button>
+        </div>
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="relative w-full sm:w-96">
+            <span class="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-outline">search</span>
+            <input type="text" id="sipAra" class="w-full bg-surface-container-low rounded-lg pl-9 pr-3 py-2 font-body-sm text-body-sm text-on-surface placeholder:text-outline outline-none focus:ring-1 focus:ring-primary" placeholder="Ürün, renk veya not ara..." aria-label="Siparişlerde ara">
+          </div>
+          <div id="sipHizli" class="flex items-center gap-1 overflow-x-auto w-full sm:w-auto"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto"><table id="siparisTablo" class="w-full"></table></div>
+      </div>
+
+      <div id="sipCekmece" class="fixed inset-0 z-50 flex justify-end" hidden>
+        <div data-kapat class="absolute inset-0 bg-[#0d1c2e]/60 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-[720px] h-full bg-white shadow-2xl flex flex-col overflow-hidden">
+          <div id="sipCekmeBaslik" class="px-6 py-5 border-b border-surface-container-high shrink-0"></div>
+          <div id="sipCekmeIcerik" class="flex-1 overflow-y-auto p-6 bg-surface-container-low/30"></div>
+          <div class="p-4 bg-white border-t border-surface-container-high flex items-center justify-between gap-3 shrink-0">
+            <button type="button" id="sipCekmeSil" class="px-3.5 py-2 rounded-xl border border-error/30 text-error hover:bg-error-container font-label-md text-label-md font-semibold">Siparişi sil</button>
+            <button type="button" data-kapat class="px-4 py-2 rounded-xl bg-surface-container-high text-on-surface hover:bg-surface-container font-label-md text-label-md font-semibold">Kapat</button>
+          </div>
+        </div>
+      </div>
+    </div>
     </div>
   </section>
 
@@ -689,12 +748,34 @@
   let sipUrunAdi = new Map();   // ürün adı → product_id (listeden seçilirse)
   let sipBagli = false;
   let sipVeri = [];             // yüklenen siparişler (filtreleme istemci tarafında)
+  let sipSekme = "tum";         // hızlı sekme: tum | kuyruk | kargo | teslim
+  let sipCekmeId = null, sipCekmeSekme = "siparis";
+  const SIP_HIZLI = { tum: "Tümü", kuyruk: "Baskı kuyruğu", kargo: "Kargo bekleyen", teslim: "Teslim" };
+  const SIP_HIZLI_DURUM = { kuyruk: ["yeni", "basiliyor"], kargo: ["hazir", "kargoda"], teslim: ["teslim"] };
+  const SIP_SOL = { yeni: "border-primary", basiliyor: "border-secondary", hazir: "border-tertiary", kargoda: "border-tertiary", teslim: "border-tertiary", iptal: "border-outline-variant" };
+  const SIP_PILL = { yeni: "bg-primary-fixed text-on-primary-fixed-variant", basiliyor: "bg-secondary-fixed text-on-secondary-fixed-variant", hazir: "bg-tertiary-fixed/30 text-tertiary", kargoda: "bg-surface-container-high text-on-surface-variant", teslim: "bg-tertiary-fixed/20 text-tertiary", iptal: "bg-error-container text-on-error-container" };
+  const sipTarih = (t) => esc(new Date(t).toLocaleDateString("tr-TR"));
+  const sipGecerli = () => sipVeri.filter((s) => s.durum !== "iptal");
 
   async function sipUrunleriYukle() {
     const { data } = await sb.from("weekly_picks").select("product_id, products(name)").order("pick_date", { ascending: false }).limit(800);
     sipUrunAdi = new Map();
     for (const r of data || []) if (r.products?.name && !sipUrunAdi.has(r.products.name)) sipUrunAdi.set(r.products.name, r.product_id);
     $("#sipUrunler").innerHTML = [...sipUrunAdi.keys()].map((ad) => `<option value="${esc(ad)}"></option>`).join("");
+  }
+
+  async function sipGuncelle(id, alan, deger) {
+    const { error } = await sb.from("siparisler").update({ [alan]: deger, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) { alert("Güncellenemedi: " + error.message); return false; }
+    return true;
+  }
+
+  async function sipSil(id) {
+    if (!id || !confirm("Bu sipariş silinsin mi?")) return;
+    const { error } = await sb.from("siparisler").delete().eq("id", id);
+    if (error) return alert("Silinemedi: " + error.message);
+    if (sipCekmeId === id) sipCekmeKapat();
+    siparisYukle();
   }
 
   function sipFormBagla() {
@@ -705,6 +786,28 @@
     $("#sipFiltreKanal").innerHTML = `<option value="">Tüm kanallar</option>` + secenekler(SIP_KANAL, "");
     ["#sipFiltreDurum", "#sipFiltreKanal", "#sipOdenmemis"].forEach((id) => $(id).addEventListener("change", sipCiz));
     $("#sipAra").addEventListener("input", sipCiz);
+    $("#sipHizli").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-h]");
+      if (b) { sipSekme = b.dataset.h; sipCiz(); }
+    });
+    $("#sipYeniAc").addEventListener("click", () => { $("#sipFormKart").hidden = !$("#sipFormKart").hidden; });
+    $("#sipCsv").addEventListener("click", sipCsvIndir);
+
+    // Çekmece: tek dinleyici; kapatma, sekme, silme ve alan değişiklikleri buradan.
+    const cekmece = $("#sipCekmece");
+    cekmece.addEventListener("click", (e) => {
+      if (e.target.closest("[data-kapat]")) return sipCekmeKapat();
+      const sekme = e.target.closest("[data-cekme]");
+      if (sekme) { sipCekmeSekme = sekme.dataset.cekme; return sipCekmeCiz(); }
+      if (e.target.closest("#sipCekmeSil")) return sipSil(sipCekmeId);
+    });
+    cekmece.addEventListener("change", async (e) => {
+      const el = e.target.closest("[data-cekme-alan]");
+      if (!el || sipCekmeId == null) return;
+      const deger = el.type === "checkbox" ? el.checked : el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
+      if (await sipGuncelle(sipCekmeId, el.dataset.cekmeAlan, deger)) siparisYukle();
+    });
+
     const sayi = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
     $("#siparisFormu").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -715,64 +818,146 @@
       const { error } = await sb.from("siparisler").insert(kayit);
       $("#sipDurum").textContent = error ? "Eklenemedi: " + error.message + sipSqlIpucu(error) : "Eklendi ✓";
       $("#sipDurum").style.color = error ? "var(--bad)" : "";
-      if (!error) { $("#siparisFormu").reset(); $("#sipAdet").value = 1; siparisYukle(); }
+      if (!error) { $("#siparisFormu").reset(); $("#sipAdet").value = 1; $("#sipFormKart").hidden = true; siparisYukle(); }
     });
   }
 
-  // Üst özet kartları: tüm siparişler üzerinden (filtreden bağımsız).
+  // Üst kartlar: tüm siparişler üzerinden (filtreden bağımsız).
   function sipOzetCiz() {
-    const gecerli = sipVeri.filter((s) => s.durum !== "iptal");
-    const ciro = gecerli.reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
-    const maliyet = gecerli.reduce((t, s) => t + (s.products?.cost_tl || 0) * s.adet, 0);
-    const adet = gecerli.reduce((t, s) => t + s.adet, 0);
-    const acik = gecerli.filter((s) => s.durum !== "teslim").length;
-    const basiliyor = gecerli.filter((s) => s.durum === "basiliyor").length;
-    const odenmemis = gecerli.filter((s) => !s.odendi).reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
+    const g = sipGecerli();
+    const ciro = g.reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
+    const maliyet = g.reduce((t, s) => t + (s.products?.cost_tl || 0) * s.adet, 0);
+    const adet = g.reduce((t, s) => t + s.adet, 0);
+    const acik = g.filter((s) => s.durum !== "teslim").length;
+    const basiliyor = g.filter((s) => s.durum === "basiliyor").length;
+    const odenmemis = g.filter((s) => !s.odendi).reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
     const kar = ciro - maliyet;
-    const kart = (ad, deger, alt) => `<div><span class="muted">${ad}</span><b>${deger}</b><span class="muted">${alt}</span></div>`;
+    const kart = (ad, ikon, renk, deger, alt) => `<div class="p-4 rounded-xl bg-white shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3"><span class="font-label-md text-label-md text-outline">${ad}</span>
+        <div class="w-9 h-9 rounded-lg bg-surface-container-high ${renk} flex items-center justify-center"><span class="material-symbols-outlined text-[20px]">${ikon}</span></div></div>
+        <div><span class="font-headline-md text-headline-md text-on-surface">${deger}</span><div class="font-label-sm text-label-sm text-outline mt-1">${alt}</div></div></div>`;
     $("#siparisOzet").innerHTML =
-      kart("Sipariş", gecerli.length, `${adet} adet`) +
-      kart("Açık sipariş", acik, `${basiliyor} basılıyor`) +
-      kart("Ciro", tl(ciro), `ödenmemiş ${tl(odenmemis)}`) +
-      kart("Tahmini kâr", tl(kar), ciro ? `%${Math.round((kar / ciro) * 100)} marj` : "-");
+      kart("Sipariş", "shopping_bag", "text-primary", g.length, `${adet} adet`) +
+      kart("Açık sipariş", "hourglass_top", "text-secondary", acik, `${basiliyor} basılıyor`) +
+      kart("Ciro", "payments", "text-tertiary", tl(ciro), `ödenmemiş ${tl(odenmemis)}`) +
+      kart("Tahmini kâr", "trending_up", "text-tertiary", tl(kar), ciro ? `%${Math.round((kar / ciro) * 100)} marj` : "-");
   }
 
-  // Filtrelenmiş tablo. Filtre değişince sunucuya gitmeden yeniden çizilir.
-  function sipCiz() {
-    const tablo = $("#siparisTablo");
-    if (!sipVeri.length) { tablo.innerHTML = `<tr><td class="muted">Henüz sipariş yok. Yukarıdaki "+ Yeni sipariş" ile ekle.</td></tr>`; return; }
+  function sipHizliCiz() {
+    const g = sipGecerli();
+    const say = (k) => k === "tum" ? g.length : g.filter((s) => SIP_HIZLI_DURUM[k].includes(s.durum)).length;
+    $("#sipHizli").innerHTML = Object.entries(SIP_HIZLI).map(([k, ad]) =>
+      `<button type="button" data-h="${k}" class="px-3 py-1 rounded-md font-label-sm text-label-sm whitespace-nowrap ${sipSekme === k ? "bg-surface-container-high text-primary font-semibold" : "text-on-surface-variant hover:bg-surface-container-low"}">${ad} (${say(k)})</button>`).join("");
+  }
+
+  function sipFiltreli() {
     const durum = $("#sipFiltreDurum").value, kanal = $("#sipFiltreKanal").value;
     const ara = $("#sipAra").value.trim().toLocaleLowerCase("tr-TR"), odenmemis = $("#sipOdenmemis").checked;
-    const liste = sipVeri.filter((s) => (!durum || s.durum === durum) && (!kanal || s.kanal === kanal)
-      && (!odenmemis || !s.odendi)
+    const sekme = SIP_HIZLI_DURUM[sipSekme];
+    return sipVeri.filter((s) => (!sekme || sekme.includes(s.durum)) && (!durum || s.durum === durum)
+      && (!kanal || s.kanal === kanal) && (!odenmemis || !s.odendi)
       && (!ara || `${s.urun_adi} ${s.renk || ""} ${s.musteri_notu || ""}`.toLocaleLowerCase("tr-TR").includes(ara)));
-    if (!liste.length) { tablo.innerHTML = `<tr><td class="muted">Filtreye uyan sipariş yok.</td></tr>`; return; }
-    const tahmin = (s) => s.products?.print_time_min ? `tahmin ${sure(s.products.print_time_min * s.adet)}` : "";
-    tablo.innerHTML = `<tr><th>Tarih</th><th>Ürün</th><th class="sayi">Adet</th><th class="sayi">Tutar</th><th>Kanal</th><th>Durum</th><th>Ödendi</th><th>Gerçek süre / gram</th><th></th></tr>` +
-      liste.map((s) => `<tr data-sip="${s.id}" class="sipSatir sip-${esc(s.durum)}">
-        <td>${esc(new Date(s.created_at).toLocaleDateString("tr-TR"))}</td>
-        <td>${s.products?.url ? `<a href="${url(s.products.url)}" target="_blank" rel="noopener">${esc(s.urun_adi)}</a>` : esc(s.urun_adi)}${s.renk ? ` <span class="muted">· ${esc(s.renk)}</span>` : ""}${s.musteri_notu ? `<br><span class="muted">${esc(s.musteri_notu)}</span>` : ""}</td>
-        <td class="sayi">${s.adet}</td><td class="sayi">${s.fiyat_tl != null ? tl(s.fiyat_tl) : "-"}</td>
-        <td>${esc(SIP_KANAL[s.kanal] || s.kanal)}</td>
-        <td><select data-alan="durum">${secenekler(SIP_DURUM, s.durum)}</select></td>
-        <td><input type="checkbox" data-alan="odendi" ${s.odendi ? "checked" : ""} aria-label="Ödendi"></td>
-        <td><input type="number" data-alan="gercek_sure_dk" min="1" value="${s.gercek_sure_dk ?? ""}" placeholder="dk" style="width:70px" aria-label="Gerçek süre (dk)">
-            <input type="number" data-alan="gercek_gram" min="1" value="${s.gercek_gram ?? ""}" placeholder="g" style="width:64px" aria-label="Gerçek gram">
-            <br><span class="muted">${esc(tahmin(s))}${s.products?.weight_g ? ` · ${s.products.weight_g * s.adet} g` : ""}</span></td>
-        <td><button type="button" class="ikincil" data-sil>Sil</button></td></tr>`).join("");
+  }
+
+  function sipSatirHtml(s) {
+    const tahmin = s.products?.print_time_min ? `tahmin ${sure(s.products.print_time_min * s.adet)}` : "";
+    const gram = s.products?.weight_g ? `${s.products.weight_g * s.adet} g` : "";
+    const ad = s.products?.url
+      ? `<a href="${url(s.products.url)}" target="_blank" rel="noopener" class="font-label-md text-label-md font-semibold text-on-surface hover:text-primary">${esc(s.urun_adi)}</a>`
+      : `<span class="font-label-md text-label-md font-semibold text-on-surface">${esc(s.urun_adi)}</span>`;
+    return `<tr data-sip="${s.id}" class="border-l-4 ${SIP_SOL[s.durum] || "border-transparent"} hover:bg-surface-container-low/60 ${s.durum === "iptal" ? "opacity-50" : ""}">
+      <td class="p-3 align-top"><div class="font-label-md text-label-md font-bold text-primary">#${s.id}</div><span class="font-label-sm text-label-sm text-outline">${sipTarih(s.created_at)}</span></td>
+      <td class="p-3 align-top"><div>${ad}</div><div class="text-label-sm text-outline mt-0.5">${[s.renk ? esc(s.renk) : "", gram].filter(Boolean).join(" · ")}</div></td>
+      <td class="p-3 align-top"><span class="px-2 py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm">${esc(SIP_KANAL[s.kanal] || s.kanal)}</span> <span class="font-label-sm text-label-sm text-outline">${s.adet} adet</span>${s.musteri_notu ? `<div class="text-label-sm text-outline mt-1">${esc(s.musteri_notu)}</div>` : ""}</td>
+      <td class="p-3 align-top"><input type="number" data-alan="gercek_sure_dk" min="1" value="${s.gercek_sure_dk ?? ""}" placeholder="dk" style="width:70px" aria-label="Gerçek süre (dk)"> <input type="number" data-alan="gercek_gram" min="1" value="${s.gercek_gram ?? ""}" placeholder="g" style="width:64px" aria-label="Gerçek gram"><div class="text-label-sm text-outline mt-1">${esc(tahmin)}</div></td>
+      <td class="p-3 align-top"><div class="font-label-md text-label-md font-bold text-on-surface">${s.fiyat_tl != null ? tl(s.fiyat_tl) : "-"}</div><label class="flex items-center gap-1.5 mt-1 text-label-sm text-on-surface-variant"><input type="checkbox" data-alan="odendi" ${s.odendi ? "checked" : ""} class="w-4 h-4 accent-primary"> Ödendi</label></td>
+      <td class="p-3 align-top"><select data-alan="durum" class="rounded-lg px-2 py-1 font-label-sm text-label-sm bg-surface-container-low text-on-surface">${secenekler(SIP_DURUM, s.durum)}</select></td>
+      <td class="p-3 align-top text-right whitespace-nowrap"><button type="button" data-detay title="Detay" class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high"><span class="material-symbols-outlined text-[18px]">receipt_long</span></button><button type="button" data-sil title="Sil" class="p-1.5 rounded-lg text-error hover:bg-error-container"><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
+    </tr>`;
+  }
+
+  function sipCiz() {
+    sipHizliCiz();
+    const tablo = $("#siparisTablo");
+    if (!sipVeri.length) { tablo.innerHTML = `<tr><td class="p-6 text-center text-outline">Henüz sipariş yok. "Yeni sipariş" ile ekle.</td></tr>`; return; }
+    const liste = sipFiltreli();
+    if (!liste.length) { tablo.innerHTML = `<tr><td class="p-6 text-center text-outline">Filtreye uyan sipariş yok.</td></tr>`; return; }
+    tablo.innerHTML = `<thead><tr class="bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider">
+        <th class="p-3">Sipariş</th><th class="p-3">3D model & filament</th><th class="p-3">Kanal & not</th><th class="p-3">Üretim (gerçek süre / gram)</th><th class="p-3">Tutar & ödeme</th><th class="p-3">Durum</th><th class="p-3 text-right">İşlem</th></tr></thead>
+      <tbody>${liste.map(sipSatirHtml).join("")}</tbody>`;
     tablo.querySelectorAll("tr[data-sip]").forEach((tr) => {
       const id = Number(tr.dataset.sip);
       tr.querySelectorAll("[data-alan]").forEach((el) => el.addEventListener("change", async () => {
         const deger = el.type === "checkbox" ? el.checked : el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
-        const { error } = await sb.from("siparisler").update({ [el.dataset.alan]: deger, updated_at: new Date().toISOString() }).eq("id", id);
-        if (error) alert("Güncellenemedi: " + error.message); else if (el.dataset.alan === "durum" || el.dataset.alan === "odendi") siparisYukle();
+        if (await sipGuncelle(id, el.dataset.alan, deger)) siparisYukle();
       }));
-      tr.querySelector("[data-sil]").addEventListener("click", async () => {
-        if (!confirm("Bu sipariş silinsin mi?")) return;
-        const { error } = await sb.from("siparisler").delete().eq("id", id);
-        if (error) alert("Silinemedi: " + error.message); else siparisYukle();
-      });
+      tr.querySelector("[data-detay]").addEventListener("click", () => sipCekmeAc(id));
+      tr.querySelector("[data-sil]").addEventListener("click", () => sipSil(id));
     });
+  }
+
+  // Sipariş çekmecesi (detay): sipariş özeti, üretim ve zaman çizelgesi sekmeleri.
+  function sipCekmeAc(id) {
+    sipCekmeId = id; sipCekmeSekme = "siparis";
+    sipCekmeCiz();
+    $("#sipCekmece").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function sipCekmeKapat() {
+    sipCekmeId = null;
+    $("#sipCekmece").hidden = true;
+    document.body.style.overflow = "";
+  }
+  function sipCekmeCiz() {
+    const s = sipVeri.find((x) => x.id === sipCekmeId);
+    if (!s) return sipCekmeKapat();
+    const sekme = (k, ad) => `<button type="button" data-cekme="${k}" class="px-3.5 py-2 font-label-md text-label-md ${sipCekmeSekme === k ? "font-semibold text-primary border-b-2 border-primary -mb-px" : "font-medium text-outline hover:text-on-surface"}">${ad}</button>`;
+    $("#sipCekmeBaslik").innerHTML = `
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-headline-md text-headline-md font-bold text-on-surface">#${s.id}</span>
+        <span class="px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${SIP_PILL[s.durum] || ""}">${esc(SIP_DURUM[s.durum] || s.durum)}</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">${esc(SIP_KANAL[s.kanal] || s.kanal)}</span>
+        <span class="px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${s.odendi ? "bg-tertiary-fixed/30 text-tertiary" : "bg-error-container text-on-error-container"}">${s.odendi ? "Ödendi" : "Ödenmedi"}</span>
+      </div>
+      <div class="flex flex-wrap gap-x-4 mt-1 text-label-sm text-outline"><span>Sipariş tarihi: <strong class="text-on-surface">${sipTarih(s.created_at)}</strong></span><span>${esc(s.urun_adi)}</span></div>
+      <div class="flex items-center gap-1 mt-4 border-b border-surface-container-high overflow-x-auto text-label-md">
+        ${sekme("siparis", "Sipariş")}${sekme("uretim", "Üretim")}${sekme("zaman", "Zaman çizelgesi")}
+      </div>`;
+    const satir = (ad, deger) => `<div class="flex justify-between gap-4 py-2 border-b border-surface-container-high text-label-md"><span class="text-outline">${ad}</span><span class="font-semibold text-on-surface text-right">${deger}</span></div>`;
+    const kart = (baslik, icerik) => `<div class="p-5 rounded-2xl bg-white border border-surface-container shadow-sm mb-4"><div class="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">${baslik}</div>${icerik}</div>`;
+    let icerik;
+    if (sipCekmeSekme === "siparis") {
+      icerik = kart("Sipariş özeti",
+        satir("Ürün", esc(s.urun_adi)) + satir("Renk", esc(s.renk || "-")) + satir("Adet", s.adet) +
+        satir("Tutar", s.fiyat_tl != null ? tl(s.fiyat_tl) : "-") + satir("Kanal", esc(SIP_KANAL[s.kanal] || s.kanal)) +
+        satir("Not", esc(s.musteri_notu || "-")));
+    } else if (sipCekmeSekme === "uretim") {
+      const tahmin = s.products?.print_time_min ? sure(s.products.print_time_min * s.adet) : "-";
+      const tahminGram = s.products?.weight_g ? `${s.products.weight_g * s.adet} g` : "-";
+      icerik = kart("Üretim", satir("Tahmini süre", tahmin) + satir("Tahmini filament", tahminGram) +
+        `<div class="grid grid-cols-2 gap-3 mt-3">
+           <label class="flex flex-col gap-1 text-label-sm text-outline">Gerçek süre (dk, toplam)<input type="number" min="1" value="${s.gercek_sure_dk ?? ""}" data-cekme-alan="gercek_sure_dk" class="rounded-lg px-2 py-1.5 text-on-surface"></label>
+           <label class="flex flex-col gap-1 text-label-sm text-outline">Gerçek filament (g, toplam)<input type="number" min="1" value="${s.gercek_gram ?? ""}" data-cekme-alan="gercek_gram" class="rounded-lg px-2 py-1.5 text-on-surface"></label>
+         </div>
+         <p class="text-label-sm text-outline mt-2">Gerçek değerler girildiğinde maliyet tahmini senin yazıcına göre düzelir.</p>`) +
+        kart("Durum", `<select data-cekme-alan="durum" class="w-full rounded-lg px-2 py-2 text-on-surface">${secenekler(SIP_DURUM, s.durum)}</select>
+          <label class="flex items-center gap-2 mt-3 text-label-md text-on-surface"><input type="checkbox" data-cekme-alan="odendi" ${s.odendi ? "checked" : ""} class="w-4 h-4 accent-primary"> Ödendi</label>`);
+    } else {
+      icerik = kart("Zaman çizelgesi", satir("Oluşturuldu", sipTarih(s.created_at)) + satir("Son güncelleme", s.updated_at ? sipTarih(s.updated_at) : "-"));
+    }
+    $("#sipCekmeIcerik").innerHTML = icerik;
+  }
+
+  function sipCsvIndir() {
+    const hucre = (v) => { const t = String(v ?? ""); return `"${(/^[=+\-@]/.test(t) ? "'" + t : t).replace(/"/g, '""')}"`; };
+    const satirlar = [["id", "tarih", "urun", "renk", "adet", "tutar_tl", "kanal", "durum", "odendi", "gercek_sure_dk", "gercek_gram", "not"],
+      ...sipFiltreli().map((s) => [s.id, s.created_at, s.urun_adi, s.renk, s.adet, s.fiyat_tl, s.kanal, s.durum, s.odendi ? "evet" : "hayir", s.gercek_sure_dk, s.gercek_gram, s.musteri_notu])];
+    const blob = new Blob(["﻿" + satirlar.map((r) => r.map(hucre).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `siparisler-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   async function siparisYukle() {
@@ -783,6 +968,7 @@
     sipVeri = data;
     sipOzetCiz();
     sipCiz();
+    if (sipCekmeId != null) sipCekmeCiz();
   }
 
   // ------------------------------------------------------------ tüm ürünler
