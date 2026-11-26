@@ -45,6 +45,20 @@
   .siparisForm { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; align-items: end; margin-bottom: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
   .siparisForm label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
   .siparisForm .genis { grid-column: 1 / -1; }
+  .sipKpi { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .sipKpi > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+  .sipKpi b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .sipYeni { margin-bottom: 14px; }
+  .sipYeni > summary { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; list-style: none; }
+  .sipYeni > summary::-webkit-details-marker { display: none; }
+  .sipYeni[open] > summary { margin-bottom: 10px; }
+  .sipFiltre { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 10px; }
+  .sipFiltre input[type=text] { flex: 1; min-width: 180px; }
+  .sipCheck { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  #siparisTablo tr.sip-yeni td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+  #siparisTablo tr.sip-basiliyor td:first-child { box-shadow: inset 4px 0 0 var(--warn); }
+  #siparisTablo tr.sip-hazir td:first-child, #siparisTablo tr.sip-kargoda td:first-child, #siparisTablo tr.sip-teslim td:first-child { box-shadow: inset 4px 0 0 var(--ok); }
+  #siparisTablo tr.sip-iptal { opacity: .55; }
   td select { padding: 4px 6px; }
   .kesifler { display: flex; flex-direction: column; gap: 14px; }
   .kesifKart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
@@ -193,7 +207,8 @@
 
     <div id="siparisSekmesi" hidden>
       <p class="muted">Gelen siparişleri buraya yaz. Sattığın ürünler ve kategoriler günlük listede öne çıkar (+3 / +1..+2 puan). Baskı bitince <b>gerçek süre ve gramı</b> girersen, en az 3 siparişten sonra maliyet tahmini senin yazıcına göre düzeltilir. Müşterinin adını/adresini yazma; kısa bir not yeter.</p>
-      <div id="siparisOzet" class="rakamlar" style="margin-bottom:14px"></div>
+      <div id="siparisOzet" class="sipKpi"></div>
+      <details class="sipYeni"><summary>+ Yeni sipariş</summary>
       <form id="siparisFormu" class="siparisForm" autocomplete="off">
         <label class="genis">Ürün (listeden seç ya da yaz)<input type="text" id="sipUrun" list="sipUrunler" maxlength="200" required></label>
         <datalist id="sipUrunler"></datalist>
@@ -206,6 +221,13 @@
         <label class="genis">Not<input type="text" id="sipNot" maxlength="500" placeholder="ör. hediye paketi istedi"></label>
         <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span></div>
       </form>
+      </details>
+      <div class="sipFiltre">
+        <select id="sipFiltreDurum" aria-label="Durum filtresi"></select>
+        <select id="sipFiltreKanal" aria-label="Kanal filtresi"></select>
+        <input type="text" id="sipAra" placeholder="Ürün, renk veya not ara..." aria-label="Siparişlerde ara">
+        <label class="sipCheck"><input type="checkbox" id="sipOdenmemis"> Sadece ödenmemiş</label>
+      </div>
       <div class="tablo-kap"><table id="siparisTablo"></table></div>
     </div>
   </section>
@@ -666,6 +688,7 @@
   const secenekler = (o, secili) => Object.entries(o).map(([k, v]) => `<option value="${k}"${k === secili ? " selected" : ""}>${esc(v)}</option>`).join("");
   let sipUrunAdi = new Map();   // ürün adı → product_id (listeden seçilirse)
   let sipBagli = false;
+  let sipVeri = [];             // yüklenen siparişler (filtreleme istemci tarafında)
 
   async function sipUrunleriYukle() {
     const { data } = await sb.from("weekly_picks").select("product_id, products(name)").order("pick_date", { ascending: false }).limit(800);
@@ -678,6 +701,10 @@
     if (sipBagli) return;
     sipBagli = true;
     $("#sipKanal").innerHTML = secenekler(SIP_KANAL, "instagram");
+    $("#sipFiltreDurum").innerHTML = `<option value="">Tüm durumlar</option>` + secenekler(SIP_DURUM, "");
+    $("#sipFiltreKanal").innerHTML = `<option value="">Tüm kanallar</option>` + secenekler(SIP_KANAL, "");
+    ["#sipFiltreDurum", "#sipFiltreKanal", "#sipOdenmemis"].forEach((id) => $(id).addEventListener("change", sipCiz));
+    $("#sipAra").addEventListener("input", sipCiz);
     const sayi = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
     $("#siparisFormu").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -692,23 +719,37 @@
     });
   }
 
-  async function siparisYukle() {
-    sipFormBagla();
-    if (!sipUrunAdi.size) sipUrunleriYukle().catch(() => {});
-    const tablo = $("#siparisTablo");
-    const { data, error } = await sb.from("siparisler").select("*, products(url, price_tl, cost_tl, print_time_min, weight_g)").order("created_at", { ascending: false }).limit(300);
-    if (error) { tablo.innerHTML = `<tr><td class="hata">${esc(error.message + sipSqlIpucu(error))}</td></tr>`; $("#siparisOzet").innerHTML = ""; return; }
-    const gecerli = data.filter((s) => s.durum !== "iptal");
+  // Üst özet kartları: tüm siparişler üzerinden (filtreden bağımsız).
+  function sipOzetCiz() {
+    const gecerli = sipVeri.filter((s) => s.durum !== "iptal");
     const ciro = gecerli.reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
     const maliyet = gecerli.reduce((t, s) => t + (s.products?.cost_tl || 0) * s.adet, 0);
+    const adet = gecerli.reduce((t, s) => t + s.adet, 0);
     const acik = gecerli.filter((s) => s.durum !== "teslim").length;
+    const basiliyor = gecerli.filter((s) => s.durum === "basiliyor").length;
     const odenmemis = gecerli.filter((s) => !s.odendi).reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
-    $("#siparisOzet").innerHTML = `<div>Sipariş<b>${gecerli.length}</b></div><div>Adet<b>${gecerli.reduce((t, s) => t + s.adet, 0)}</b></div>
-      <div>Ciro<b>${tl(ciro)}</b></div><div>Tahmini kâr<b>${tl(ciro - maliyet)}</b></div><div>Açık<b>${acik}</b></div><div>Ödenmemiş<b>${tl(odenmemis)}</b></div>`;
-    if (!data.length) { tablo.innerHTML = `<tr><td class="muted">Henüz sipariş yok. Yukarıdaki formdan ekle.</td></tr>`; return; }
+    const kar = ciro - maliyet;
+    const kart = (ad, deger, alt) => `<div><span class="muted">${ad}</span><b>${deger}</b><span class="muted">${alt}</span></div>`;
+    $("#siparisOzet").innerHTML =
+      kart("Sipariş", gecerli.length, `${adet} adet`) +
+      kart("Açık sipariş", acik, `${basiliyor} basılıyor`) +
+      kart("Ciro", tl(ciro), `ödenmemiş ${tl(odenmemis)}`) +
+      kart("Tahmini kâr", tl(kar), ciro ? `%${Math.round((kar / ciro) * 100)} marj` : "-");
+  }
+
+  // Filtrelenmiş tablo. Filtre değişince sunucuya gitmeden yeniden çizilir.
+  function sipCiz() {
+    const tablo = $("#siparisTablo");
+    if (!sipVeri.length) { tablo.innerHTML = `<tr><td class="muted">Henüz sipariş yok. Yukarıdaki "+ Yeni sipariş" ile ekle.</td></tr>`; return; }
+    const durum = $("#sipFiltreDurum").value, kanal = $("#sipFiltreKanal").value;
+    const ara = $("#sipAra").value.trim().toLocaleLowerCase("tr-TR"), odenmemis = $("#sipOdenmemis").checked;
+    const liste = sipVeri.filter((s) => (!durum || s.durum === durum) && (!kanal || s.kanal === kanal)
+      && (!odenmemis || !s.odendi)
+      && (!ara || `${s.urun_adi} ${s.renk || ""} ${s.musteri_notu || ""}`.toLocaleLowerCase("tr-TR").includes(ara)));
+    if (!liste.length) { tablo.innerHTML = `<tr><td class="muted">Filtreye uyan sipariş yok.</td></tr>`; return; }
     const tahmin = (s) => s.products?.print_time_min ? `tahmin ${sure(s.products.print_time_min * s.adet)}` : "";
     tablo.innerHTML = `<tr><th>Tarih</th><th>Ürün</th><th class="sayi">Adet</th><th class="sayi">Tutar</th><th>Kanal</th><th>Durum</th><th>Ödendi</th><th>Gerçek süre / gram</th><th></th></tr>` +
-      data.map((s) => `<tr data-sip="${s.id}">
+      liste.map((s) => `<tr data-sip="${s.id}" class="sipSatir sip-${esc(s.durum)}">
         <td>${esc(new Date(s.created_at).toLocaleDateString("tr-TR"))}</td>
         <td>${s.products?.url ? `<a href="${url(s.products.url)}" target="_blank" rel="noopener">${esc(s.urun_adi)}</a>` : esc(s.urun_adi)}${s.renk ? ` <span class="muted">· ${esc(s.renk)}</span>` : ""}${s.musteri_notu ? `<br><span class="muted">${esc(s.musteri_notu)}</span>` : ""}</td>
         <td class="sayi">${s.adet}</td><td class="sayi">${s.fiyat_tl != null ? tl(s.fiyat_tl) : "-"}</td>
@@ -732,6 +773,16 @@
         if (error) alert("Silinemedi: " + error.message); else siparisYukle();
       });
     });
+  }
+
+  async function siparisYukle() {
+    sipFormBagla();
+    if (!sipUrunAdi.size) sipUrunleriYukle().catch(() => {});
+    const { data, error } = await sb.from("siparisler").select("*, products(url, price_tl, cost_tl, print_time_min, weight_g)").order("created_at", { ascending: false }).limit(300);
+    if (error) { $("#siparisTablo").innerHTML = `<tr><td class="hata">${esc(error.message + sipSqlIpucu(error))}</td></tr>`; $("#siparisOzet").innerHTML = ""; return; }
+    sipVeri = data;
+    sipOzetCiz();
+    sipCiz();
   }
 
   // ------------------------------------------------------------ tüm ürünler
