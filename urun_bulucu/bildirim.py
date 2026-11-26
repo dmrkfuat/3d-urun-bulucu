@@ -62,6 +62,14 @@ def urun_yazisi(s: dict, pazar_ozeti: dict | None = None, sinir: int = 1024) -> 
     sezon_notu = (u.get("score_detail") or {}).get("sezon")
     if sezon_notu:
         bas.append(_e(sezon_notu))
+    d = u.get("score_detail") or {}
+    if d.get("satis_gecmisi"):
+        bas.append(f"💰 {_e(d['satis_gecmisi'])}")
+    if d.get("instagram_bonusu"):
+        bas.append(f"📸 Instagram'da bu kategori {'iyi' if d['instagram_bonusu'] > 0 else 'zayıf'} gidiyor "
+                   f"({d['instagram_bonusu']:+d})")
+    if d.get("etsy_bonusu"):
+        bas.append(f"🧶 Etsy'de benzerleri {d['etsy_favori']} favori")
     if pazar_ozeti is not None:
         bas.append(f"🛒 {_e(pazar.fiyat_yazi(pazar_ozeti, u.get('price_tl')))}")
     son = [f"🎬 {_e(video.kancalar(u)[0])}", f"🔗 MakerWorld: {_e(u['url'])}"]

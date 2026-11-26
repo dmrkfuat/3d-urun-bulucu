@@ -43,8 +43,8 @@ ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hash
 | **MakerWorld** | ✅ Çalışıyor | Anahtar gerekmez. Sitenin kendi JSON uçlarıyla (resmi/belgelenmiş API değil). robots.txt izinli; kullanım şartlarında otomatik erişim yasağı yok (Kasım 2026). Baskı süresi P1S profilinden gelir. |
 | Thingiverse | ✖ Kaldırıldı | Kasım 2026'da API'nin önüne Cloudflare bot kontrolü geldi (403). Eski kayıtlar veritabanında duruyor. |
 | Printables | ⏸ Beklemede | Resmi API yok; site otomatik erişime Cloudflare bot kontrolü uyguluyor. |
-| Etsy | ✍️ Elle liste | Etsy API'si satış adedi vermiyor ve analiz amaçlı kullanımı kısıtlıyor. Gördüğünüz çok satanları `talep/etsy_talep.csv` dosyasına yazarsınız (4. adım). |
-| Google Trends | ✖ Kapalı | Sizin tercihinizle atlandı. |
+| Etsy | ✍️ Elle liste + 🧶 API (isteğe bağlı) | Etsy API'si satış adedi vermez. Gördüğünüz çok satanları `talep/etsy_talep.csv` dosyasına yazarsınız (4. adım). `ETSY_API_KEY` varsa her ürünün Etsy'deki benzerlerinin **favori sayısı** da okunur (6d). |
+| Google Trends | ✖ Kapalı | Sizin tercihinizle atlandı; ücretsiz resmi API'si de yok. TikTok Creative Center ve Pinterest Trends'in de herkese açık API'si olmadığı için eklenmedi. |
 
 Veritabanı: `.env` içinde Supabase anahtarları varsa **Supabase**, yoksa bilgisayardaki
 `data/urunler.db` dosyası kullanılır. İkisi de aynı tabloları tutar: `sources`, `products`,
@@ -115,6 +115,12 @@ Elle çalıştırmak için: depo → **Actions → Günlük ürün analizi → R
    `SERPAPI_KEY` adıyla ekleyin.
 3. Günde en fazla 3 ürün aranır (ürün başına 2 arama; `config.py` → `PAZAR_GUNLUK_ADET`), aynı ürün 14 gün içinde tekrar
    aranmaz. Görsel benzerliği kesin eşleşme değildir; sonuçlar "benzer ürün" olarak okunmalıdır.
+   **Aylık bütçe** (`kota.py`): kalan hak, SerpApi hesabının bildirdiği yenileme tarihine kadar kalan
+   günlere bölünür (ör. 9 hak / 13 gün → o gün arama yok). Haftalık keşif (~26 arama) ve Trendyol Lens'i
+   yalnızca sonrasında her gün için en az 2 arama kalıyorsa çalışır; böylece hak ay ortasında bitmez.
+   Bir arama hata verirse o ana kadar arananlar yine kaydedilir.
+   **Yedek (isteğe bağlı):** <https://serper.dev> anahtarı `SERPER_KEY` olarak eklenirse SerpApi hakkı
+   bittiğinde Google Alışveriş aramaları Serper'dan yapılır (Google Lens'in yedeği yoktur).
 4. **Fotoğrafla doğrulama (isteğe bağlı, ücretli):** bulunan ilanların fotoğrafları MakerWorld görseliyle
    Claude'a (Anthropic API, `gorsel.py`) gösterilir; her ilan için "aynı / farklı / belirsiz" kararı alınır.
    Karar varsa başlıktaki kelimelerden önce gelir (başlığı eksik ama fotoğrafı aynı ilan da bulunur);
@@ -242,6 +248,31 @@ gönderi seçtiğin saatten biraz sonra çıkabilir.
 fotoğrafları tasarımcıya aittir. Açıklamada tasarımcı adı yazılmaz; lisansı atıf isteyen (ör. CC BY)
 modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
 
+### 6d. Satış ve performans verisi (isteğe bağlı)
+
+Önce Supabase **SQL Editor** → `supabase/guncelleme_2026-11-26_performans.sql` → **Run** (bir kez).
+
+- **Siparişler** (panelde "Siparişler" sekmesi): ürün, adet, renk, tutar, kanal, durum, ödendi. Müşterinin
+  adını/adresini yazmayın; kısa not yeter. Sattığın ürün listeye tekrar gelirse **+3**, sattığın
+  kategoriden ürünler **+1** (1-2 satış) / **+2** (3+ satış) alır. "Sattım" sayacı da sayılır (çift sayılmaz).
+- **Maliyet düzeltmesi:** siparişe gerçek baskı süresini ve filament gramını girersen, en az 3 siparişten
+  sonra MakerWorld tahminiyle oranlanır ve maliyet/fiyat hesabı senin yazıcına göre düzeltilir (×0,5–×2).
+- **Instagram performansı:** günlük analiz (INSTAGRAM_TOKEN varsa) sistemden paylaşılan gönderilerin
+  erişim, beğeni, yorum, kaydetme, paylaşım ve izlenme sayılarını alır (panelde Instagram sekmesinde görünür).
+  Etkileşim oranı = (3×kaydetme + 3×paylaşım + 2×yorum + beğeni) / erişim. Bir kategori ortalamanın
+  1,5 katı iyi gidiyorsa **+4**, 1,15 katıysa **+2**, 0,6 katının altındaysa **−2** (en az 4 gönderi, kategoride
+  en az 2). Her **Pazartesi** Telegram'a haftalık Instagram özeti gelir: en iyi 3 gönderi, en çok erişim
+  alan saat dilimi, kategori etkisi. Instagram'a elle (sistem dışından) atılan gönderiler sayılmaz.
+- **Etsy favorileri:** <https://developers.etsy.com> → uygulama oluşturup anahtarı `keystring:shared_secret`
+  biçiminde `ETSY_API_KEY` olarak `.env`'e ve GitHub Secrets'a ekleyin. Her ürün için İngilizce adıyla
+  aranır; ilk 10 ilanın toplam favorisi ≥1000 → +1, ≥5000 → +3, ≥20000 → +5 (Etsy listesi bonusuyla büyük olan).
+- **Trendyol rakip fiyatları:** Trendyol analizi (`python -m urun_bulucu.trendyol`) önceki okumaya göre
+  fiyatı %10'dan fazla düşen rakip ürünleri raporda ve Telegram'da ayrıca listeler.
+- **Hikâye ve carousel:** panelde "📸 Instagram'a planla" bölümünde "Aynı videoyu hikâye olarak da paylaş"
+  kutusu (hikâye videosu en çok 60 sn) ve kendi fotoğraflarınla **carousel** (2-10 fotoğraf; tarayıcıda
+  JPEG'e çevrilir, Instagram'ın 4:5–1.91:1 oran sınırına göre ortadan kırpılır) var.
+- **Özel günler:** takvime Kadınlar Günü, 23 Nisan ve Cumhuriyet Bayramı eklendi (3 hafta önceden +5).
+
 ### 7. Web paneli
 
 Panel `panel/` klasöründedir ve GitHub Pages ile yayınlanır (`.github/workflows/panel.yml`).
@@ -266,6 +297,7 @@ Bir kerelik kurulum:
 | Kısa baskı | 10 | ≤2 sa en iyi; 12 saatin altı "kısa"; 12 saatten uzun düşük puan. Süre yazmıyorsa nötr. |
 | Lisans | 5 | Satılabilir > NC (yalnızca içerik) > belirsiz |
 | Bonus | +5 / +5 / +5 | Etsy talep listesiyle eşleşme; MakerWorld "Trending" listesinde olma; sezon ürünü |
+| Satış / Instagram / Etsy | +1…+3 / −2…+4 / +1…+5 | Sattığın ürün +3, sattığın kategori +1..+2; Instagram'da iyi/kötü giden kategori; Etsy'deki benzerlerin favori sayısı (6d) |
 | Piyasa bonusu | −5…+5 | E-ticarette aranmış ürünlerde: Türkiye'de satılan AYNI ürünün fiyat ortancası maliyetin ≥5 katı +5, ≥3 katı +3, 1,5 katından az −3; 12+ satış sonucu (kalabalık pazar) −2 |
 
 Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).

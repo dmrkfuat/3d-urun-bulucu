@@ -3,7 +3,9 @@
 Ağırlıklar: popülerlik 25, 7 günlük artış 25, satış potansiyeli 20, görsel çekicilik 15,
 kısa baskı süresi 10, lisans uygunluğu 5. Etsy talep listesiyle eşleşen ürünler ve MakerWorld
 trend listesindekiler +5, sezon ürünleri +5 bonus alır; Türkiye piyasa verisi olanlar -3..+5
-(piyasa bonusu). En fazla 100. Popülerlik ve artış, her kaynağın
+(piyasa bonusu). Etsy API'de benzerleri çok favorilenenler +1..+5 (liste bonusuyla büyük olan),
+Instagram'da iyi/kötü giden kategoriler -2..+4, senin sattığın ürün +3 / sattığın kategori +1..+2.
+En fazla 100. Popülerlik ve artış, her kaynağın
 kendi en yükseğine göre 0-1 arasına çekilir (ileride başka kaynak eklenirse diye).
 """
 from __future__ import annotations
@@ -11,7 +13,8 @@ from __future__ import annotations
 import math
 from datetime import date, datetime
 
-from . import analiz, config, lisans, sezon, talep
+from . import analiz, config, lisans, sezon, siparis, talep
+from . import etsy as etsy_mod
 from .config import KISA_BASKI_SAAT, TREND_BONUS
 
 AGIRLIK = {"populerlik": 25, "artis": 25, "satis": 20, "gorsel": 15, "sure": 10, "lisans": 5}
@@ -96,8 +99,11 @@ def _ilgi(downloads: int, likes: int) -> int:
 
 
 def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
-           talepler: list[dict] | None = None) -> list[dict]:
-    """Her ürüne score ve score_detail ekler; puana göre sıralı döndürür."""
+           talepler: list[dict] | None = None, ig_bonuslari: dict[str, tuple[int, str]] | None = None,
+           satis_ozeti: dict | None = None) -> list[dict]:
+    """Her ürüne score ve score_detail ekler; puana göre sıralı döndürür.
+    ig_bonuslari: istatistik.kategori_bonuslari; satis_ozeti: siparis.satis_ozeti."""
+    ig_bonuslari = ig_bonuslari or {}
     if not urunler:
         return []
     talepler = talepler or []
@@ -138,8 +144,12 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
         }
         puan = sum(AGIRLIK[k] * v for k, v in bilesen.items())
         etsy = talep.eslesen(u, talepler)
-        if etsy:
-            puan += ETSY_BONUS
+        etsy_api = etsy_mod.bonus(u.get("etsy_favori"))
+        puan += max(ETSY_BONUS if etsy else 0, etsy_api)
+        ig_b, ig_metin = ig_bonuslari.get(u.get("category") or "", (0, None))
+        puan += ig_b
+        s_b, s_metin = siparis.satis_bonusu(u, satis_ozeti)
+        puan += s_b
         if u.get("trend_rank"):
             puan += TREND_BONUS
         sezon_eslesme = sezon.eslesen(u, aktif_sezonlar)
@@ -157,6 +167,12 @@ def puanla(urunler: list[dict], onceki: dict[int, dict], bugun: date,
             "sezon": sezon.yazi(*sezon_eslesme) if sezon_eslesme else None,
             "piyasa": p_metin,
             "piyasa_bonusu": p_bonus,
+            "etsy_favori": u.get("etsy_favori"),
+            "etsy_bonusu": etsy_api or None,
+            "instagram": ig_metin,
+            "instagram_bonusu": ig_b or None,
+            "satis_gecmisi": s_metin,
+            "satis_bonusu": s_b or None,
             **fiyat_ayrintisi(u),
         }
     return sorted(urunler, key=lambda x: x["score"], reverse=True)

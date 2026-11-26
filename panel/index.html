@@ -42,6 +42,10 @@
   .ig .satir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ig input[type=file] { font: inherit; font-size: 13px; max-width: 100%; }
   .ig button:disabled { opacity: .6; cursor: wait; }
+  .siparisForm { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; align-items: end; margin-bottom: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .siparisForm label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .siparisForm .genis { grid-column: 1 / -1; }
+  td select { padding: 4px 6px; }
   .kesifler { display: flex; flex-direction: column; gap: 14px; }
   .kesifKart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
   .yanyana { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
@@ -51,7 +55,7 @@
   .yanyana figure.pazar figcaption { color: var(--ink); font-weight: 600; }
   .modelSatir { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
   .modelSatir a { font-weight: 600; }
-  select, input[type=email], input[type=text], input[type=datetime-local], textarea {
+  select, input[type=email], input[type=text], input[type=number], input[type=datetime-local], textarea {
     font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
   }
   button.ana { font: inherit; border: 0; background: var(--accent); color: var(--accent-ink); padding: 8px 14px; border-radius: 8px; cursor: pointer; }
@@ -123,6 +127,7 @@
         <button role="tab" data-sekme="performans" aria-selected="false">İşaretlerim</button>
         <button role="tab" data-sekme="kesif" aria-selected="false">Çok satanlar</button>
         <button role="tab" data-sekme="instagram" aria-selected="false">Instagram</button>
+        <button role="tab" data-sekme="siparis" aria-selected="false">Siparişler</button>
       </div>
       <button class="ikincil" id="cikis">Çıkış</button>
     </header>
@@ -184,6 +189,24 @@
     <div id="instagramSekmesi" hidden>
       <p class="muted">Günlük listede bir ürünün "📸 Instagram'a planla" bölümünden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video (kutu işaretliyse başına kanca yazısı, sonuna "Sipariş için DM at" kartı eklenip 9:16 yapılarak) Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir.</p>
       <div class="tablo-kap"><table id="igTablo"></table></div>
+    </div>
+
+    <div id="siparisSekmesi" hidden>
+      <p class="muted">Gelen siparişleri buraya yaz. Sattığın ürünler ve kategoriler günlük listede öne çıkar (+3 / +1..+2 puan). Baskı bitince <b>gerçek süre ve gramı</b> girersen, en az 3 siparişten sonra maliyet tahmini senin yazıcına göre düzeltilir. Müşterinin adını/adresini yazma; kısa bir not yeter.</p>
+      <div id="siparisOzet" class="rakamlar" style="margin-bottom:14px"></div>
+      <form id="siparisFormu" class="siparisForm" autocomplete="off">
+        <label class="genis">Ürün (listeden seç ya da yaz)<input type="text" id="sipUrun" list="sipUrunler" maxlength="200" required></label>
+        <datalist id="sipUrunler"></datalist>
+        <label>Adet<input type="number" id="sipAdet" min="1" max="1000" value="1" required></label>
+        <label>Renk<input type="text" id="sipRenk" maxlength="100"></label>
+        <label>Tutar (TL, toplam)<input type="number" id="sipFiyat" min="0" step="0.01"></label>
+        <label>Kanal<select id="sipKanal"></select></label>
+        <label>Gerçek süre (dk, toplam)<input type="number" id="sipSure" min="1"></label>
+        <label>Gerçek filament (g, toplam)<input type="number" id="sipGram" min="1"></label>
+        <label class="genis">Not<input type="text" id="sipNot" maxlength="500" placeholder="ör. hediye paketi istedi"></label>
+        <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span></div>
+      </form>
+      <div class="tablo-kap"><table id="siparisTablo"></table></div>
     </div>
   </section>
 
@@ -317,7 +340,7 @@
   // ------------------------------------------------------------ sekmeler
   const SEKME_YUKLE = { liste: () => kartlariCiz(), tum: () => tumYukle(), plan: () => planYukle(),
                         tasarimci: () => tasarimciYukle(), performans: () => performansYukle(),
-                        kesif: () => kesifYukle(), instagram: () => igYukle() };
+                        kesif: () => kesifYukle(), instagram: () => igYukle(), siparis: () => siparisYukle() };
   document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll("[data-sekme]").forEach((x) => {
       x.setAttribute("aria-selected", String(x === b));
@@ -384,6 +407,9 @@
           <span class="cip">${LISANS[p.license_flag] || "-"}</span>
           ${p.trend_rank ? `<span class="cip trend">🔥 trend #${p.trend_rank}</span>` : ""}
           ${p.score_detail && p.score_detail.sezon ? `<span class="cip">${esc(p.score_detail.sezon)}</span>` : ""}
+          ${p.score_detail && p.score_detail.satis_bonusu ? `<span class="cip" title="${esc(p.score_detail.satis_gecmisi)}">💰 sattın +${p.score_detail.satis_bonusu}</span>` : ""}
+          ${p.score_detail && p.score_detail.instagram_bonusu ? `<span class="cip" title="${esc(p.score_detail.instagram)}">📸 IG ${p.score_detail.instagram_bonusu > 0 ? "+" : ""}${p.score_detail.instagram_bonusu}</span>` : ""}
+          ${p.score_detail && p.score_detail.etsy_bonusu ? `<span class="cip" title="Etsy'de benzerlerinin favori toplamı">🧶 Etsy ${Number(p.score_detail.etsy_favori).toLocaleString("tr-TR")}♥</span>` : ""}
           ${p.color_count > 1 ? `<span class="cip">${p.color_count} renk</span>` : ""}
         </div>
         <div class="rakamlar">
@@ -403,8 +429,11 @@
             <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
             <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
             <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM at" kartı, 9:16</label>
+            <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Aynı videoyu hikâye olarak da paylaş (hikâye videosu en çok 60 sn)</label>
             <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
-            <div class="satir"><button type="button" class="ana igPlanla">Planla</button><span class="kaydedildi igDurum" role="status"></span></div>
+            <div class="satir"><button type="button" class="ana igPlanla">Videoyu planla</button><span class="kaydedildi igDurum" role="status"></span></div>
+            <label>Ya da kendi fotoğraflarınla carousel (2-10 fotoğraf; JPEG'e çevrilir, 4:5 ile 1.91:1 dışı ortadan kırpılır)<input type="file" class="igFoto" accept="image/*" multiple></label>
+            <div class="satir"><button type="button" class="ikincil igCarousel">Carousel planla</button></div>
           </div>
         </details>
         <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>
@@ -490,14 +519,65 @@
         if (yk.error) return yaz("Video yüklenemedi: " + yk.error.message + igSqlIpucu(yk.error), true);
         const kayit = { product_id: pid, video_path: yol, caption: aciklama, scheduled_at: zaman.toISOString() };
         if (!kart.querySelector(".igDuzenleKutu").checked) kayit.video_edit = false;  // varsayılan: düzenlenir
-        const { error } = await sb.from("instagram_posts").insert(kayit);
+        const kayitlar = [kayit];
+        // Hikâye: aynı video ayrı bir gönderi olarak (açıklamasız); video son gönderi paylaşılınca silinir.
+        if (kart.querySelector(".igHikayeKutu").checked) kayitlar.push({ ...kayit, caption: "", media_type: "STORIES" });
+        const { error } = await sb.from("instagram_posts").insert(kayitlar);
         if (error) { await sb.storage.from(IG_DEPO).remove([yol]); return yaz("Planlanamadı: " + error.message + igSqlIpucu(error), true); }
         kart.querySelector(".igVideo").value = "";
+        kart.querySelector(".igHikayeKutu").checked = false;
         yaz(zaman <= new Date() ? "Planlandı ✓ İlk kontrolde (15 dk içinde) paylaşılacak." : `Planlandı ✓ ${zaman.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`);
       } finally { dugme.disabled = false; }
     });
+    const carDugme = kart.querySelector(".igCarousel");
+    carDugme.addEventListener("click", async () => {
+      const dosyalar = [...kart.querySelector(".igFoto").files];
+      const zaman = new Date(kart.querySelector(".igZaman").value);
+      const aciklama = metin.value.trim();
+      if (dosyalar.length < 2 || dosyalar.length > 10) return yaz("Carousel için 2-10 fotoğraf seç.", true);
+      if (isNaN(zaman)) return yaz("Paylaşım zamanını seç.", true);
+      if (aciklama.length > 2200 || etiketSayisi(aciklama) > 30) return yaz("Açıklama en fazla 2200 karakter ve 30 etiket olabilir.", true);
+      carDugme.disabled = true; yaz("Fotoğraflar hazırlanıyor...");
+      const yollar = [];
+      try {
+        const oran = await ilkOran(dosyalar[0]);
+        for (const [i, d] of dosyalar.entries()) {
+          const jpeg = await jpegYap(d, oran);
+          const yol = `${pid}/${Date.now()}_${i + 1}.jpg`;
+          const yk = await sb.storage.from(IG_DEPO).upload(yol, jpeg, { contentType: "image/jpeg", upsert: false });
+          if (yk.error) throw new Error("Fotoğraf yüklenemedi: " + yk.error.message + igSqlIpucu(yk.error));
+          yollar.push(yol);
+          yaz(`Yükleniyor ${i + 1}/${dosyalar.length}...`);
+        }
+        const { error } = await sb.from("instagram_posts").insert({ product_id: pid, media_type: "CAROUSEL", image_paths: yollar, caption: aciklama, scheduled_at: zaman.toISOString() });
+        if (error) throw new Error("Planlanamadı: " + error.message + igSqlIpucu(error));
+        kart.querySelector(".igFoto").value = "";
+        yaz(`Carousel planlandı ✓ ${zaman.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`);
+      } catch (e) {
+        if (yollar.length) await sb.storage.from(IG_DEPO).remove(yollar);
+        yaz(e.message || String(e), true);
+      } finally { carDugme.disabled = false; }
+    });
   }
-  const igSqlIpucu = (h) => /instagram|bucket|not found|relation/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-10_instagram.sql çalıştırıldı mı?)" : "";
+  // Instagram carousel'i ilk fotoğrafın oranında gösterir; oran 4:5 ile 1.91:1 arasında olmalı.
+  const IG_ORAN = [0.8, 1.91];
+  async function ilkOran(dosya) {
+    const b = await createImageBitmap(dosya);
+    return Math.min(IG_ORAN[1], Math.max(IG_ORAN[0], b.width / b.height));
+  }
+  async function jpegYap(dosya, oran) {
+    let bmp;
+    try { bmp = await createImageBitmap(dosya); } catch (e) { throw new Error(`${dosya.name} açılamadı (HEIC ise telefonda JPEG olarak paylaş).`); }
+    let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
+    if (sw / sh > oran) { const y = Math.round(sh * oran); sx = Math.round((sw - y) / 2); sw = y; }
+    else { const y = Math.round(sw / oran); sy = Math.round((sh - y) / 2); sh = y; }
+    const olcek = Math.min(1, 1440 / sw);
+    const c = document.createElement("canvas");
+    c.width = Math.round(sw * olcek); c.height = Math.round(sh * olcek);
+    c.getContext("2d").drawImage(bmp, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    return new Promise((ok, red) => c.toBlob((b) => b ? ok(b) : red(new Error("JPEG'e çevrilemedi")), "image/jpeg", 0.9));
+  }
+  const igSqlIpucu = (h) => /instagram|bucket|not found|relation|mime|media_type|image_paths/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-10_instagram.sql ve guncelleme_2026-11-26_performans.sql çalıştırıldı mı?)" : "";
 
   // ------------------------------------------------------------ çok satanlar (pazar keşfi)
   const ESLESME = { "görsel": "🎯 görsel eşleşme", "isim": "🔤 isimle bulundu, görseli karşılaştır" };
@@ -541,16 +621,22 @@
   }
 
   const IG_DURUM = { bekliyor: "⏳ Bekliyor", isleniyor: "⚙️ İşleniyor", paylasildi: "✅ Paylaşıldı", hata: "⚠️ Hata" };
+  const IG_TUR = { REELS: "🎬 Reels", STORIES: "📱 Hikâye", CAROUSEL: "🖼️ Carousel" };
+  // Günlük analiz paylaşılan gönderilerin istatistiğini günde bir günceller.
+  const igIstatistik = (i) => !i ? "" : [["reach", "erişim"], ["views", "izlenme"], ["likes", "beğeni"], ["saved", "kaydetme"], ["shares", "paylaşım"], ["comments", "yorum"]]
+    .filter(([k]) => i[k] != null).map(([k, ad]) => `${Number(i[k]).toLocaleString("tr-TR")} ${ad}`).join("<br>");
   async function igYukle() {
     const tablo = $("#igTablo");
     const { data, error } = await sb.from("instagram_posts").select("*, products(name, url)").order("scheduled_at", { ascending: false }).limit(100);
     if (error) { tablo.innerHTML = `<tr><td class="hata">${esc(error.message + igSqlIpucu(error))}</td></tr>`; return; }
     if (!data.length) { tablo.innerHTML = `<tr><td class="muted">Henüz planlanmış gönderi yok. Günlük listede bir ürünün "📸 Instagram'a planla" bölümünü kullan.</td></tr>`; return; }
-    tablo.innerHTML = `<tr><th>Ürün</th><th>Zaman</th><th>Durum</th><th>Sonuç</th><th></th></tr>` + data.map((g) => `<tr data-ig="${g.id}">
+    tablo.innerHTML = `<tr><th>Ürün</th><th>Tür</th><th>Zaman</th><th>Durum</th><th>İstatistik</th><th>Sonuç</th><th></th></tr>` + data.map((g) => `<tr data-ig="${g.id}">
       <td>${g.products ? `<a href="${url(g.products.url)}" target="_blank" rel="noopener">${esc(g.products.name)}</a>` : "-"}
-        <details><summary>Açıklama</summary><pre>${esc(g.caption)}</pre></details></td>
+        ${g.caption ? `<details><summary>Açıklama</summary><pre>${esc(g.caption)}</pre></details>` : ""}</td>
+      <td>${IG_TUR[g.media_type || "REELS"] || esc(g.media_type)}</td>
       <td>${esc(new Date(g.scheduled_at).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }))}</td>
       <td>${IG_DURUM[g.status] || esc(g.status)}</td>
+      <td>${igIstatistik(g.insights)}</td>
       <td>${g.permalink ? `<a href="${url(g.permalink)}" target="_blank" rel="noopener">Instagram'da aç</a>` : g.error ? `<span class="hata" style="padding:0;border:0;background:none">${esc(g.error)}</span>` : ""}</td>
       <td>${g.status === "hata" ? `<button type="button" class="ikincil" data-tekrar>Tekrar dene</button> ` : ""}${g.status === "isleniyor" ? "" : `<button type="button" class="ikincil" data-sil>${g.status === "bekliyor" ? "İptal" : "Sil"}</button>`}</td></tr>`).join("");
     tablo.querySelectorAll("tr[data-ig]").forEach((tr) => {
@@ -561,9 +647,89 @@
       });
       tr.querySelector("[data-sil]")?.addEventListener("click", async () => {
         if (!confirm(g.status === "bekliyor" ? "Bu gönderi iptal edilsin ve video silinsin mi?" : "Bu kayıt silinsin mi?")) return;
-        if (g.status !== "paylasildi") await sb.storage.from(IG_DEPO).remove([g.video_path, g.video_path.replace(/\.[^./]+$/, "") + "_hazir.mp4"]);
+        if (g.status !== "paylasildi") {
+          const ayniVideo = g.video_path && data.some((x) => x.id !== g.id && x.video_path === g.video_path && ["bekliyor", "isleniyor"].includes(x.status));
+          const yollar = g.media_type === "CAROUSEL" ? (g.image_paths || [])
+            : ayniVideo ? [] : [g.video_path, g.video_path.replace(/\.[^./]+$/, "") + "_hazir.mp4"];
+          if (yollar.length) await sb.storage.from(IG_DEPO).remove(yollar);
+        }
         const { error } = await sb.from("instagram_posts").delete().eq("id", g.id);
         if (error) alert("Silinemedi: " + error.message); else igYukle();
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ siparişler
+  const SIP_DURUM = { yeni: "🆕 Yeni", basiliyor: "🖨️ Basılıyor", hazir: "📦 Hazır", kargoda: "🚚 Kargoda", teslim: "✅ Teslim", iptal: "✖️ İptal" };
+  const SIP_KANAL = { instagram: "Instagram", trendyol: "Trendyol", hepsiburada: "Hepsiburada", etsy: "Etsy", elden: "Elden", diger: "Diğer" };
+  const sipSqlIpucu = (h) => /siparisler|relation|not found/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-26_performans.sql çalıştırıldı mı?)" : "";
+  const secenekler = (o, secili) => Object.entries(o).map(([k, v]) => `<option value="${k}"${k === secili ? " selected" : ""}>${esc(v)}</option>`).join("");
+  let sipUrunAdi = new Map();   // ürün adı → product_id (listeden seçilirse)
+  let sipBagli = false;
+
+  async function sipUrunleriYukle() {
+    const { data } = await sb.from("weekly_picks").select("product_id, products(name)").order("pick_date", { ascending: false }).limit(800);
+    sipUrunAdi = new Map();
+    for (const r of data || []) if (r.products?.name && !sipUrunAdi.has(r.products.name)) sipUrunAdi.set(r.products.name, r.product_id);
+    $("#sipUrunler").innerHTML = [...sipUrunAdi.keys()].map((ad) => `<option value="${esc(ad)}"></option>`).join("");
+  }
+
+  function sipFormBagla() {
+    if (sipBagli) return;
+    sipBagli = true;
+    $("#sipKanal").innerHTML = secenekler(SIP_KANAL, "instagram");
+    const sayi = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
+    $("#siparisFormu").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const ad = $("#sipUrun").value.trim();
+      const kayit = { urun_adi: ad, product_id: sipUrunAdi.get(ad) ?? null, adet: sayi("#sipAdet") || 1,
+        renk: $("#sipRenk").value.trim() || null, fiyat_tl: sayi("#sipFiyat"), kanal: $("#sipKanal").value,
+        gercek_sure_dk: sayi("#sipSure"), gercek_gram: sayi("#sipGram"), musteri_notu: $("#sipNot").value.trim() || null };
+      const { error } = await sb.from("siparisler").insert(kayit);
+      $("#sipDurum").textContent = error ? "Eklenemedi: " + error.message + sipSqlIpucu(error) : "Eklendi ✓";
+      $("#sipDurum").style.color = error ? "var(--bad)" : "";
+      if (!error) { $("#siparisFormu").reset(); $("#sipAdet").value = 1; siparisYukle(); }
+    });
+  }
+
+  async function siparisYukle() {
+    sipFormBagla();
+    if (!sipUrunAdi.size) sipUrunleriYukle().catch(() => {});
+    const tablo = $("#siparisTablo");
+    const { data, error } = await sb.from("siparisler").select("*, products(url, price_tl, cost_tl, print_time_min, weight_g)").order("created_at", { ascending: false }).limit(300);
+    if (error) { tablo.innerHTML = `<tr><td class="hata">${esc(error.message + sipSqlIpucu(error))}</td></tr>`; $("#siparisOzet").innerHTML = ""; return; }
+    const gecerli = data.filter((s) => s.durum !== "iptal");
+    const ciro = gecerli.reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
+    const maliyet = gecerli.reduce((t, s) => t + (s.products?.cost_tl || 0) * s.adet, 0);
+    const acik = gecerli.filter((s) => s.durum !== "teslim").length;
+    const odenmemis = gecerli.filter((s) => !s.odendi).reduce((t, s) => t + Number(s.fiyat_tl || 0), 0);
+    $("#siparisOzet").innerHTML = `<div>Sipariş<b>${gecerli.length}</b></div><div>Adet<b>${gecerli.reduce((t, s) => t + s.adet, 0)}</b></div>
+      <div>Ciro<b>${tl(ciro)}</b></div><div>Tahmini kâr<b>${tl(ciro - maliyet)}</b></div><div>Açık<b>${acik}</b></div><div>Ödenmemiş<b>${tl(odenmemis)}</b></div>`;
+    if (!data.length) { tablo.innerHTML = `<tr><td class="muted">Henüz sipariş yok. Yukarıdaki formdan ekle.</td></tr>`; return; }
+    const tahmin = (s) => s.products?.print_time_min ? `tahmin ${sure(s.products.print_time_min * s.adet)}` : "";
+    tablo.innerHTML = `<tr><th>Tarih</th><th>Ürün</th><th class="sayi">Adet</th><th class="sayi">Tutar</th><th>Kanal</th><th>Durum</th><th>Ödendi</th><th>Gerçek süre / gram</th><th></th></tr>` +
+      data.map((s) => `<tr data-sip="${s.id}">
+        <td>${esc(new Date(s.created_at).toLocaleDateString("tr-TR"))}</td>
+        <td>${s.products?.url ? `<a href="${url(s.products.url)}" target="_blank" rel="noopener">${esc(s.urun_adi)}</a>` : esc(s.urun_adi)}${s.renk ? ` <span class="muted">· ${esc(s.renk)}</span>` : ""}${s.musteri_notu ? `<br><span class="muted">${esc(s.musteri_notu)}</span>` : ""}</td>
+        <td class="sayi">${s.adet}</td><td class="sayi">${s.fiyat_tl != null ? tl(s.fiyat_tl) : "-"}</td>
+        <td>${esc(SIP_KANAL[s.kanal] || s.kanal)}</td>
+        <td><select data-alan="durum">${secenekler(SIP_DURUM, s.durum)}</select></td>
+        <td><input type="checkbox" data-alan="odendi" ${s.odendi ? "checked" : ""} aria-label="Ödendi"></td>
+        <td><input type="number" data-alan="gercek_sure_dk" min="1" value="${s.gercek_sure_dk ?? ""}" placeholder="dk" style="width:70px" aria-label="Gerçek süre (dk)">
+            <input type="number" data-alan="gercek_gram" min="1" value="${s.gercek_gram ?? ""}" placeholder="g" style="width:64px" aria-label="Gerçek gram">
+            <br><span class="muted">${esc(tahmin(s))}${s.products?.weight_g ? ` · ${s.products.weight_g * s.adet} g` : ""}</span></td>
+        <td><button type="button" class="ikincil" data-sil>Sil</button></td></tr>`).join("");
+    tablo.querySelectorAll("tr[data-sip]").forEach((tr) => {
+      const id = Number(tr.dataset.sip);
+      tr.querySelectorAll("[data-alan]").forEach((el) => el.addEventListener("change", async () => {
+        const deger = el.type === "checkbox" ? el.checked : el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
+        const { error } = await sb.from("siparisler").update({ [el.dataset.alan]: deger, updated_at: new Date().toISOString() }).eq("id", id);
+        if (error) alert("Güncellenemedi: " + error.message); else if (el.dataset.alan === "durum" || el.dataset.alan === "odendi") siparisYukle();
+      }));
+      tr.querySelector("[data-sil]").addEventListener("click", async () => {
+        if (!confirm("Bu sipariş silinsin mi?")) return;
+        const { error } = await sb.from("siparisler").delete().eq("id", id);
+        if (error) alert("Silinemedi: " + error.message); else siparisYukle();
       });
     });
   }

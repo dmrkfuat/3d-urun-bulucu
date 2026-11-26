@@ -48,6 +48,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Instagram istatistikleri (performans puanı ve haftalık özet); yoksa atlanır.
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+          INSTAGRAM_HESAP_ID: ${{ vars.INSTAGRAM_HESAP_ID || '17841480431263019' }}
+          # İsteğe bağlı: SerpApi hakkı bitince Google Alışveriş yedeği ve Etsy favori sayıları.
+          SERPER_KEY: ${{ secrets.SERPER_KEY }}
+          ETSY_API_KEY: ${{ secrets.ETSY_API_KEY }}
         run: |
           set -o pipefail
           python -m urun_bulucu 2>&1 | tee "$RUNNER_TEMP/cikti.log"

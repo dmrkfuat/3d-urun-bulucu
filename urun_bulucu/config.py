@@ -117,6 +117,13 @@ KESIF_ISIM_ESLESME = 2        # isimle MakerWorld aramasından en çok kaç mode
 KESIF_TRENDYOL = True         # her sorgu Google Alışveriş'in Trendyol süzgeciyle de aranır (+1 arama/sorgu)
 KESIF_KOTA_ESIGI = 50         # SerpApi'de bundan az hak kaldıysa keşif yapılmaz (günlük arama korunur)
 
+# --- SerpApi aylık bütçesi (kota.py): kalan hak ayın kalan günlerine bölünür, ay ortasında bitmez ---
+SERPAPI_YENILEME_GUNU = 1     # yenileme tarihi SerpApi hesabından okunur; okunamazsa ayın bu günü sayılır
+KOTA_GUNLUK_ASGARI = 2        # keşiften sonra her gün için en az bu kadar arama kalmalı
+KESIF_TAHMINI_ARAMA = 26      # bir keşfin yaklaşık arama sayısı (8 sorgu × 2 + 8 Lens + sezon)
+# SerpApi hakkı bitince Google Alışveriş aramaları Serper.dev ile yapılır (SERPER_KEY varsa; Lens yedeği yok).
+SERPER_API = "https://google.serper.dev"
+
 # --- Trendyol 3D mağaza analizi (trendyol.py): en çok satan 3D ürünler ve aktif 3D mağazaları ---
 # Yalnızca robots.txt'te AÇIK olan ürün sayfaları okunur (arama, mağaza ve sıralama sayfaları kapalı;
 # okunmaz). Kendini tanıtan kimlikle, yavaş; engel (403/429/doğrulama) görülürse o hafta durur.
@@ -180,6 +187,29 @@ INSTAGRAM_DUZENLEME_SURESI_SN = 400  # bir videonun düzenlenmesi en fazla bu ka
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
 PANEL_URL = "https://dmrkfuat.github.io/3d-urun-bulucu/"
 
+# --- Instagram performansı (istatistik.py): paylaşılan gönderilerin erişim/kaydetme/paylaşım sayıları ---
+# Günlük analizde son IG_ISTATISTIK_GUN günün gönderileri güncellenir; kategorinin etkileşimi genel
+# ortalamadan belirgin iyiyse o kategorideki ürünler bonus, kötüyse küçük ceza alır.
+IG_ISTATISTIK_GUN = 60
+IG_EN_AZ_GONDERI = 4            # toplam bundan az gönderi varsa bonus verilmez (veri yetersiz)
+IG_KATEGORI_EN_AZ = 2           # kategoride en az bu kadar gönderi olmalı
+IG_HAFTALIK_OZET_GUNU = 0       # haftalık Instagram özeti hangi gün (0 = Pazartesi)
+
+# --- Sipariş ve gerçek satış (siparis.py; panelde Siparişler sekmesi) ---
+SATILAN_URUN_BONUS = 3          # sattığın ürün tekrar listeye gelirse
+SATILAN_KATEGORI_BONUS = (1, 2) # kategoride 1-2 satış: +1, 3 ve üstü: +2
+KALIBRASYON_EN_AZ = 3           # gerçek süre/gram girilmiş en az bu kadar sipariş varsa maliyet düzeltilir
+KALIBRASYON_SINIR = (0.5, 2.0)  # düzeltme çarpanı bu aralıkta tutulur
+
+# --- Etsy Open API (etsy.py): ETSY_API_KEY varsa ürünlerin Etsy'deki benzerlerinin favori sayısı ---
+ETSY_API = "https://openapi.etsy.com/v3/application"
+ETSY_SONUC_ADET = 10            # her ürün için ilk kaç Etsy ilanının favorisi toplanır
+ETSY_BONUS_ESIKLERI = ((20000, 5), (5000, 3), (1000, 1))   # toplam favori → bonus
+ETSY_URUN_SINIRI = 60           # bir çalışmada en çok kaç ürün sorulur
+
+# Trendyol fiyat takibi: takip edilen ürünün fiyatı bu orandan fazla düşerse raporda ve Telegram'da uyarı.
+TRENDYOL_FIYAT_DUSUS = 0.10
+
 RAPOR_KLASORU = KOK / "raporlar"
 TALEP_DOSYASI = KOK / "talep" / "etsy_talep.csv"
 
@@ -196,6 +226,8 @@ class Ayarlar:
     instagram_token: str = ""
     instagram_hesap_id: str = ""
     anthropic_key: str = ""
+    serper_key: str = ""
+    etsy_key: str = ""
 
     @property
     def supabase_var(self) -> bool:
@@ -214,4 +246,6 @@ def ayarlari_oku() -> Ayarlar:
         instagram_token=os.getenv("INSTAGRAM_TOKEN", "").strip(),
         instagram_hesap_id=os.getenv("INSTAGRAM_HESAP_ID", "").strip(),
         anthropic_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
+        serper_key=os.getenv("SERPER_KEY", "").strip(),
+        etsy_key=os.getenv("ETSY_API_KEY", "").strip(),
     )

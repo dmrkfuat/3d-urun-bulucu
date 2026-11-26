@@ -14,10 +14,17 @@ import statistics
 from . import analiz, config, pazar
 
 
+# Gerçek baskılardan öğrenilen düzeltme (siparis.kalibrasyon; günlük analiz başında ayarlanır).
+# MakerWorld'ün süre/gram tahmini senin yazıcında sistematik olarak farklıysa maliyet buna göre düzelir.
+DUZELTME = {"sure": 1.0, "gram": 1.0}
+
+
 def hesapla(gram: int | None, dakika: int | None) -> dict | None:
     """{'maliyet_tl', 'fiyat_tl', 'saatlik_kazanc_tl'} döndürür; gram veya süre yoksa None."""
     if not gram or not dakika:
         return None
+    gram = gram * DUZELTME.get("gram", 1.0)
+    dakika = dakika * DUZELTME.get("sure", 1.0)
     saat = dakika / 60
     filament = gram * (1 + config.FIRE_ORANI) * config.FILAMENT_TL_KG / 1000
     makine = saat * config.SAAT_MALIYETI_TL

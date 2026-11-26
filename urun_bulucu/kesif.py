@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from . import bildirim, config, pazar, sezon
+from . import bildirim, config, kota, pazar, sezon
 from .kaynaklar import makerworld as mw
 
 KATEGORI = "Pazarda çok satan"
@@ -724,9 +724,14 @@ def calistir(depo, ayarlar: config.Ayarlar, bugun: date, kaynak: mw.MakerWorldKa
             print(f"Pazar keşfi atlandı: kayıt tablosu okunamadı ({str(e)[:120]}). "
                   "Supabase'te supabase/guncelleme_2026-11-10_kesif.sql çalıştırıldı mı?")
             return [], None, None
+    pazar.yedek_ayarla(ayarlar.serper_key)
     kalan = pazar.kalan_hak(ayarlar.serpapi_key, client)
-    if kalan is None or kalan < config.KESIF_KOTA_ESIGI:
-        print(f"Pazar keşfi atlandı: SerpApi'de kalan hak {kalan} (en az {config.KESIF_KOTA_ESIGI} gerekli).")
+    # Aylık bütçe: keşiften sonra ayın kalan her günü için günlük arama hakkı kalmalı. Elle (zorla)
+    # çalıştırmada yalnızca KESIF_KOTA_ESIGI'nin yarısı aranır (kota tamamen bitmesin).
+    izinli = (kalan is not None and kalan >= config.KESIF_KOTA_ESIGI // 2) if zorla else (
+        kalan is not None and kalan >= config.KESIF_KOTA_ESIGI and kota.buyuk_is_izinli(kalan, bugun))
+    if not izinli:
+        print(f"Pazar keşfi atlandı: {kota.yazi(kalan, bugun)}; keşif ~{config.KESIF_TAHMINI_ARAMA} arama ister.")
         return [], None, None
     kumeler, trendyol = kesfet(depo, ayarlar.serpapi_key, bugun, kaynak, client)
     config.RAPOR_KLASORU.mkdir(parents=True, exist_ok=True)

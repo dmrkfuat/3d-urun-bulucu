@@ -6,8 +6,9 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import aciklama, bildirim, config, gorsel, kesif, maliyet, ozet, pazar, puanlama, talep, tasarimci
-from .db import depo_olustur
+from . import (aciklama, bildirim, config, etsy, gorsel, istatistik, kesif, kota, maliyet, ozet, pazar,
+               puanlama, siparis, talep, tasarimci)
+from .db import depo_olustur, satis_verisi
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
 
@@ -17,6 +18,19 @@ def calistir(bugun: date | None = None) -> int:
 
     depo = depo_olustur(ayarlar)
     print(f"Veritabanı: {depo.ad}")
+
+    # Gerçek satışlar: satılan ürün/kategori puanda öne çıkar; gerçek süre/gram girildiyse maliyet düzelir
+    # (maliyet MakerWorld verisi okunurken hesaplandığı için önce ayarlanır).
+    satis_ozeti = None
+    try:
+        siparisler, isaretler = satis_verisi(depo)
+        satis_ozeti = siparis.satis_ozeti(siparisler, isaretler)
+        duzeltme = siparis.kalibrasyon(siparisler)
+        if duzeltme:
+            maliyet.DUZELTME.update(sure=duzeltme["sure"], gram=duzeltme["gram"])
+        print(f"Satış geçmişi: {len(satis_ozeti['urun'])} ürün satılmış. {siparis.yazi(duzeltme)}")
+    except Exception as e:  # noqa: BLE001 — isteğe bağlı
+        print(f"UYARI: Satış verisi okunamadı: {e}")
 
     kaynak = MakerWorldKaynak()
     print("MakerWorld'den son 30 günün modelleri toplanıyor (yavaş ve az istekle, birkaç dakika sürebilir)...")
@@ -48,7 +62,19 @@ def calistir(bugun: date | None = None) -> int:
         print(f"UYARI: Piyasa fiyatları okunamadı: {e}")
 
     talepler = talep.oku(config.TALEP_DOSYASI)
-    puanli = puanlama.puanla(urunler, onceki, bugun, talepler)
+    if ayarlar.etsy_key:
+        try:
+            print(f"Etsy: {etsy.isle(urunler, ayarlar.etsy_key)} arama")
+        except Exception as e:  # noqa: BLE001
+            print(f"UYARI: Etsy araması atlandı: {e}")
+    ig_bonuslari, ig_ozeti = {}, None
+    try:
+        ig_bonuslari, ig_ozeti = istatistik.calistir(ayarlar, bugun)
+        if ig_bonuslari:
+            print("Instagram kategori etkisi: " + ", ".join(f"{k} {b:+d}" for k, (b, _) in ig_bonuslari.items()))
+    except Exception as e:  # noqa: BLE001
+        print(f"UYARI: Instagram performansı okunamadı: {e}")
+    puanli = puanlama.puanla(urunler, onceki, bugun, talepler, ig_bonuslari=ig_bonuslari, satis_ozeti=satis_ozeti)
     depo.puanlari_kaydet(puanli)
 
     secimler = ozet.sec(puanli)
@@ -76,8 +102,13 @@ def calistir(bugun: date | None = None) -> int:
         print(f"UYARI: Tasarımcı takibi atlandı: {e}")
     if ayarlar.serpapi_key:
         try:
-            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key, dogrulayici=dogrulayici)
-            print(f"E-ticaret araması: {len(aranan)} ürün arandı.")
+            # Aylık bütçe: kalan hak, yenilemeye kalan günlere bölünür (ay ortasında bitmesin).
+            pazar.yedek_ayarla(ayarlar.serper_key)
+            kalan = pazar.kalan_hak(ayarlar.serpapi_key)
+            adet = kota.gunluk_urun(kalan, bugun)
+            print(kota.yazi(kalan, bugun))
+            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key, dogrulayici=dogrulayici, adet=adet)
+            print(f"E-ticaret araması: {len(aranan)} ürün arandı (bütçe {adet}).")
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: E-ticaret araması atlandı: {e}")
     try:
@@ -120,6 +151,9 @@ def calistir(bugun: date | None = None) -> int:
             if kesif_mesaji:
                 istekler.append({"metot": "sendMessage",
                                  "veri": {"text": kesif_mesaji, "disable_web_page_preview": True}})
+            if ig_ozeti:
+                istekler.append({"metot": "sendMessage",
+                                 "veri": {"text": ig_ozeti, "disable_web_page_preview": True}})
             adet = bildirim.gonder(ayarlar.telegram_token, ayarlar.telegram_chat_id, istekler)
             print(f"Telegram'a {adet} mesaj gönderildi.")
         except (bildirim.BildirimHatasi, httpx.HTTPError) as e:

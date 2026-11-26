@@ -23,7 +23,7 @@ from urllib.parse import quote_plus, urlparse
 
 import httpx
 
-from . import config
+from . import config, kota
 
 API = "https://serpapi.com/search.json"
 HESAP_API = "https://serpapi.com/account.json"
@@ -313,6 +313,39 @@ def arama_metni(ad: str | None, lens_yaniti: dict | None = None,
 
 
 # ---------------------------------------------------------------- SerpApi
+# SerpApi hakkı bitince Google Alışveriş aramaları bu anahtarla Serper.dev'e gider (ayarlar.serper_key;
+# __main__ ve kesif ayarlar. Lens'in yedeği yoktur). Serper yanıtı SerpApi biçimine çevrilir.
+YEDEK_KEY = ""
+HAK_BITTI = re.compile(r"run out of searches|searches? (?:left|remaining)|plan limit|out of credits", re.I)
+
+
+def yedek_ayarla(serper_key: str | None) -> None:
+    global YEDEK_KEY
+    YEDEK_KEY = (serper_key or "").strip()
+
+
+def serper_alisveris(api_key: str, params: dict, client: httpx.Client | None = None) -> dict:
+    """Serper.dev Google Alışveriş; yanıt SerpApi'nin 'shopping_results' biçimine çevrilir.
+    SerpApi'ye özel süzgeçler (shoprs) Serper'da yoktur; o aramalar boş döner."""
+    if params.get("shoprs"):
+        return {}
+    client = client or httpx.Client(timeout=90)
+    yanit = client.post(f"{config.SERPER_API}/shopping", headers={"X-API-KEY": api_key},
+                        json={"q": params.get("q"), "gl": params.get("gl", "tr"), "hl": params.get("hl", "tr")})
+    try:
+        veri = yanit.json()
+    except ValueError as e:
+        raise PazarHatasi(f"Serper beklenmeyen yanıt verdi ({yanit.status_code}).") from e
+    if yanit.status_code != 200:
+        raise PazarHatasi(f"Serper: {veri.get('message') or yanit.status_code}")
+    sonuc = []
+    for x in veri.get("shopping") or []:
+        sonuc.append({"title": x.get("title"), "source": x.get("source"), "link": x.get("link"),
+                      "price": x.get("price"), "extracted_price": _fiyat_metinden(x.get("price")),
+                      "thumbnail": x.get("imageUrl"), "kaynak_api": "serper"})
+    return {"shopping_results": sonuc}
+
+
 def _istek(api_key: str, params: dict, client: httpx.Client | None) -> dict:
     client = client or httpx.Client(timeout=90)
     yanit = client.get(API, params={**params, "api_key": api_key})
@@ -324,6 +357,9 @@ def _istek(api_key: str, params: dict, client: httpx.Client | None) -> dict:
         hata = veri.get("error") or yanit.status_code
         if "hasn't returned any results" in str(hata):
             return {}
+        if YEDEK_KEY and params.get("engine") == "google_shopping" and (
+                yanit.status_code == 429 or HAK_BITTI.search(str(hata))):
+            return serper_alisveris(YEDEK_KEY, params, client)
         raise PazarHatasi(f"SerpApi: {hata}")
     return veri
 
@@ -905,6 +941,7 @@ def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
     try:
         yanit = (client or httpx.Client(timeout=30)).get(HESAP_API, params={"api_key": api_key})
         veri = yanit.json() if yanit.status_code == 200 else {}
+        kota.yenileme_ayarla(veri.get("plan_renewal_date"))   # aylık bütçe bu tarihe göre bölünür
         kalan = veri.get("total_searches_left", veri.get("plan_searches_left"))
         return int(kalan) if kalan is not None else None
     except (httpx.HTTPError, ValueError, TypeError):
@@ -912,13 +949,19 @@ def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
 
 
 def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None,
-             dogrulayici=None) -> dict[int, dict]:
+             dogrulayici=None, adet: int | None = None) -> dict[int, dict]:
     """Seçilen ürünleri arar (varsa ilanları görselle de kontrol eder), veritabanına yazar;
-    {product_id: özet} döndürür (bugün aranmış olanlar)."""
-    hedefler = secilecekler(secimler, depo.pazar_kontrol_tarihleri([s["product_id"] for s in secimler]))
+    {product_id: özet} döndürür (bugün aranmış olanlar). `adet`: bugünkü bütçe (kota.gunluk_urun).
+    Bir ürünün araması hata verirse (ör. hak bitti) o ana kadar arananlar yine kaydedilir."""
+    hedefler = secilecekler(secimler, depo.pazar_kontrol_tarihleri([s["product_id"] for s in secimler]),
+                            adet=adet)
     ozetler = {}
     for s in hedefler:
-        sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
+        try:
+            sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
+        except (PazarHatasi, httpx.HTTPError) as e:
+            print(f"UYARI: E-ticaret araması durdu ({s['urun'].get('name')}): {e}")
+            break
         sonuclar, _ = gorselle_kontrol(sonuclar, s["urun"], dogrulayici)
         ozetler[s["product_id"]] = ozetle(s["product_id"], sonuclar, sorgu, s["urun"].get("name") or "")
     depo.pazar_kaydet(list(ozetler.values()))

@@ -195,6 +195,29 @@ class InstagramIstemci:
                           caption=aciklama, share_to_feed="true")
         return str(veri["id"])
 
+    def hikaye_olustur(self, ig_id: str, video_url: str) -> str:
+        """Hikâye (24 saat). Instagram hikâye videosunu en çok 60 saniye kabul eder."""
+        return str(self._post(f"{ig_id}/media", media_type="STORIES", video_url=video_url)["id"])
+
+    def carousel_ogesi(self, ig_id: str, gorsel_url: str) -> str:
+        """Carousel'in bir fotoğrafı (yalnızca JPEG)."""
+        return str(self._post(f"{ig_id}/media", image_url=gorsel_url, is_carousel_item="true")["id"])
+
+    def carousel_olustur(self, ig_id: str, cocuklar: list[str], aciklama: str) -> str:
+        return str(self._post(f"{ig_id}/media", media_type="CAROUSEL", children=",".join(cocuklar),
+                              caption=aciklama)["id"])
+
+    def istatistik(self, medya_id: str, metrikler: list[str]) -> dict:
+        """{metrik: sayı}. Desteklenmeyen bir metrik istenirse Instagram hata verir (InstagramHatasi)."""
+        veri = self._get(f"{medya_id}/insights", metric=",".join(metrikler))
+        sonuc = {}
+        for m in veri.get("data") or []:
+            deger = ((m.get("values") or [{}])[0].get("value") if m.get("values")
+                     else (m.get("total_value") or {}).get("value"))
+            if m.get("name") and isinstance(deger, (int, float)):
+                sonuc[m["name"]] = int(deger)
+        return sonuc
+
     def kap_durumu(self, kap_id: str) -> tuple[str, str]:
         """(status_code, status): FINISHED, IN_PROGRESS, ERROR, EXPIRED veya PUBLISHED."""
         veri = self._get(kap_id, fields="status_code,status")
@@ -229,6 +252,8 @@ class InstagramDepo(Protocol):
     def video_sil(self, yollar: list[str]) -> None: ...
     def video_isaretle(self, urun_id: int) -> None: ...
     def urun_adi(self, urun_id: int | None) -> str | None: ...
+    def paylasilanlar(self, en_erken: str) -> list[dict]: ...
+    def yol_kullaniliyor(self, yol: str, haric_id: int) -> bool: ...
 
 
 class SupabaseInstagramDepo:
@@ -286,6 +311,17 @@ class SupabaseInstagramDepo:
         veri = self.sb.table("products").select("name").eq("id", urun_id).execute().data
         return veri[0]["name"] if veri else None
 
+    def paylasilanlar(self, en_erken: str) -> list[dict]:
+        """Bu tarihten sonra paylaşılan gönderiler (ürün adı ve kategorisiyle), en yeni önce."""
+        return list(self.sb.table("instagram_posts").select("*, products(name, category)")
+                    .eq("status", "paylasildi").gte("published_at", en_erken)
+                    .order("published_at", desc=True).limit(500).execute().data)
+
+    def yol_kullaniliyor(self, yol: str, haric_id: int) -> bool:
+        """Aynı video başka bir bekleyen/işlenen gönderide (ör. Reels + hikâye) kullanılıyor mu."""
+        return bool(self.sb.table("instagram_posts").select("id").eq("video_path", yol).neq("id", haric_id)
+                    .in_("status", ["bekliyor", "isleniyor"]).limit(1).execute().data)
+
 
 def _simdi() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -333,8 +369,14 @@ def token_hazirla(depo: InstagramDepo, ortam_token: str, simdi: datetime,
 
 
 # --------------------------------------------------------------------------- video hazırlama
+def tur(g: dict) -> str:
+    """Gönderi türü: REELS (varsayılan), STORIES veya CAROUSEL."""
+    return (g.get("media_type") or "REELS").upper()
+
+
 def duzenlenecek_mi(g: dict) -> bool:
-    return config.INSTAGRAM_VIDEO_DUZENLE and g.get("video_edit") is not False
+    return (config.INSTAGRAM_VIDEO_DUZENLE and g.get("video_edit") is not False and tur(g) != "CAROUSEL"
+            and bool(g.get("video_path")))
 
 
 def video_hazirla(depo: InstagramDepo, g: dict,
@@ -413,10 +455,21 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
         if sorun:
             hata(g, sorun)
             continue
-        yol, g["_not"] = hazirla(depo, g)
         try:
-            adres = depo.imzali_url(yol, config.INSTAGRAM_IMZALI_URL_SN)
-            kap = ig.reels_olustur(ig_id, adres, g.get("caption") or "")
+            if tur(g) == "CAROUSEL":
+                g["_not"] = None
+                yollar = g.get("image_paths") or []
+                if not 2 <= len(yollar) <= 10:
+                    hata(g, f"carousel 2-10 fotoğraf ister ({len(yollar)} var)")
+                    continue
+                cocuklar = [ig.carousel_ogesi(ig_id, depo.imzali_url(p, config.INSTAGRAM_IMZALI_URL_SN))
+                            for p in yollar]
+                kap = ig.carousel_olustur(ig_id, cocuklar, g.get("caption") or "")
+            else:
+                yol, g["_not"] = hazirla(depo, g)
+                adres = depo.imzali_url(yol, config.INSTAGRAM_IMZALI_URL_SN)
+                kap = (ig.hikaye_olustur(ig_id, adres) if tur(g) == "STORIES"
+                       else ig.reels_olustur(ig_id, adres, g.get("caption") or ""))
         except (InstagramHatasi, httpx.HTTPError) as e:
             hata(g, str(e))
             continue
@@ -441,7 +494,9 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
                     baglanti = ig.kalici_baglanti(medya) if medya else None
                     depo.guncelle(g["id"], {"status": "paylasildi", "media_id": medya, "permalink": baglanti,
                                             "published_at": _simdi(), "error": None})
-                    metin = (f"✅ Instagram'da paylaşıldı: <b>{bildirim._e(_ad(depo, g))}</b>"
+                    etiket = {"STORIES": "hikâye olarak", "CAROUSEL": "carousel olarak"}.get(tur(g), "")
+                    metin = (f"✅ Instagram'da {etiket + ' ' if etiket else ''}paylaşıldı: "
+                             f"<b>{bildirim._e(_ad(depo, g))}</b>"
                              + (f"\n{bildirim._e(baglanti)}" if baglanti else "")
                              + (f"\nℹ️ {bildirim._e(g['_not'])}" if g.get("_not") else ""))
                     if not _paylasim_sonrasi(depo, g, metin, video_gonder):
@@ -499,14 +554,29 @@ def _paylasim_sonrasi(depo: InstagramDepo, g: dict, metin: str = "",
             depo.video_isaretle(g["product_id"])
     except Exception as e:  # noqa: BLE001
         print(f"UYARI: Video işareti konamadı: {e}")
-    gonderildi = bool(video_gonder and config.INSTAGRAM_VIDEOYU_TELEGRAMA_GONDER
+    # Video Telegram'a yalnızca Reels'te gider (aynı videonun hikâyesi tekrar gelmesin).
+    gonderildi = bool(video_gonder and config.INSTAGRAM_VIDEOYU_TELEGRAMA_GONDER and tur(g) == "REELS"
                       and _videoyu_gonder(depo, g, metin, video_gonder))
     if config.INSTAGRAM_PAYLASINCA_VIDEOYU_SIL:
         try:
-            depo.video_sil([g["video_path"], video_duzenle.hazir_yolu(g["video_path"])])
+            if tur(g) == "CAROUSEL":
+                depo.video_sil(list(g.get("image_paths") or []))
+            elif not _baska_gonderide(depo, g):
+                depo.video_sil([g["video_path"], video_duzenle.hazir_yolu(g["video_path"])])
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: Video depodan silinemedi: {e}")
     return gonderildi
+
+
+def _baska_gonderide(depo: InstagramDepo, g: dict) -> bool:
+    """Aynı video bekleyen başka bir gönderide (Reels + hikâye) varsa silinmez; sonuncusu siler."""
+    kontrol = getattr(depo, "yol_kullaniliyor", None)
+    if not kontrol:
+        return False
+    try:
+        return bool(kontrol(g["video_path"], g["id"]))
+    except Exception:  # noqa: BLE001 — emin olunamıyorsa silme (sonraki gönderi videosuz kalmasın)
+        return True
 
 
 def ffmpeg_gerekli() -> bool:

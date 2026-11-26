@@ -15,7 +15,10 @@ def test_aktif_sezonlar_ve_tarihler():
     adlar = lambda g: [s.ad for s, _ in sezon.aktif_sezonlar(g)]  # noqa: E731
     assert adlar(date(2026, 11, 9)) == ["Öğretmenler Günü", "Yılbaşı"]
     assert dict((s.ad, k) for s, k in sezon.aktif_sezonlar(date(2026, 11, 9)))["Yılbaşı"] == 52
-    assert adlar(date(2027, 4, 20)) == ["Anneler Günü", "Kurban Bayramı"]   # 2. pazar: 9 Mayıs 2027
+    # 2. pazar: 9 Mayıs 2027
+    assert adlar(date(2027, 4, 20)) == ["23 Nisan Çocuk Bayramı", "Anneler Günü", "Kurban Bayramı"]
+    assert adlar(date(2027, 3, 1))[0] == "Kadınlar Günü"
+    assert "Cumhuriyet Bayramı" in adlar(date(2026, 10, 20))
     assert adlar(date(2026, 7, 1)) == []
     assert sezon._ninci_pazar(2027, 5, 2) == date(2027, 5, 9)
     assert sezon._ninci_pazar(2027, 6, 3) == date(2027, 6, 20)

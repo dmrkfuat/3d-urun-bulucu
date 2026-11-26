@@ -501,6 +501,24 @@ class SupabaseDepo:
             ).execute()
 
 
+def satis_verisi(depo) -> tuple[list[dict], list[dict]]:
+    """(siparişler, "Sattım" işaretleri) ürünün kategori/süre/gramıyla. Yalnızca Supabase'te vardır
+    (panelden girilir); yerel veritabanında ([], [])."""
+    sb = getattr(depo, "sb", None)
+    if sb is None:
+        return [], []
+    alanlar = "products(category, print_time_min, weight_g)"
+    try:
+        siparisler = list(sb.table("siparisler").select(f"*, {alanlar}").limit(5000).execute().data)
+    except Exception as e:  # noqa: BLE001 — SQL güncellemesi çalıştırılmadıysa tablo yoktur
+        print(f"UYARI: Siparişler okunamadı ({str(e)[:100]}). "
+              "Supabase'te supabase/guncelleme_2026-11-26_performans.sql çalıştırıldı mı?")
+        siparisler = []
+    isaretler = list(sb.table("product_marks").select(f"product_id, sold_count, {alanlar}")
+                     .gt("sold_count", 0).limit(5000).execute().data)
+    return siparisler, isaretler
+
+
 def depo_olustur(ayarlar: Ayarlar) -> Depo:
     if ayarlar.supabase_var:
         return SupabaseDepo(ayarlar.supabase_url, ayarlar.supabase_key)

@@ -32,7 +32,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from . import bildirim, config, kesif, pazar
+from . import bildirim, config, kesif, kota, pazar
 from .kaynaklar import makerworld as mw
 
 KOK = "https://www.trendyol.com"
@@ -287,6 +287,8 @@ def hiz_ekle(urunler: list[dict], gecmis: list[dict], bugun: date) -> None:
             onceki[int(r["urun_id"])] = r
     for u in urunler:
         o = onceki.get(u["urun_id"])
+        if o and o.get("fiyat") and u.get("fiyat"):
+            u["onceki_fiyat"] = float(o["fiyat"])
         gun = (bugun - date.fromisoformat(str(o["tarih"])[:10])).days if o else 0
         if o and gun >= 3:
             olcek = 7 / gun
@@ -294,6 +296,22 @@ def hiz_ekle(urunler: list[dict], gecmis: list[dict], bugun: date) -> None:
             u["artis_favori"] = round(max(0, u["favori"] - (o["favori"] or 0)) * olcek)
             u["haftalik"] = u["artis_degerlendirme"] + u["artis_favori"] / 10
             u["onceki_gun"] = gun
+
+
+def fiyat_dususleri(urunler: list[dict], oran: float | None = None) -> list[dict]:
+    """Önceki okumaya göre fiyatı TRENDYOL_FIYAT_DUSUS'ten fazla düşen ürünler (en çok düşen önce).
+    Rakip fiyat kırıyorsa aynı ürünü satıyorsan fiyatını gözden geçirmen gerekir."""
+    oran = config.TRENDYOL_FIYAT_DUSUS if oran is None else oran
+    sonuc = []
+    for u in urunler:
+        eski, yeni = u.get("onceki_fiyat"), u.get("fiyat")
+        if eski and yeni and yeni < eski * (1 - oran):
+            sonuc.append({**u, "dusus": round(1 - yeni / eski, 3)})
+    return sorted(sonuc, key=lambda u: -u["dusus"])
+
+
+def _dusus_satiri(u: dict) -> str:
+    return f"{u['onceki_fiyat']:.0f} → {u['fiyat']:.0f} TL (−%{u['dusus'] * 100:.0f})"
 
 
 def sirala(urunler: list[dict]) -> list[dict]:
@@ -410,6 +428,12 @@ def markdown(bugun: date, urunler: list[dict], magaza_listesi: list[dict], okuna
             if u.get("kopya_ilanlar"):
                 s.append(f"- **Aynı ürünü satan diğer ilanlar (Lens):** {len(u['kopya_ilanlar'])}")
         s.append("")
+    dusenler = fiyat_dususleri(urunler)
+    if dusenler:
+        s += ["## 💸 Fiyatı düşenler", "", "Önceki okumaya göre fiyatı belirgin düşen rakip ürünler:", ""]
+        s += [f"- [{u['ad'][:80]}]({u['url']}) — {u.get('magaza') or '?'}: {_dusus_satiri(u)}"
+              for u in dusenler[:10]]
+        s.append("")
     s += ["## Aktif 3D mağazaları", "",
           "| # | Mağaza | Ürün | Değerlendirme | Favori | Bu hafta | En çok satanı |",
           "|---|---|---|---|---|---|---|"]
@@ -451,6 +475,12 @@ def telegram_mesaji(bugun: date, urunler: list[dict], magaza_listesi: list[dict]
                     for n, m in enumerate(magaza_listesi[:5], 1))
     if len(metin) + len(mag) + 120 <= sinir:
         metin += "\n\n<b>🏪 Aktif 3D mağazaları</b>\n" + mag
+    dusenler = fiyat_dususleri(urunler)
+    if dusenler:
+        dusus = "\n".join(f"• <a href=\"{bildirim._href(u['url'])}\">{e_(u['ad'][:45])}</a> "
+                          f"({e_(u.get('magaza') or '?')}): {e_(_dusus_satiri(u))}" for u in dusenler[:5])
+        if len(metin) + len(dusus) + 120 <= sinir:
+            metin += "\n\n<b>💸 Fiyatı düşen rakipler</b>\n" + dusus
     if panel_url:
         metin += f"\n\n📊 {e_(panel_url)}"
     return metin
@@ -502,7 +532,8 @@ def calistir(depo, ayarlar: config.Ayarlar, bugun: date, kaynak: mw.MakerWorldKa
     lens_hakki = 0
     if ayarlar.serpapi_key and config.TRENDYOL_LENS_ADET:
         kalan = pazar.kalan_hak(ayarlar.serpapi_key, client)
-        lens_hakki = config.TRENDYOL_LENS_ADET if kalan is not None and kalan >= config.KESIF_KOTA_ESIGI else 0
+        lens_hakki = (config.TRENDYOL_LENS_ADET if kalan is not None and kalan >= config.KESIF_KOTA_ESIGI
+                      and kota.buyuk_is_izinli(kalan, bugun, config.TRENDYOL_LENS_ADET) else 0)
     mw_urunler, kopyalar = eslestir(urunler, kaynak, ayarlar.serpapi_key, lens_hakki, client) if urunler else ([], [])
 
     # Lens'te çıkan, aynı ürünü satan diğer Trendyol mağazaları: kalan sayfa hakkıyla okunur.
