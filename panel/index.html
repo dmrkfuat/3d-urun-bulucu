@@ -188,12 +188,75 @@
     </header>
 
     <div id="listeSekmesi">
-      <div class="arac">
-        <label>Gün <select id="gun"></select></label>
-        <label>Kategori <select id="kategori"><option value="">Hepsi</option></select></label>
-        <label><input type="checkbox" id="isaretsiz"> Sadece işaretlenmemiş</label>
+    <div class="tw flex flex-col gap-5">
+      <!-- Günün özeti -->
+      <div id="listeKpi" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+      <!-- Filtre ve aksiyon çubuğu -->
+      <div class="bg-white rounded-xl p-3 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+            <span class="font-label-sm text-label-sm text-outline">Gün:</span>
+            <select id="gun" class="bg-transparent border-0 p-0 outline-none font-label-md text-label-md font-semibold text-on-surface cursor-pointer" aria-label="Gün"></select>
+          </label>
+          <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary">tune</span>
+            <span class="font-label-sm text-label-sm text-outline">Kategori:</span>
+            <select id="kategori" class="bg-transparent border-0 p-0 outline-none font-label-md text-label-md font-semibold text-on-surface cursor-pointer" aria-label="Kategori"><option value="">Hepsi</option></select>
+          </label>
+          <label class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
+            <input type="checkbox" id="isaretsiz" class="w-4 h-4 rounded accent-primary-container cursor-pointer">
+            <span class="font-label-md text-label-md text-on-surface-variant font-medium select-none">Sadece işaretlenmemiş</span>
+          </label>
+          <div class="flex items-center px-3 py-2 rounded-lg bg-surface-container-low text-on-surface-variant gap-1 min-w-[220px]">
+            <span class="material-symbols-outlined text-[18px]">search</span>
+            <input id="listeAra" type="text" class="bg-transparent border-0 p-0 outline-none font-body-sm text-body-sm text-on-surface placeholder:text-outline w-full" placeholder="Model, tasarımcı veya kategori ara..." aria-label="Günlük listede ara">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 justify-between lg:justify-end">
+          <div class="flex items-center bg-surface-container-low p-1 rounded-lg" role="group" aria-label="Görünüm">
+            <button type="button" data-gorunum="kart" class="p-1.5 rounded-md" title="Kart görünümü" aria-label="Kart görünümü"><span class="material-symbols-outlined text-[18px]">grid_view</span></button>
+            <button type="button" data-gorunum="tablo" class="p-1.5 rounded-md" title="Tablo görünümü" aria-label="Tablo görünümü"><span class="material-symbols-outlined text-[18px]">table_rows</span></button>
+          </div>
+          <button type="button" id="listeTopluAc" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">checklist</span><span class="hidden sm:inline">Toplu İşaretle</span>
+          </button>
+          <button type="button" id="listePlanaGit" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md hover:bg-primary transition-colors shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">event_note</span><span>Baskı Planı</span>
+          </button>
+        </div>
       </div>
-      <div id="kartlar" class="kartlar"></div>
+
+      <!-- Toplu işaretleme çubuğu (kart seçilince ya da "Toplu İşaretle" ile açılır) -->
+      <div id="listeTopluBar" class="w-full bg-primary-fixed/60 rounded-xl px-3 py-2 flex flex-wrap items-center gap-2" hidden>
+        <span class="material-symbols-outlined text-[18px] text-primary">checklist</span>
+        <span id="listeTopluSay" class="font-label-md text-label-md font-semibold text-on-primary-fixed-variant mr-2"></span>
+        <button type="button" data-ltoplu="printed" class="px-3 py-1 rounded-lg bg-primary text-on-primary font-label-sm text-label-sm font-semibold">✓ Bastım işaretle</button>
+        <button type="button" data-ltoplu="video" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">🎬 Videosu çekildi</button>
+        <button type="button" data-ltoplu="plan" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">📋 Plana ekle</button>
+        <button type="button" data-ltoplu="secHepsi" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">Listelenenlerin hepsini seç</button>
+        <button type="button" data-ltoplu="temizle" class="ml-auto px-3 py-1 rounded-lg text-on-surface-variant font-label-sm text-label-sm hover:bg-white">Seçimi temizle</button>
+      </div>
+
+      <!-- Listelenenlerin özeti ve sıralama -->
+      <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface-container-low font-label-md text-label-md text-on-surface-variant">
+        <div id="listeSeritBilgi" class="flex flex-wrap items-center gap-3"></div>
+        <label class="flex items-center gap-2">
+          <span class="font-label-sm text-label-sm text-outline">Sıralama:</span>
+          <select id="listeSira" class="bg-transparent border-0 p-0 outline-none font-label-sm text-label-sm font-semibold text-primary cursor-pointer" aria-label="Sıralama">
+            <option value="rank">Günün sırası</option><option value="score">Puan</option><option value="hourly_profit_tl">Saatlik kazanç</option>
+            <option value="print_time_min">En kısa baskı</option><option value="cost_tl">En düşük maliyet</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- Ürün kartları / tablo -->
+      <div id="kartlar" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+      <div id="listeTabloKap" class="bg-white rounded-xl shadow-sm overflow-hidden" hidden>
+        <div class="overflow-x-auto"><table id="listeTablo" class="w-full text-left" style="border:0;border-radius:0;margin:0"></table></div>
+      </div>
+    </div>
     </div>
 
     <div id="tumSekmesi" hidden>
@@ -712,81 +775,198 @@
     kartlariCiz();
   }
 
+  // ------------------------------------------------------------ günlük liste (kart / tablo görünümü)
+  const lIkon = (ad, boy = 18, sinif = "") => `<span class="material-symbols-outlined text-[${boy}px] ${sinif}">${ad}</span>`;
+  const LISANS_ROZET = { ticari_serbest: ["Satılabilir", "text-tertiary"], nc_sadece_icerik: ["NC: satılamaz", "text-secondary"], kontrol_et: ["Lisansı kontrol et", "text-error"] };
+  const listeSecili = new Set();          // toplu işaretleme için seçilen ürünler
+  let listeTopluAcik = false;
+  let listeGorunum = (() => { try { return localStorage.getItem("listeGorunum") === "tablo" ? "tablo" : "kart"; } catch (_) { return "kart"; } })();
+
+  const isaretVar = (m) => m && (m.printed || m.video || m.sold_count > 0 || (m.note || "").trim());
+
+  function listeFiltreli() {
+    const kat = $("#kategori").value, sadeceIsaretsiz = $("#isaretsiz").checked, sira = $("#listeSira").value;
+    const ara = $("#listeAra").value.trim().toLocaleLowerCase("tr-TR");
+    const liste = secimler.filter((r) => (!kat || r.products.category === kat)
+      && (!sadeceIsaretsiz || !isaretVar(isaretler.get(r.product_id)))
+      && (!ara || [r.products.name, r.products.creator, r.products.category].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR").includes(ara)));
+    const artan = ["rank", "print_time_min", "cost_tl"].includes(sira);
+    const deger = (r) => sira === "rank" ? r.rank : sira === "score" ? Number(r.score) : r.products[sira];
+    return liste.sort((a, b) => {
+      const x = deger(a), y = deger(b);
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return artan ? x - y : y - x;
+    });
+  }
+
+  // Günün özeti: seçilen günün tüm modelleri üzerinden (filtreden bağımsız).
+  function listeKpiCiz() {
+    const n = secimler.length, m = (r) => isaretler.get(r.product_id) || {};
+    const basilan = secimler.filter((r) => m(r).printed).length;
+    const planda = secimler.filter((r) => planIdleri.has(r.product_id)).length;
+    const isaretsiz = secimler.filter((r) => !isaretVar(isaretler.get(r.product_id))).length;
+    const trend = secimler.filter((r) => r.products.trend_rank).length;
+    const satis = secimler.reduce((t, r) => t + (m(r).sold_count || 0), 0);
+    const ciro = secimler.reduce((t, r) => t + (m(r).sold_count || 0) * (r.products.price_tl || 0), 0);
+    const satilan = secimler.filter((r) => m(r).sold_count > 0).length;
+    const ortPuan = n ? Math.round(secimler.reduce((t, r) => t + Number(r.score || 0), 0) / n) : 0;
+    const yuzde = (a) => n ? Math.round((a / n) * 100) : 0;
+    const kart = (baslik, ikon, ikonSinif, deger, birim, sag, cubuk, oran, degerSinif = "text-on-surface") => `
+      <div class="bg-white rounded-xl p-3 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+        <div class="flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">${baslik}</span>
+          <div class="w-8 h-8 rounded-lg ${ikonSinif} flex items-center justify-center">${lIkon(ikon)}</div></div>
+        <div class="mt-2 flex items-baseline justify-between gap-2"><div><span class="font-headline-lg text-headline-lg font-bold ${degerSinif}">${deger}</span><span class="font-label-md text-label-md text-on-surface-variant ml-1">${birim}</span></div>${sag}</div>
+        <div class="mt-2 w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden"><div class="${cubuk} h-full rounded-full" style="width:${oran}%"></div></div>
+      </div>`;
+    $("#listeKpi").innerHTML =
+      kart("Günün Seçimi", "inventory_2", "bg-surface-container-low text-primary", n, "model",
+        `<span class="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm">${lIkon("star", 14)} ort. puan ${ortPuan}</span>`, "bg-primary", Math.min(100, ortPuan)) +
+      kart("Basılan / Planda", "precision_manufacturing", "bg-surface-container-low text-tertiary", basilan, "basıldı",
+        `<span class="flex items-center gap-1 font-label-sm text-label-sm text-tertiary"><span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>${planda} planda</span>`, "bg-tertiary-container", yuzde(basilan)) +
+      kart("İşaretlenmemiş", "priority_high", "bg-error-container text-error", isaretsiz, "bekliyor",
+        `<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-error font-label-sm text-label-sm font-semibold">🔥 Trend: ${trend}</span>`, "bg-error", yuzde(isaretsiz), isaretsiz ? "text-error" : "text-on-surface") +
+      kart("Satılan", "check_circle", "bg-surface-container-low text-secondary", satis, "satış",
+        `<span class="font-label-md text-label-md text-secondary font-bold">${tl(ciro)}</span>`, "bg-secondary-container", yuzde(satilan));
+  }
+
+  function listeSeritCiz(liste) {
+    const filament = liste.reduce((t, r) => t + (r.products.weight_g || 0), 0);
+    const sureT = liste.reduce((t, r) => t + (r.products.print_time_min || 0), 0);
+    $("#listeSeritBilgi").innerHTML = `<span class="flex items-center gap-1 font-semibold text-on-surface">${lIkon("check_circle", 18, "text-tertiary")} ${liste.length} model listelendi</span>
+      <span class="text-outline">•</span><span>Filament: <strong class="text-on-surface">${Math.round(filament).toLocaleString("tr-TR")} g</strong></span>
+      <span class="hidden md:inline text-outline">•</span><span class="hidden md:inline">Toplam baskı süresi: <strong class="text-on-surface">${esc(sureT ? sure(sureT) : "-")}</strong></span>`;
+  }
+
+  function listeTopluCiz() {
+    $("#listeTopluBar").hidden = !(listeTopluAcik || listeSecili.size);
+    $("#listeTopluSay").textContent = listeSecili.size ? `${listeSecili.size} model seçili` : "Kartlardaki kutudan model seç";
+  }
+
   function kartlariCiz() {
     grafikler.forEach((g) => g.destroy()); grafikler.clear();
-    const kat = $("#kategori").value, sadeceIsaretsiz = $("#isaretsiz").checked;
-    const liste = secimler.filter((r) => (!kat || r.products.category === kat) &&
-      (!sadeceIsaretsiz || !isaretVar(isaretler.get(r.product_id))));
-    const kap = $("#kartlar");
-    if (!liste.length) { kap.innerHTML = `<div class="bos">Bu filtreye uyan ürün yok.</div>`; return; }
+    listeKpiCiz();
+    for (const id of [...listeSecili]) if (!secimler.some((r) => r.product_id === id)) listeSecili.delete(id);
+    listeTopluCiz();
+    document.querySelectorAll("[data-gorunum]").forEach((b) => {
+      const aktif = b.dataset.gorunum === listeGorunum;
+      b.setAttribute("aria-pressed", String(aktif));
+      b.className = `p-1.5 rounded-md ${aktif ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`;
+    });
+    const liste = listeFiltreli();
+    listeSeritCiz(liste);
+    const kap = $("#kartlar"), tabloKap = $("#listeTabloKap");
+    if (!liste.length) {
+      kap.hidden = false; tabloKap.hidden = true;
+      kap.innerHTML = `<div class="col-span-full bos">Bu filtreye uyan ürün yok.</div>`;
+      return;
+    }
+    kap.hidden = listeGorunum !== "kart"; tabloKap.hidden = listeGorunum !== "tablo";
+    if (listeGorunum === "tablo") { kap.innerHTML = ""; return listeTabloCiz(liste); }
     kap.innerHTML = liste.map(kartHtml).join("");
     kap.querySelectorAll("[data-pid]").forEach(kartBagla);
   }
 
-  const isaretVar = (m) => m && (m.printed || m.video || m.sold_count > 0 || (m.note || "").trim());
+  const planDugmeSinifi = (planda) => `planDugme flex items-center gap-1 px-3 py-1.5 rounded-lg font-label-md text-label-md transition-all shadow-sm ${planda ? "bg-tertiary text-on-tertiary" : "bg-white text-on-surface hover:bg-primary hover:text-on-primary"}`;
 
   function kartHtml(r) {
-    const p = r.products, m = isaretler.get(r.product_id) || {};
+    const p = r.products, m = isaretler.get(r.product_id) || {}, d = p.score_detail || {};
+    const planda = planIdleri.has(r.product_id);
+    const [lisansAd, lisansRenk] = LISANS_ROZET[p.license_flag] || ["Lisans ?", "text-outline"];
+    const bayrak = p.trend_rank ? [`🔥 Trend #${p.trend_rank}`, "bg-error text-on-error"]
+      : d.sezon ? [d.sezon, "bg-tertiary text-on-tertiary"]
+      : m.sold_count > 0 ? [`💰 ${m.sold_count} satıldı`, "bg-secondary text-on-secondary"] : null;
+    const [durumIkon, durumAd, durumRenk] = m.printed ? ["verified", "Basıldı", "text-tertiary"]
+      : planda ? ["hourglass_top", "Planda, sırada", "text-secondary"]
+      : m.video ? ["videocam", "Videosu çekildi", "text-primary"] : ["fiber_new", "Yeni seçim", "text-primary"];
+    const cip = (metin, baslik = "") => `<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm"${baslik ? ` title="${esc(baslik)}"` : ""}>${metin}</span>`;
+    const cipler = [
+      d.satis_bonusu ? cip(`💰 sattın +${d.satis_bonusu}`, d.satis_gecmisi) : "",
+      d.instagram_bonusu ? cip(`📸 IG ${d.instagram_bonusu > 0 ? "+" : ""}${d.instagram_bonusu}`, d.instagram) : "",
+      d.etsy_bonusu ? cip(`🧶 Etsy ${Number(d.etsy_favori).toLocaleString("tr-TR")}♥`, "Etsy'de benzerlerinin favori toplamı") : "",
+      p.color_count > 1 ? cip(`${p.color_count} renk`) : "",
+      p.trend_rank && d.sezon ? cip(esc(d.sezon)) : "",
+    ].join("");
+    const param = (ad, deger, renk = "text-on-surface") => `<div><span class="block font-label-sm text-label-sm text-outline">${ad}</span><span class="font-label-md text-label-md font-semibold ${renk}">${deger}</span></div>`;
+    const detay = (sinif, ozet, icerik, acik = false) => `<details class="${sinif} rounded-lg bg-surface-container-low/60 px-3 py-1.5"${acik ? " open" : ""}><summary class="font-label-md text-label-md py-1">${ozet}</summary>${icerik}</details>`;
+    const o = pazar.get(r.product_id);
     return `
-    <article class="kart" data-pid="${r.product_id}">
-      ${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy">` : ""}
-      <div class="govde">
-        <div class="ust"><span class="sira">${r.rank}.</span>
-          <a class="ad" href="${url(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>
-          <span class="puan">${r.score}</span></div>
-        <div class="cipler">
-          <span class="cip">${esc(p.category || "-")}</span>
-          <span class="cip">${LISANS[p.license_flag] || "-"}</span>
-          ${p.trend_rank ? `<span class="cip trend">🔥 trend #${p.trend_rank}</span>` : ""}
-          ${p.score_detail && p.score_detail.sezon ? `<span class="cip">${esc(p.score_detail.sezon)}</span>` : ""}
-          ${p.score_detail && p.score_detail.satis_bonusu ? `<span class="cip" title="${esc(p.score_detail.satis_gecmisi)}">💰 sattın +${p.score_detail.satis_bonusu}</span>` : ""}
-          ${p.score_detail && p.score_detail.instagram_bonusu ? `<span class="cip" title="${esc(p.score_detail.instagram)}">📸 IG ${p.score_detail.instagram_bonusu > 0 ? "+" : ""}${p.score_detail.instagram_bonusu}</span>` : ""}
-          ${p.score_detail && p.score_detail.etsy_bonusu ? `<span class="cip" title="Etsy'de benzerlerinin favori toplamı">🧶 Etsy ${Number(p.score_detail.etsy_favori).toLocaleString("tr-TR")}♥</span>` : ""}
-          ${p.color_count > 1 ? `<span class="cip">${p.color_count} renk</span>` : ""}
+    <article class="urunKart bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col overflow-hidden group" data-pid="${r.product_id}">
+      <div class="relative w-full h-52 bg-surface-container overflow-hidden shrink-0">
+        ${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">`
+          : `<div class="w-full h-full flex items-center justify-center text-outline">${lIkon("view_in_ar", 48)}</div>`}
+        <div class="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
+          <span class="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm font-label-sm text-label-sm font-bold ${lisansRenk}">${lisansAd}</span>
+          <span class="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm font-label-sm text-label-sm text-on-surface">#${r.rank} • ${esc(r.score)} puan</span>
         </div>
-        <div class="rakamlar">
-          <div>Baskı<b>${sure(p.print_time_min)}</b></div>
-          <div>Maliyet → fiyat<b>${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</b></div>
-          <div>Saatlik kazanç<b>${tl(p.hourly_profit_tl)}</b></div>
+        <div class="absolute top-2 right-2 flex items-center gap-2">
+          ${bayrak ? `<span class="px-2 py-0.5 rounded-full ${bayrak[1]} font-label-sm text-label-sm font-semibold shadow-sm">${esc(bayrak[0])}</span>` : ""}
+          <label class="w-7 h-7 rounded-lg bg-white/90 backdrop-blur-sm flex items-center justify-center cursor-pointer shadow-sm" title="Toplu işaretleme için seç">
+            <input type="checkbox" data-lsec="${r.product_id}" ${listeSecili.has(r.product_id) ? "checked" : ""} class="w-4 h-4 rounded accent-primary-container cursor-pointer" aria-label="Modeli seç"></label>
         </div>
-        <p class="neden">${esc(r.reason)}</p>
-        ${pazar.has(r.product_id) ? `<details><summary>${esc(pazarYazi(pazar.get(r.product_id), p.price_tl))}</summary>
-          ${pazarListesi(pazar.get(r.product_id))}
-          ${sosyalHtml(pazar.get(r.product_id))}
-          ${pazar.get(r.product_id).results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(pazar.get(r.product_id).results[0].sorgu)}" · ${esc(String(pazar.get(r.product_id).checked_at).slice(0, 10))}</p>` : ""}</details>` : ""}
-        <details><summary>Video fikri</summary><pre>${esc(r.video_idea)}</pre></details>
-        <details class="igAc"><summary>📸 Instagram'a planla</summary>
-          <div class="ig">
-            <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
-            <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
-            <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
-            <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM at" kartı, 9:16</label>
-            <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Aynı videoyu hikâye olarak da paylaş (hikâye videosu en çok 60 sn)</label>
-            <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
-            <div class="satir"><button type="button" class="ana igPlanla">Videoyu planla</button><span class="kaydedildi igDurum" role="status"></span></div>
-            <label>Ya da kendi fotoğraflarınla carousel (2-10 fotoğraf; JPEG'e çevrilir, 4:5 ile 1.91:1 dışı ortadan kırpılır)<input type="file" class="igFoto" accept="image/*" multiple></label>
-            <div class="satir"><button type="button" class="ikincil igCarousel">Carousel planla</button></div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between">
+          <div class="flex items-center gap-1.5 font-label-sm text-label-sm ${durumRenk}">${lIkon(durumIkon, 16)}<span class="font-semibold">${durumAd}</span></div>
+          <span class="font-label-sm text-label-sm text-outline">Baskı: ${esc(sure(p.print_time_min))}</span>
+        </div>
+      </div>
+      <div class="p-3 flex flex-col gap-2 flex-1">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h3 class="font-headline-sm text-headline-sm font-semibold"><a href="${url(p.url)}" target="_blank" rel="noopener" class="text-on-surface no-underline group-hover:text-primary transition-colors">${esc(p.name)}</a></h3>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">Tasarımcı: <strong class="text-on-surface">${esc(p.creator || "-")}</strong> • ${esc(p.category || "-")}</p>
           </div>
-        </details>
-        <button type="button" class="ikincil planDugme">${planIdleri.has(r.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>
-        <details class="grafikAc"><summary>İndirme geçmişi</summary><div class="grafik"><canvas></canvas></div></details>
-        <div class="isaret">
-          <label><input type="checkbox" name="printed" ${m.printed ? "checked" : ""}> Bastım</label>
-          <label><input type="checkbox" name="video" ${m.video ? "checked" : ""}> Videosunu çektim</label>
-          <span class="sayac">Sattım
-            <button type="button" data-adim="-1" aria-label="Azalt">−</button>
-            <output>${m.sold_count || 0}</output>
-            <button type="button" data-adim="1" aria-label="Artır">+</button></span>
-          <textarea class="not" placeholder="Not (ör. hangi renkte bastın, nerede sattın)">${esc(m.note || "")}</textarea>
-          <span class="kaydedildi" role="status"></span>
+          <span class="px-2 py-1 rounded-lg bg-surface-container-high text-primary font-label-sm text-label-sm font-bold whitespace-nowrap shrink-0" title="Önerilen satış fiyatı">${p.price_tl != null ? tl(p.price_tl) : "-"}</span>
         </div>
+        <div class="grid grid-cols-4 gap-1 p-2 rounded-lg bg-surface-container-low text-center">
+          ${param("Malzeme", esc(p.material || "-"))}
+          ${param("Ağırlık", p.weight_g ? `${Math.round(p.weight_g)} g` : "-")}
+          ${param("Maliyet", p.cost_tl != null ? tl(p.cost_tl) : "-")}
+          ${param("Saatlik", p.hourly_profit_tl != null ? tl(p.hourly_profit_tl) : "-", "text-secondary")}
+        </div>
+        ${cipler ? `<div class="flex flex-wrap gap-1.5">${cipler}</div>` : ""}
+        <p class="font-body-sm text-body-sm text-on-surface-variant">${esc(r.reason)}</p>
+        <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-surface-container-high">
+          <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-container-low font-label-md text-label-md cursor-pointer"><input type="checkbox" name="printed" ${m.printed ? "checked" : ""} class="w-4 h-4 accent-primary"> Bastım</label>
+          <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-container-low font-label-md text-label-md cursor-pointer"><input type="checkbox" name="video" ${m.video ? "checked" : ""} class="w-4 h-4 accent-primary"> Video çektim</label>
+          <span class="sayac px-2 py-0.5 rounded-lg bg-surface-container-low font-label-md text-label-md">Sattım
+            <button type="button" data-adim="-1" aria-label="Azalt">−</button><output>${m.sold_count || 0}</output><button type="button" data-adim="1" aria-label="Artır">+</button></span>
+          <span class="kaydedildi isaretDurum font-label-sm text-label-sm" role="status"></span>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          ${detay("notAc", "📝 Not", `<textarea class="not w-full mt-1" placeholder="Not (ör. hangi renkte bastın, nerede sattın)">${esc(m.note || "")}</textarea>`, !!(m.note || "").trim())}
+          ${o ? detay("pazarAc", esc(pazarYazi(o, p.price_tl)), `${pazarListesi(o)}${sosyalHtml(o)}${o.results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(o.results[0].sorgu)}" · ${esc(String(o.checked_at).slice(0, 10))}</p>` : ""}`) : ""}
+          ${detay("videoAc", "🎬 Video fikri", `<pre class="font-body-sm text-body-sm whitespace-pre-wrap m-0 pb-1">${esc(r.video_idea)}</pre>`)}
+          <details class="igAc rounded-lg bg-surface-container-low/60 px-3 py-1.5"><summary class="font-label-md text-label-md py-1">📸 Instagram'a planla</summary>
+            <div class="ig">
+              <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
+              <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
+              <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
+              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM at" kartı, 9:16</label>
+              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Aynı videoyu hikâye olarak da paylaş (hikâye videosu en çok 60 sn)</label>
+              <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
+              <div class="satir"><button type="button" class="ana igPlanla">Videoyu planla</button><span class="kaydedildi igDurum" role="status"></span></div>
+              <label>Ya da kendi fotoğraflarınla carousel (2-10 fotoğraf; JPEG'e çevrilir, 4:5 ile 1.91:1 dışı ortadan kırpılır)<input type="file" class="igFoto" accept="image/*" multiple></label>
+              <div class="satir"><button type="button" class="ikincil igCarousel">Carousel planla</button></div>
+            </div>
+          </details>
+          ${detay("grafikAc", "📈 İndirme geçmişi", `<div class="grafik"><canvas></canvas></div>`)}
+        </div>
+      </div>
+      <div class="px-3 py-2 bg-surface-container-low flex items-center justify-between">
+        <div class="flex items-center gap-1">
+          <a href="${url(p.url)}" target="_blank" rel="noopener" title="MakerWorld'de aç" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors no-underline">${lIkon("view_in_ar")}</a>
+          <button type="button" data-ac="grafikAc" title="İndirme geçmişi" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("monitoring")}</button>
+          <button type="button" data-ac="igAc" title="Instagram'a planla" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("photo_camera")}</button>
+          <button type="button" data-ac="videoAc" title="Video fikri" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("movie")}</button>
+        </div>
+        <button type="button" class="${planDugmeSinifi(planda)}"><span class="planYazi">${planda ? "✓ Planda" : "Plana ekle"}</span>${lIkon(planda ? "event_available" : "queue", 16, "planIkon")}</button>
       </div>
     </article>`;
   }
 
   function kartBagla(kart) {
     const pid = Number(kart.dataset.pid);
-    const durumAlan = kart.querySelector(".kaydedildi");
+    const durumAlan = kart.querySelector(".isaretDurum");
     let zaman;
     const kaydet = async () => {
       const kayit = {
@@ -801,9 +981,10 @@
       const { error } = await sb.from("product_marks").upsert(kayit);
       durumAlan.style.color = error ? "var(--bad)" : "";
       durumAlan.textContent = error ? "Kaydedilemedi: " + error.message : "Kaydedildi ✓";
-      if (!error) isaretler.set(pid, kayit);
+      if (!error) { isaretler.set(pid, kayit); listeKpiCiz(); }
     };
-    kart.querySelectorAll("input[type=checkbox]").forEach((c) => c.addEventListener("change", kaydet));
+    // Yalnızca işaret kutuları kaydeder (Instagram bölümündeki kutular değil)
+    kart.querySelectorAll("[name=printed], [name=video]").forEach((c) => c.addEventListener("change", kaydet));
     kart.querySelectorAll("[data-adim]").forEach((b) => b.addEventListener("click", () => {
       const o = kart.querySelector("output");
       o.textContent = Math.max(0, Number(o.textContent) + Number(b.dataset.adim));
@@ -811,9 +992,105 @@
     }));
     kart.querySelector(".not").addEventListener("input", () => { clearTimeout(zaman); zaman = setTimeout(kaydet, 800); });
     kart.querySelector(".grafikAc").addEventListener("toggle", (e) => { if (e.target.open) grafikCiz(pid, kart); }, { once: true });
-    kart.querySelector(".planDugme").addEventListener("click", (e) => planaEkleCikar(pid, e.currentTarget));
+    kart.querySelector(".planDugme").addEventListener("click", async (e) => {
+      const dugme = e.currentTarget;
+      await planaEkleCikar(pid, dugme.querySelector(".planYazi"));
+      const planda = planIdleri.has(pid);
+      dugme.className = planDugmeSinifi(planda);
+      dugme.querySelector(".planYazi").textContent = planda ? "✓ Planda" : "Plana ekle";
+      dugme.querySelector(".planIkon").textContent = planda ? "event_available" : "queue";
+      listeKpiCiz();
+    });
+    kart.querySelectorAll("[data-ac]").forEach((b) => b.addEventListener("click", () => {
+      const bolum = kart.querySelector(`.${b.dataset.ac}`);
+      if (!bolum) return;
+      bolum.open = !bolum.open;
+      if (bolum.open) bolum.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }));
+    kart.querySelector("[data-lsec]").addEventListener("change", (e) => {
+      if (e.target.checked) listeSecili.add(pid); else listeSecili.delete(pid);
+      listeTopluCiz();
+    });
     igBagla(kart, pid);
   }
+
+  function listeTabloCiz(liste) {
+    const th = (metin, ek = "") => `<th class="p-3 font-label-sm text-label-sm ${ek}" style="border-bottom:0">${metin}</th>`;
+    const rozet = (metin, sinif) => `<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm ${sinif}">${metin}</span>`;
+    const hepsi = liste.every((r) => listeSecili.has(r.product_id));
+    $("#listeTablo").innerHTML = `<thead><tr class="bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider">
+        <th class="p-3 w-10" style="border-bottom:0"><input type="checkbox" id="listeHepsi" ${hepsi ? "checked" : ""} class="w-4 h-4 rounded accent-primary cursor-pointer" aria-label="Listelenenlerin hepsini seç"></th>
+        ${th("#")}${th("Model")}${th("Puan", "text-right")}${th("Baskı")}${th("Ağırlık", "text-right")}${th("Maliyet → Fiyat", "text-right")}${th("Saatlik", "text-right")}${th("Durum")}${th("", "text-right")}</tr></thead>
+      <tbody class="text-on-surface font-body-sm text-body-sm">${liste.map((r, i) => {
+        const p = r.products, m = isaretler.get(r.product_id) || {}, planda = planIdleri.has(r.product_id);
+        const durum = [m.printed ? rozet("✓ Basıldı", "bg-tertiary-fixed/30 text-tertiary") : "", m.video ? rozet("🎬 Video", "bg-primary-fixed text-on-primary-fixed-variant") : "",
+          m.sold_count > 0 ? rozet(`💰 ${m.sold_count}`, "bg-secondary-fixed text-on-secondary-fixed-variant") : "", planda ? rozet("📋 Planda", "bg-surface-container-high text-on-surface-variant") : ""].join(" ") || `<span class="text-outline">—</span>`;
+        return `<tr data-ltpid="${r.product_id}" class="${i % 2 ? "bg-surface-container-low/20" : "bg-white"} hover:bg-surface-container-low/60 transition-colors">
+          <td class="p-3" style="border-bottom:0"><input type="checkbox" data-lsec="${r.product_id}" ${listeSecili.has(r.product_id) ? "checked" : ""} class="w-4 h-4 rounded accent-primary cursor-pointer" aria-label="Modeli seç"></td>
+          <td class="p-3 font-label-md text-label-md font-bold text-primary" style="border-bottom:0">${r.rank}</td>
+          <td class="p-3" style="border-bottom:0"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg bg-surface-container-high overflow-hidden shrink-0 flex items-center justify-center">${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy" class="w-full h-full object-cover">` : lIkon("view_in_ar", 20, "text-outline")}</div>
+            <div class="min-w-0 max-w-[280px]"><a href="${url(p.url)}" target="_blank" rel="noopener" class="font-label-md text-label-md font-medium text-on-surface hover:text-primary no-underline truncate block">${esc(p.name)}</a><span class="font-label-sm text-label-sm text-outline">${esc(p.category || "-")} • ${esc(p.creator || "-")}${p.trend_rank ? ` • 🔥 #${p.trend_rank}` : ""}</span></div></div></td>
+          <td class="p-3 text-right font-semibold" style="border-bottom:0">${esc(r.score)}</td>
+          <td class="p-3" style="border-bottom:0">${esc(sure(p.print_time_min))}</td>
+          <td class="p-3 text-right" style="border-bottom:0">${p.weight_g ? `${Math.round(p.weight_g)} g` : "-"}</td>
+          <td class="p-3 text-right" style="border-bottom:0">${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</td>
+          <td class="p-3 text-right text-secondary font-semibold" style="border-bottom:0">${tl(p.hourly_profit_tl)}</td>
+          <td class="p-3" style="border-bottom:0">${durum}</td>
+          <td class="p-3 text-right whitespace-nowrap" style="border-bottom:0"><button type="button" data-lplan="${r.product_id}" class="px-2.5 py-1 rounded-lg font-label-sm text-label-sm ${planda ? "bg-tertiary text-on-tertiary" : "bg-surface-container-low text-on-surface hover:bg-primary hover:text-on-primary"}">${planda ? "✓ Planda" : "Plana ekle"}</button></td>
+        </tr>`;
+      }).join("")}</tbody>`;
+  }
+
+  async function listeToplu(islem) {
+    if (islem === "temizle") { listeSecili.clear(); listeTopluAcik = false; return kartlariCiz(); }
+    if (islem === "secHepsi") { listeFiltreli().forEach((r) => listeSecili.add(r.product_id)); return kartlariCiz(); }
+    const ids = [...listeSecili];
+    if (!ids.length) return alert("Önce kartlardaki kutudan model seç.");
+    const simdi = new Date().toISOString();
+    if (islem === "plan") {
+      const yeni = ids.filter((id) => !planIdleri.has(id));
+      if (yeni.length) {
+        const { error } = await sb.from("print_plan").upsert(yeni.map((id) => ({ product_id: id, quantity: 1, done: false, updated_at: simdi })));
+        if (error) return alert("Plan güncellenemedi: " + error.message);
+        yeni.forEach((id) => planIdleri.add(id));
+      }
+    } else if (islem === "printed" || islem === "video") {
+      const kayitlar = ids.map((id) => {
+        const m = isaretler.get(id) || {};
+        return { product_id: id, printed: !!m.printed, video: !!m.video, sold_count: m.sold_count || 0, note: m.note || null, [islem]: true, updated_at: simdi };
+      });
+      const { error } = await sb.from("product_marks").upsert(kayitlar);
+      if (error) return alert("Kaydedilemedi: " + error.message);
+      kayitlar.forEach((k) => isaretler.set(k.product_id, k));
+    }
+    kartlariCiz();
+  }
+
+  // Günlük liste kontrolleri (kategori ve "sadece işaretlenmemiş" başlatma bölümünde bağlanır)
+  $("#listeAra").addEventListener("input", kartlariCiz);
+  $("#listeSira").addEventListener("change", kartlariCiz);
+  document.querySelectorAll("[data-gorunum]").forEach((b) => b.addEventListener("click", () => {
+    listeGorunum = b.dataset.gorunum;
+    try { localStorage.setItem("listeGorunum", listeGorunum); } catch (_) { /* tarayıcı depolaması kapalı olabilir */ }
+    kartlariCiz();
+  }));
+  $("#listeTopluAc").addEventListener("click", () => { listeTopluAcik = !listeTopluAcik; listeTopluCiz(); });
+  $("#listeTopluBar").addEventListener("click", (e) => { const b = e.target.closest("[data-ltoplu]"); if (b) listeToplu(b.dataset.ltoplu); });
+  $("#listePlanaGit").addEventListener("click", () => document.querySelector('[data-sekme="plan"]').click());
+  $("#listeTablo").addEventListener("change", (e) => {
+    if (e.target.id === "listeHepsi") {
+      listeFiltreli().forEach((r) => e.target.checked ? listeSecili.add(r.product_id) : listeSecili.delete(r.product_id));
+      return kartlariCiz();
+    }
+    const sec = e.target.closest("[data-lsec]");
+    if (sec) { const id = Number(sec.dataset.lsec); if (sec.checked) listeSecili.add(id); else listeSecili.delete(id); listeTopluCiz(); }
+  });
+  $("#listeTablo").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-lplan]");
+    if (!b) return;
+    await planaEkleCikar(Number(b.dataset.lplan));
+    kartlariCiz();
+  });
 
   // ------------------------------------------------------------ Instagram
   const IG_DEPO = "instagram", IG_EN_BUYUK = 50 * 1024 * 1024;
