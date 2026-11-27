@@ -3,7 +3,7 @@ name: Paneli yayınla
 on:
   push:
     branches: [main]
-    paths: ["panel/**", ".github/workflows/panel.yml"]
+    paths: ["panel/**", "panel_stil/**", ".github/workflows/panel.yml"]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,16 @@ jobs:
             echo "::error::panel/ içinde gizli anahtar var; yayınlanmadı."
             exit 1
           fi
+
+      # Panel Tailwind CDN betiği yerine derlenmiş CSS kullanır (üçüncü parti betik yok); her yayında
+      # index.html'deki sınıflardan yeniden derlenir, böylece HTML ile hep uyumlu kalır.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tailwind CSS'i derle
+        run: |
+          npx -y tailwindcss@3.4.17 -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify
+          test -s panel/tailwind.css
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -425,6 +425,22 @@ def mp4ye_cevir(ffmpeg: str, girdi: str, cikti: str, kirp: str | None = None) ->
 
 # ------------------------------------------------------------------ Supabase
 
+def gecici_hata_mi(e: Exception) -> bool:
+    """Yeniden denemeye değer mi: 5xx (Cloudflare 520 dahil), zaman aşımı, bağlantı kopması."""
+    metin = str(e)
+    return bool(re.search(r"'statusCode':\s*'?5\d\d|\b(5\d\d)\b|time(d)?\s?out|Timeout|ConnectionError|RemoteProtocolError", metin)) \
+        or isinstance(e, (TimeoutError, ConnectionError))
+
+
+def hata_ozeti(e: Exception) -> str:
+    """Panelde gösterilecek kısa hata: Supabase/Cloudflare'in HTML hata sayfası yerine kodu ve öneri."""
+    metin = str(e) or e.__class__.__name__
+    if "<!DOCTYPE" in metin or "<html" in metin.lower():
+        kod = re.search(r"'statusCode':\s*'?(\d{3})", metin) or re.search(r"\b(5\d\d|4\d\d)\b", metin)
+        return f"Supabase sunucu hatası ({kod.group(1) if kod else 'bilinmiyor'}); birkaç dakika sonra tekrar dene"
+    return metin[:300]
+
+
 class SupabaseKopruDepo:
     def __init__(self, url: str, key: str):
         from supabase import create_client
@@ -454,8 +470,18 @@ class SupabaseKopruDepo:
         satirlar = r.data or []
         return next((s for s in satirlar if s.get("yazici") == ad), None) or next((s for s in satirlar if not s.get("yazici")), None)
 
-    def video_yukle(self, yol: str, veri: bytes) -> None:
-        self.sb.storage.from_(SIP_DEPO).upload(yol, veri, {"content-type": "video/mp4", "upsert": "false"})
+    def video_yukle(self, yol: str, veri: bytes, bekle=time.sleep) -> None:
+        """Geçici sunucu hatalarında (5xx, zaman aşımı; ör. Cloudflare 520) 3 kez dener. Yol her yüklemede
+        benzersiz olduğundan "upsert": ilk deneme sunucuda başarılı olup yanıt kaybolduysa tekrar çakışmasın."""
+        for deneme in range(3):
+            try:
+                self.sb.storage.from_(SIP_DEPO).upload(yol, veri, {"content-type": "video/mp4", "upsert": "true"})
+                return
+            except Exception as e:
+                if deneme == 2 or not gecici_hata_mi(e):
+                    raise
+                log.warning("Video yüklemesi geçici hata verdi (%s); yeniden deneniyor", hata_ozeti(e))
+                bekle(3 * (deneme + 1))
 
     def medya_ekle(self, siparis_id: int, oge: dict) -> None:
         s = self.siparis(siparis_id)
@@ -550,7 +576,7 @@ class Kopru:
             self.depo.istek_guncelle(istek["id"], durum="tamam", sonuc=sonuc)
         except Exception as e:
             log.warning("İstek #%s (%s) başarısız: %s", istek.get("id"), istek.get("tur"), e)
-            self.depo.istek_guncelle(istek["id"], durum="hata", hata=str(e)[:300] or e.__class__.__name__)
+            self.depo.istek_guncelle(istek["id"], durum="hata", hata=hata_ozeti(e))
 
     def _ffmpeg(self) -> str:
         if not self.ffmpeg:

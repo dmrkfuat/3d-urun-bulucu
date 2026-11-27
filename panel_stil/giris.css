@@ -1,0 +1,4 @@
+/* Panelin Tailwind girişi: preflight tailwind.config.js içinde kapalıdır. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

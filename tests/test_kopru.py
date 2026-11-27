@@ -408,6 +408,47 @@ def test_basarisiz_baski_bildirimi():
     assert "başarısız" in mesajlar[0] and "&lt;Vazo&gt;" in mesajlar[0]
 
 
+HTML_520 = ("{'statusCode': 520, 'error': InternalError, 'message': Unable to parse error message: "
+            "<!DOCTYPE html><html><head><title>520: Web server is returning an unknown error</title></head></html>}")
+
+
+def test_hata_ozeti_ve_gecici_hata():
+    assert kopru.hata_ozeti(RuntimeError(HTML_520)) == "Supabase sunucu hatası (520); birkaç dakika sonra tekrar dene"
+    assert kopru.hata_ozeti(ValueError("Geçersiz dosya adı")) == "Geçersiz dosya adı"
+    assert kopru.gecici_hata_mi(RuntimeError(HTML_520))
+    assert kopru.gecici_hata_mi(TimeoutError("read timed out"))
+    assert not kopru.gecici_hata_mi(RuntimeError("{'statusCode': 413, 'message': 'Payload too large'}"))
+
+
+def test_video_yukle_gecici_hatada_yeniden_dener():
+    denemeler, beklemeler = [], []
+
+    class Kova:
+        def upload(self, yol, veri, secenek):
+            denemeler.append(secenek["upsert"])
+            if len(denemeler) < 3:
+                raise RuntimeError(HTML_520)
+
+    class Depolama:
+        def from_(self, ad):
+            return Kova()
+    depo = kopru.SupabaseKopruDepo.__new__(kopru.SupabaseKopruDepo)
+    depo.sb = type("SB", (), {"storage": Depolama()})()
+    depo.video_yukle("1/1.mp4", b"x", bekle=beklemeler.append)
+    assert len(denemeler) == 3 and denemeler == ["true"] * 3 and beklemeler == [3, 6]
+    # Kalıcı hata (ör. 413) yeniden denenmez
+    denemeler.clear()
+
+    class KalıcıKova:
+        def upload(self, *a):
+            denemeler.append(1)
+            raise RuntimeError("{'statusCode': 413, 'message': 'Payload too large'}")
+    depo.sb = type("SB", (), {"storage": type("D", (), {"from_": lambda self, ad: KalıcıKova()})()})()
+    with pytest.raises(RuntimeError):
+        depo.video_yukle("1/2.mp4", b"x", bekle=beklemeler.append)
+    assert len(denemeler) == 1
+
+
 def test_seri_sorunu_mac_ve_bicim():
     assert "MAC" in kopru.seri_sorunu("AA:BB:CC:11:22:33")
     assert "MAC" in kopru.seri_sorunu("aa-bb-cc-11-22-33")

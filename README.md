@@ -327,6 +327,11 @@ Bir kerelik kurulum:
 4. Giriş izni: e-posta `panel_izinli` tablosuna eklenir ve Supabase'te kullanıcı oluşturulur
    (**Authentication → Users → Add user**). Panelde e-postanızı yazınca giriş bağlantısı gelir.
 
+Görünüm Tailwind ile yazılıdır ama tarayıcıya üçüncü parti betik yüklenmez: `panel/tailwind.css`,
+`panel_stil/tailwind.config.js` yapılandırmasından derlenir. Yayın iş akışı bunu her seferinde kendisi yapar
+(dosya repoya girmez). Paneli yerelde açmadan önce bir kez derleyin (Node.js gerekir):
+`npx -y tailwindcss@3.4.17 -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify`
+
 ---
 
 ## İçerik puanı nasıl hesaplanır? (100 üzerinden)
