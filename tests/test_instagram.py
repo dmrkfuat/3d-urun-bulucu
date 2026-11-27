@@ -399,6 +399,30 @@ def test_video_duzenle_gercek_ffmpeg(tmp_path):
     assert r["kanca"] == ["%20 İNDİRİM: TEK", "PARÇA"]
 
 
+def test_video_hazirla_kopru_videosunu_ikinci_kez_kirpmaz(monkeypatch):
+    """Yazıcı köprüsü timelapse/klibi zaten kırptı: yol '_k' ile biter, düzenlemede kırpma atlanır."""
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: "ffmpeg")
+    cagrilar = []
+
+    def duzenle(giris, cikis, aciklama, **k):
+        cagrilar.append(k)
+        Path(cikis).write_bytes(b"hazir")
+        return {}
+    depo = VideoDepo()
+    yol, notu = instagram.video_hazirla(depo, _gonderi(video_path="0/1795765948891_k.mp4"), duzenle)
+    assert notu is None and yol == "0/1795765948891_k_hazir.mp4" and cagrilar == [{"kirp": False}]
+    instagram.video_hazirla(depo, _gonderi(video_path="7/1.mp4"), duzenle)
+    assert cagrilar[-1] == {}                 # panelden yüklenen normal video: kırpılır (varsayılan)
+
+
+def test_filtre_kirpmayi_atlayabilir():
+    from urun_bulucu import video_duzenle as vd
+    kirpli, _ = vd.filtre(["A"], [], 10, False)
+    kirpsiz, _ = vd.filtre(["A"], [], 10, False, kirp_uygula=False)
+    assert "crop=trunc(iw*0.9000" in kirpli and "crop=trunc(iw*" not in kirpsiz
+
+
 def test_video_hazirla_beklenmeyen_dosya_adini_duzenlemez(monkeypatch):
     monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
     monkeypatch.setattr(instagram.video_duzenle, "ffmpeg_yolu", lambda: "ffmpeg")

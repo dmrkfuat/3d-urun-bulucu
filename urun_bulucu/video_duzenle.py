@@ -128,11 +128,12 @@ def kirpma(oranlar: dict | None = None) -> str | None:
             f":trunc(iw*{sol:.4f}):trunc(ih*{ust:.4f})")
 
 
-def filtre(kanca: list[str], son: list[str], sure: float, ses_var: bool) -> tuple[str, float]:
-    """filter_complex metni ve kanca süresi. Metin dosyaları: k0.txt…, s0.txt…"""
+def filtre(kanca: list[str], son: list[str], sure: float, ses_var: bool, kirp_uygula: bool = True) -> tuple[str, float]:
+    """filter_complex metni ve kanca süresi. Metin dosyaları: k0.txt…, s0.txt…
+    kirp_uygula=False: video zaten kırpılmış (köprünün timelapse/klibi), ikinci kez kırpılmaz."""
     kanca_sn = min(config.INSTAGRAM_KANCA_SN, max(sure - 0.5, 0.5))
     son_sn = config.INSTAGRAM_SON_KART_SN
-    kirp = kirpma()
+    kirp = kirpma() if kirp_uygula else None
     v = [
         f"[0:v]{kirp + ',' if kirp else ''}split=2[a][b]",
         f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,"
@@ -159,7 +160,7 @@ def filtre(kanca: list[str], son: list[str], sure: float, ses_var: bool) -> tupl
     return ";".join(v), kanca_sn
 
 
-def duzenle(giris: Path, cikis: Path, aciklama: str, ffmpeg: str | None = None) -> dict:
+def duzenle(giris: Path, cikis: Path, aciklama: str, ffmpeg: str | None = None, kirp: bool = True) -> dict:
     """Videoyu hazırlar; {'sure', 'kanca'} döndürür. Sorun olursa VideoDuzenlemeHatasi."""
     ffmpeg = ffmpeg or ffmpeg_yolu()
     if not ffmpeg:
@@ -183,7 +184,7 @@ def duzenle(giris: Path, cikis: Path, aciklama: str, ffmpeg: str | None = None) 
         for ad, satirlar in (("k", kanca), ("s", son)):
             for i, s in enumerate(satirlar):
                 (klasor / f"{ad}{i}.txt").write_text(s, encoding="utf-8")
-        filtre_metni, kanca_sn = filtre(kanca, son, sure, ses_var)
+        filtre_metni, kanca_sn = filtre(kanca, son, sure, ses_var, kirp_uygula=kirp)
         komut = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *GIRIS_SECENEKLERI,
                  "-i", str(Path(giris).resolve())]
         if not ses_var:

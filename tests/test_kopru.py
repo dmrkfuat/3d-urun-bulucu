@@ -204,12 +204,12 @@ class Saat:
 
 
 def _sahte_ffmpeg(monkeypatch):
-    def kareden(ffmpeg, kareler, sure, cikti):
+    def kareden(ffmpeg, kareler, sure, cikti, kirp=None):
         if len(kareler) < 2:
             raise RuntimeError("Kamera görüntüsü yok")
         open(cikti, "wb").write(b"mp4" * len(kareler))
 
-    def cevir(ffmpeg, girdi, cikti):
+    def cevir(ffmpeg, girdi, cikti, kirp=None):
         shutil.copy(girdi, cikti)
     monkeypatch.setattr(kopru, "kareden_mp4", kareden)
     monkeypatch.setattr(kopru, "mp4ye_cevir", cevir)
@@ -237,7 +237,18 @@ def test_adim_durum_yazar_ve_klip_istegini_isler(monkeypatch):
     assert depo.guncellemeler[3][1]["durum"] == "hata" and "Sipariş" in depo.guncellemeler[3][1]["hata"]
     siparis_id, oge = depo.eklenen[0]
     assert siparis_id == 41 and oge["tur"] == "klip" and oge["yol"].startswith("41/") and oge["yol"].endswith(".mp4")
+    assert oge["kirpildi"] is True           # Instagram'la aynı kırpma uygulandı (varsayılan sağdan %10)
     assert depo.yuklenen[0][0] == oge["yol"]
+
+
+def test_kirpma_ayari_kapaliysa_isaretlenmez(monkeypatch):
+    _sahte_ffmpeg(monkeypatch)
+    monkeypatch.setattr(kopru.config, "KOPRU_KIRP", {"sag": 0})
+    depo = SahteDepo(istekler=[{"id": 1, "tur": "klip", "siparis_id": 5, "saniye": 15}])
+    k = kopru.Kopru(AYAR, depo, "ffmpeg", saat=Saat(), kamera=lambda s: ([JPEG] * 5, 15))
+    assert k.kirp is None
+    k.adim()
+    assert "kirpildi" not in depo.eklenen[0][1]
 
 
 def test_durum_her_adimda_yazilmaz():
@@ -442,5 +453,13 @@ def test_gercek_ffmpeg_kare_ve_avi_donusumu(tmp_path):
     mp4 = tmp_path / "t.mp4"
     kopru.mp4ye_cevir(FFMPEG, str(avi), str(mp4))
     assert mp4.stat().st_size > 0 and b"ftyp" in mp4.read_bytes()[:64]
+    # Instagram'la aynı kırpma: sağdan %10 → 320x240 timelapse 288x240 olur
+    ffprobe = os.path.join(os.path.dirname(FFMPEG), "ffprobe" + os.path.splitext(FFMPEG)[1])
+    if os.path.isfile(ffprobe):
+        kirpik = tmp_path / "k.mp4"
+        kopru.mp4ye_cevir(FFMPEG, str(avi), str(kirpik), kirp=video_duzenle.kirpma({"sag": 0.10}))
+        boyut = subprocess.run([ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                                "-of", "csv=p=0", str(kirpik)], capture_output=True, text=True, check=True).stdout.strip()
+        assert boyut == "288,240"
     with pytest.raises(RuntimeError):
         kopru.kareden_mp4(FFMPEG, [kare], 10, str(tmp_path / "bos.mp4"))

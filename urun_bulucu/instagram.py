@@ -388,15 +388,21 @@ def video_hazirla(depo: InstagramDepo, g: dict,
         return yol, None
     if not video_duzenle.ffmpeg_yolu():
         return yol, "ffmpeg bulunamadı; video düzenlenmeden paylaşıldı"
-    if not re.fullmatch(r"\d+/\d+\.(mp4|mov)", yol or ""):   # panelin ürettiği biçim: {ürün}/{zaman}.mp4
+    # Panelin ürettiği biçim: {ürün}/{zaman}.mp4; "_k" eki: video zaten kırpılmış (yazıcı köprüsünün timelapse/klibi)
+    eslesme = re.fullmatch(r"\d+/\d+(_k)?\.(mp4|mov)", yol or "")
+    if not eslesme:
         return yol, "video adı beklenen biçimde değil; video düzenlenmeden paylaşıldı"
+    kirpilmis = bool(eslesme.group(1))
     hedef = video_duzenle.hazir_yolu(yol)
     try:
         with tempfile.TemporaryDirectory() as d:
             giris = Path(d) / "giris.video"   # uzantı dosya adından alınmaz
             cikis = Path(d) / "hazir.mp4"
             depo.video_indir(yol, giris)
-            duzenle(giris, cikis, g.get("caption") or "")
+            if kirpilmis:
+                duzenle(giris, cikis, g.get("caption") or "", kirp=False)   # ikinci kez kırpma
+            else:
+                duzenle(giris, cikis, g.get("caption") or "")
             if cikis.stat().st_size > config.INSTAGRAM_DEPO_SINIRI_MB * 1024 * 1024:
                 return yol, "düzenlenen video depolama sınırını aştı; video düzenlenmeden paylaşıldı"
             depo.video_yukle(hedef, cikis)

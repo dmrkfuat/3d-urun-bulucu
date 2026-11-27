@@ -1994,7 +1994,8 @@
       const { data: blob, error } = await sb.storage.from(SIP_DEPO).download(m.yol);
       if (error) return medyaYaz("Video alınamadı: " + error.message, true);
       const mov = /\.mov$/i.test(m.yol);
-      const yol = `${s.product_id || "siparis"}/${Date.now()}.${mov ? "mov" : "mp4"}`;
+      // Düzenleyici {sayı}/{sayı}.mp4 bekler (ürünsüz sipariş: 0). "_k": köprü zaten kırptı, ikinci kez kırpılmaz.
+      const yol = `${Number(s.product_id) || 0}/${Date.now()}${m.kirpildi ? "_k" : ""}.${mov ? "mov" : "mp4"}`;
       const yk = await sb.storage.from(IG_DEPO).upload(yol, blob, { contentType: mov ? "video/quicktime" : "video/mp4", upsert: false });
       if (yk.error) return medyaYaz("Kopyalanamadı: " + yk.error.message + igSqlIpucu(yk.error), true);
       const kayit = { product_id: s.product_id ?? null, video_path: yol, caption: aciklama, scheduled_at: zaman.toISOString() };

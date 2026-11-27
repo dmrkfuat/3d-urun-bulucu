@@ -179,6 +179,9 @@ INSTAGRAM_VIDEO_DUZENLE = True
 # Düzenlemede önce kenarlardan kırpılacak oran (0.10 = görüntünün %10'u), sonra 9:16'ya getirilir.
 # Örn. sağdaki yazıcı kapısı kenarı: {"sag": 0.10}. Bir eksende toplam en fazla %80.
 INSTAGRAM_KIRP = {"sol": 0.0, "sag": 0.10, "ust": 0.0, "alt": 0.0}
+# Yazıcı köprüsünün siparişe eklediği timelapse ve kameradan çekilen kliplere uygulanan kırpma (varsayılan:
+# Instagram'la aynı). Bu videolar Instagram'a planlanırsa düzenlemede ikinci kez kırpılmaz (yol "_k" ile biter).
+KOPRU_KIRP = INSTAGRAM_KIRP
 INSTAGRAM_KANCA_SN = 2.5            # kanca yazısı videonun ilk kaç saniyesinde görünür
 INSTAGRAM_SON_KART_SN = 2.5         # sona eklenen "DM" kartının süresi (0: eklenmez)
 INSTAGRAM_SON_KART = ("SİPARİŞ İÇİN DM AT", "İstediğin renkte basılır")

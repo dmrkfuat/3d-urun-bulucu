@@ -392,8 +392,13 @@ def guvenli_ad(ad: str) -> str:
 
 # ------------------------------------------------------------------ ffmpeg
 
-def kareden_mp4(ffmpeg: str, kareler: list[bytes], sure_sn: float, cikti: str) -> None:
-    """JPEG karelerinden MP4 (H.264). Kare hızı, karelerin gerçekte geldiği hıza göre ayarlanır."""
+def _vf(*filtreler: str | None) -> str:
+    return ",".join(f for f in filtreler if f)
+
+
+def kareden_mp4(ffmpeg: str, kareler: list[bytes], sure_sn: float, cikti: str, kirp: str | None = None) -> None:
+    """JPEG karelerinden MP4 (H.264). Kare hızı, karelerin gerçekte geldiği hıza göre ayarlanır.
+    kirp: kenar kırpma filtresi (video_duzenle.kirpma; Instagram'la aynı)."""
     if len(kareler) < 2:
         raise RuntimeError("Kamera görüntüsü yok (kamera bağlı değil ya da yazıcı ışığı kapalı)")
     # P1S kamerası saniyede ~0,7 kare verir: giriş hızı tam (kesirli) alınır ki klip istenen süreyi tutsun;
@@ -401,15 +406,16 @@ def kareden_mp4(ffmpeg: str, kareler: list[bytes], sure_sn: float, cikti: str) -
     fps = max(0.1, len(kareler) / max(sure_sn, 1))
     komut = [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", f"{fps:.4f}", "-c:v", "mjpeg", "-i", "-",
              "-r", "10", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
-             "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", cikti]
+             "-vf", _vf(kirp, "scale=trunc(iw/2)*2:trunc(ih/2)*2"), "-movflags", "+faststart", cikti]
     subprocess.run(komut, input=b"".join(kareler), check=True, timeout=300, capture_output=True)
 
 
-def mp4ye_cevir(ffmpeg: str, girdi: str, cikti: str) -> None:
-    """SD karttaki timelapse'i (P1 serisi AVI) panelin oynatabileceği MP4'e çevirir; 50 MB'ı aşarsa küçültür."""
+def mp4ye_cevir(ffmpeg: str, girdi: str, cikti: str, kirp: str | None = None) -> None:
+    """SD karttaki timelapse'i (P1 serisi AVI) panelin oynatabileceği MP4'e çevirir; 50 MB'ı aşarsa küçültür.
+    kirp: kenar kırpma filtresi (video_duzenle.kirpma; Instagram'la aynı)."""
     for crf, genislik in ((26, 1280), (32, 960), (36, 640)):
         komut = [ffmpeg, "-y", "-loglevel", "error", "-i", girdi, "-an", "-c:v", "libx264", "-preset", "veryfast",
-                 "-crf", str(crf), "-pix_fmt", "yuv420p", "-vf", f"scale='min({genislik},iw)':-2",
+                 "-crf", str(crf), "-pix_fmt", "yuv420p", "-vf", _vf(kirp, f"scale='min({genislik},iw)':-2"),
                  "-movflags", "+faststart", cikti]
         subprocess.run(komut, check=True, timeout=1800, capture_output=True)
         if os.path.getsize(cikti) <= EN_BUYUK_BAYT:
@@ -477,6 +483,8 @@ class Kopru:
         self.timelapse_zamani: float | None = None
         self.biten_durum: str | None = None
         self.kamera_hatasi: str | None = None
+        # Timelapse ve kliplere Instagram'la aynı kenar kırpması (config.KOPRU_KIRP; ör. sağdan %10, kapı kenarı)
+        self.kirp = video_duzenle.kirpma(config.KOPRU_KIRP)
         # Uzun işler (klip kaydı, SD aktarımı, timelapse) sırayla bir işçi iş parçacığında yürür; ana döngü bu sırada
         # da durum yazmaya devam eder (yoksa panel 60 sn sinyal alamayıp köprüyü "kapalı" sanardı).
         self.arka_planda = arka_planda
@@ -558,6 +566,8 @@ class Kopru:
         oge = {"yol": yol, "ad": ad[:120], "boyut": boyut, "tur": tur, "tarih": datetime.now(timezone.utc).isoformat()}
         if kaynak:
             oge["kaynak"] = kaynak
+        if self.kirp:
+            oge["kirpildi"] = True   # panel Instagram'a planlarken ikinci kez kırpılmasın diye "_k" ekiyle yükler
         self.depo.medya_ekle(siparis_id, oge)
         return oge
 
@@ -575,7 +585,7 @@ class Kopru:
             raise RuntimeError(f"Kameraya bağlanılamadı: {self.kamera_hatasi}") from e
         with tempfile.TemporaryDirectory() as klasor:
             cikti = os.path.join(klasor, "klip.mp4")
-            kareden_mp4(ffmpeg, kareler, sure or saniye, cikti)
+            kareden_mp4(ffmpeg, kareler, sure or saniye, cikti, kirp=self.kirp)
             oge = self._yukle_ve_ekle(int(istek["siparis_id"]), cikti, ad, "klip")
         return {"yol": oge["yol"], "kare": len(kareler), "sure": round(sure, 1)}
 
@@ -598,7 +608,7 @@ class Kopru:
                 with open(girdi, "wb") as f:
                     ftp.retrbinary(f"RETR {TIMELAPSE_KLASORU}/{ad}", f.write)
                 cikti = os.path.join(klasor, "cikti.mp4")
-                mp4ye_cevir(self._ffmpeg(), girdi, cikti)
+                mp4ye_cevir(self._ffmpeg(), girdi, cikti, kirp=self.kirp)
                 return self._yukle_ve_ekle(siparis_id, cikti, Path(ad).stem + ".mp4", tur, kaynak=ad)
         finally:
             try:
