@@ -84,16 +84,47 @@ def test_parmak_izi():
     iz = hashlib.sha256(b"sertifika").hexdigest().upper()
     assert kopru.parmak_izi_bicim(iz.lower()[:8] + ":" + iz.lower()[8:]) == iz
     kopru.parmak_izi_dogrula(SahteSoket(b""), iz)            # eşleşiyor
-    kopru.parmak_izi_dogrula(SahteSoket(b""), "")            # ayarlanmamış: denetlenmez
+    with pytest.raises(ssl.SSLError):
+        kopru.parmak_izi_dogrula(SahteSoket(b""), "")        # ayarlanmamış: kapalı varsayılan, reddedilir
     with pytest.raises(ssl.SSLError):
         kopru.parmak_izi_dogrula(SahteSoket(b"", iz=b"baska"), iz)
 
 
+def test_parmak_izi_yoksa_kopru_baslamaz(monkeypatch, capsys):
+    monkeypatch.setenv("YAZICI_IP", "192.0.2.5")
+    monkeypatch.setenv("YAZICI_ERISIM_KODU", "abc")
+    monkeypatch.setenv("YAZICI_SERI", "S1")
+    monkeypatch.setenv("YAZICI_PARMAK_IZI", "")
+    assert kopru.main([]) == 2
+    assert "YAZICI_PARMAK_IZI" in capsys.readouterr().out
+
+
 def test_guvenli_ad():
     assert kopru.guvenli_ad("video_2026-11-26_17-45-12.avi") == "video_2026-11-26_17-45-12.avi"
-    for kotu in ("../.env", "/timelapse/x.avi", "a\\b.avi", "", "foto.jpg", ".."):
+    for kotu in ("../.env", "/timelapse/x.avi", "a\\b.avi", "", "foto.jpg", "..", "C:x.avi", "c:..avi",
+                 "x.avi\r\nDELE y.avi", "a b.avi", "..x.avi", None, 5):
         with pytest.raises(ValueError):
             kopru.guvenli_ad(kotu)
+
+
+def test_mqtt_parmak_izi_pahonun_kendi_soketinde_denetlenir():
+    import hashlib
+    pytest.importorskip("paho.mqtt.client")
+    iz = hashlib.sha256(b"sertifika").hexdigest().upper()
+    m = kopru.MqttIstemci(kopru.KopruAyar(ip="192.0.2.10", erisim_kodu="x", seri="S", parmak_izi=iz), lambda r: None)
+    assert m.istemci.on_socket_open == m._soket_denetim   # CONNECT (şifre) gönderilmeden önce çağrılır
+
+    class Kapanan(SahteSoket):
+        kapandi = False
+
+        def close(self):
+            self.kapandi = True
+    dogru, yanlis = Kapanan(b""), Kapanan(b"", iz=b"saldirgan")
+    m._soket_denetim(None, None, dogru)
+    assert not dogru.kapandi
+    with pytest.raises(ssl.SSLError):
+        m._soket_denetim(None, None, yanlis)
+    assert yanlis.kapandi
 
 
 class SahteFTP:

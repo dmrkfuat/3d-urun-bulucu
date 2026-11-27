@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import posixpath
+import re
 import socket
 import ssl
 import struct
@@ -98,17 +99,22 @@ def sertifika_izi(sok: ssl.SSLSocket) -> str:
 
 
 def parmak_izi_dogrula(sok: ssl.SSLSocket, beklenen: str) -> None:
-    if beklenen and sertifika_izi(sok) != beklenen:
+    """Kapalı varsayılan: iz ayarlı değilse de bağlantı reddedilir (erişim kodu doğrulanmamış uca gitmesin)."""
+    if not beklenen:
+        raise ssl.SSLError("YAZICI_PARMAK_IZI ayarlı değil; önce --dene ile yazıcının sertifika izini alıp .env'e ekle")
+    if sertifika_izi(sok) != beklenen:
         raise ssl.SSLError("Yazıcı sertifikası beklenen parmak iziyle eşleşmiyor; bağlantı kesildi "
                            "(IP değiştiyse ya da yazıcı sıfırlandıysa --dene ile yeni izi al)")
 
 
-def tls_ac(ayar: KopruAyar, port: int, zaman_asimi: float = 15) -> ssl.SSLSocket:
-    """TLS bağlantısı açar ve (ayarlıysa) parmak izini doğrular; kimlik bilgisi göndermez."""
+def tls_ac(ayar: KopruAyar, port: int, zaman_asimi: float = 15, dogrula: bool = True) -> ssl.SSLSocket:
+    """TLS bağlantısı açar ve parmak izini doğrular; kimlik bilgisi göndermez.
+    dogrula=False yalnızca --dene'de, kimlik bilgisi gönderilmeden izi OKUMAK için kullanılır."""
     ham = socket.create_connection((ayar.ip, port), timeout=zaman_asimi)
     try:
         sok = tls_baglami().wrap_socket(ham, server_hostname=ayar.ip)
-        parmak_izi_dogrula(sok, ayar.parmak_izi)
+        if dogrula:
+            parmak_izi_dogrula(sok, ayar.parmak_izi)
         return sok
     except Exception:
         ham.close()
@@ -173,21 +179,25 @@ class MqttIstemci:
         self.istemci = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"panel-kopru-{os.getpid()}")
         self.istemci.username_pw_set(KULLANICI, ayar.erisim_kodu)
         self.istemci.tls_set_context(tls_baglami())
-        # Her (yeniden) bağlanmadan önce, erişim kodu gönderilmeden sertifika izi denetlenir. Eşleşmezse
-        # SSLError (OSError) yükselir; paho bunu bağlantı hatası sayar ve bağlanmadan bekleyip yeniden dener.
-        self.istemci.on_pre_connect = self._on_denetim
+        # paho, TLS el sıkışmasından SONRA ve şifreli CONNECT paketinden ÖNCE on_socket_open'ı çağırır:
+        # parmak izi paho'nun kullandığı aynı sokette denetlenir. Eşleşmezse soket kapanır ve SSLError (OSError)
+        # yükselir; paho bunu bağlantı hatası sayar, erişim kodunu göndermeden bekleyip yeniden dener.
+        self.istemci.on_socket_open = self._soket_denetim
         self.istemci.on_connect = self._baglandi
         self.istemci.on_message = self._mesaj
         self.bagli = False
         self.son_pushall = 0.0
 
-    def _on_denetim(self, _istemci, _v):
-        if self.ayar.parmak_izi:
+    def _soket_denetim(self, _istemci, _v, sok):
+        try:
+            parmak_izi_dogrula(sok, self.ayar.parmak_izi)
+        except ssl.SSLError as e:
+            log.error("MQTT: %s", e)
             try:
-                tls_ac(self.ayar, MQTT_PORT).close()
-            except ssl.SSLError as e:
-                log.error("MQTT: %s", e)
-                raise
+                sok.close()
+            except OSError:
+                pass
+            raise
 
     def _baglandi(self, istemci, _v, _b, kod, _p=None):
         self.bagli = not getattr(kod, "is_failure", bool(kod))
@@ -323,7 +333,7 @@ def sd_listele(ftp) -> list[dict]:
     dosyalar = []
     try:
         for ad, bilgi in ftp.mlsd(TIMELAPSE_KLASORU, facts=["type", "size", "modify"]):
-            if bilgi.get("type") == "file" and ad.lower().endswith(VIDEO_UZANTILARI):
+            if bilgi.get("type") == "file" and _AD_KALIBI.fullmatch(ad):
                 tarih = None
                 if bilgi.get("modify"):
                     try:
@@ -334,7 +344,7 @@ def sd_listele(ftp) -> list[dict]:
     except ftplib.error_perm:
         for yol in ftp.nlst(TIMELAPSE_KLASORU):
             ad = posixpath.basename(yol)
-            if not ad.lower().endswith(VIDEO_UZANTILARI):
+            if not _AD_KALIBI.fullmatch(ad):
                 continue
             tam = f"{TIMELAPSE_KLASORU}/{ad}"
             try:
@@ -345,10 +355,15 @@ def sd_listele(ftp) -> list[dict]:
     return sorted(dosyalar, key=lambda d: (d["tarih"] or "", d["ad"]), reverse=True)
 
 
+# Bambu timelapse adları: video_2026-11-26_17-45-12.avi. Sıkı kalıp; yol ayırıcı, sürücü öneki (C:),
+# boşluk ve satır sonu (FTP komutuna ekleme) içeremez.
+_AD_KALIBI = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}\.(?:avi|mp4|mov)", re.IGNORECASE)
+
+
 def guvenli_ad(ad: str) -> str:
-    """Panelden gelen dosya adı yalnızca timelapse klasöründeki bir dosya olabilir."""
-    ad = (ad or "").strip()
-    if not ad or "/" in ad or "\\" in ad or ad in (".", "..") or not ad.lower().endswith(VIDEO_UZANTILARI):
+    """Panelden gelen dosya adı yalnızca timelapse klasöründeki, kalıba uyan bir dosya olabilir."""
+    ad = ad if isinstance(ad, str) else ""
+    if not _AD_KALIBI.fullmatch(ad) or ".." in ad:
         raise ValueError("Geçersiz dosya adı")
     return ad
 
@@ -537,7 +552,7 @@ class Kopru:
         ftp = self.ftp_ac()
         try:
             with tempfile.TemporaryDirectory() as klasor:
-                girdi = os.path.join(klasor, ad)
+                girdi = os.path.join(klasor, "girdi" + Path(ad).suffix.lower())   # uzak adı yerel yolda kullanma
                 with open(girdi, "wb") as f:
                     ftp.retrbinary(f"RETR {TIMELAPSE_KLASORU}/{ad}", f.write)
                 cikti = os.path.join(klasor, "cikti.mp4")
@@ -612,10 +627,12 @@ def dene(ayar: KopruAyar) -> int:
     print(f"Yazıcı: {ayar.ad} ({ayar.model}) @ {ayar.ip}")
     try:
         from dataclasses import replace
-        with tls_ac(replace(ayar, parmak_izi=""), MQTT_PORT, zaman_asimi=10) as sok:
+        with tls_ac(ayar, MQTT_PORT, zaman_asimi=10, dogrula=False) as sok:   # yalnızca iz okunur
             iz = sertifika_izi(sok)
         if not ayar.parmak_izi:
-            print(f"Sertifika parmak izi: {iz}\n  → Güvenlik için .env'e ekle: YAZICI_PARMAK_IZI={iz}")
+            print(f"Sertifika parmak izi: {iz}\n  → Köprünün çalışması için .env'e ekle: YAZICI_PARMAK_IZI={iz}\n"
+                  "  (Yazıcının kendi ağında olduğundan eminsen. Aşağıdaki denemeler bu oturumda bu izle yapılır.)")
+            ayar = replace(ayar, parmak_izi=iz)
         elif iz == ayar.parmak_izi:
             print("Sertifika parmak izi: OK (eşleşiyor)")
         else:
@@ -683,6 +700,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if "--dene" in argv:
         return dene(ayar)
+    if not ayar.parmak_izi:
+        print("YAZICI_PARMAK_IZI eksik: önce `python -m urun_bulucu.kopru --dene` çalıştır, gösterilen izi .env'e ekle. "
+              "Köprü, kimliği doğrulanmamış bir uca yazıcının erişim kodunu göndermez.")
+        return 2
     ayarlar = config.ayarlari_oku()
     if not ayarlar.supabase_var:
         print("SUPABASE_URL ve SUPABASE_KEY (gizli anahtar) .env dosyasında olmalı.")

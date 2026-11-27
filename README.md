@@ -293,7 +293,8 @@ Telegram'a haber verir. Yazıcıya yalnızca bağlanıp **okur**; baskı başlat
    Bu bilgiler yalnızca bu bilgisayarda kalır; GitHub Secrets'a **eklemeyin**.
 5. Deneyin: `.venv\Scripts\python -m urun_bulucu.kopru --dene` → MQTT, kamera, SD kart ve ffmpeg tek tek
    denenir. İlk çalıştırmada yazdırılan **sertifika parmak izini** `.env`'e `YAZICI_PARMAK_IZI=...` olarak
-   ekleyin: köprü bundan sonra erişim kodunu göndermeden önce yazıcının kimliğini doğrular.
+   ekleyin (**zorunlu**): köprü erişim kodunu göndermeden önce her bağlantıda yazıcının kimliğini bu izle
+   doğrular; iz yoksa ya da eşleşmezse bağlanmaz.
 6. Çalıştırın: `.venv\Scripts\python -m urun_bulucu.kopru` (Ctrl+C ile durur). Windows açılınca arka planda
    kendiliğinden başlasın diye proje klasöründe PowerShell'de bir kez:
    ```powershell
