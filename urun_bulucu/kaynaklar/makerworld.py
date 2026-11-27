@@ -95,7 +95,14 @@ class MakerWorldKaynak:
         detay_limiti: int = 40,
         gun: int | None = 30,
         trend_adet: int = 0,
+        genel_adet: int = 0,
+        genel_detay: int = 0,
     ) -> list[dict]:
+        """`genel_adet` > 0 ise anahtar kelimesiz aramayla (tüm MakerWorld kategorileri) son günlerin en çok
+        indirilenleri de alınır: bizim kategorilerimizden birine uyanlar o kategoriye girer, uymayanlardan
+        en çok indirilen `genel_detay` tanesi MakerWorld'ün kendi kategorisiyle ("Diğer · …") eklenir.
+        Bizim kategorilerimiz dışındaki ürünler (bunlar ve kategorisiz trend modelleri) "genel" işaretlenir;
+        listeye girmeleri için Türkiye pazar kontrolünden geçmeleri gerekir (tr_kontrol.py)."""
         # 1) Trend listesi: sitenin kendi sıralaması; kelime aramasının kaçırdıklarını yakalar.
         trend_sira: dict[str, int] = {}
         trend_secilen: list[tuple[str, dict]] = []
@@ -117,8 +124,22 @@ class MakerWorldKaynak:
                         continue
                     adaylar.setdefault(str(hit["id"]), (kategori, hit))
 
+        # 3) Kategorisiz arama: tüm kategoriler. Bizimkilere uyanlar aday havuzuna, diğerleri genel listeye.
+        genel: list[tuple[str, dict]] = []
+        if genel_adet:
+            for hit in self.ara("", genel_adet, gun):
+                hid = str(hit.get("id") or "")
+                if not hid or _atlanacak(hit) or hid in secilen_idler or hid in adaylar:
+                    continue
+                kategori = kategori_bul(hit, kategoriler)
+                if kategori == TREND_KATEGORI:
+                    genel.append((GENEL_KATEGORI, hit))
+                else:
+                    adaylar[hid] = (kategori, hit)
+            genel.sort(key=lambda x: _sayi(x[1].get("downloadCount")), reverse=True)
+
         sirali = sorted(adaylar.values(), key=lambda x: _sayi(x[1].get("downloadCount")), reverse=True)
-        sirali = trend_secilen + _kategoriye_dengeli(sirali, detay_limiti)
+        sirali = trend_secilen + _kategoriye_dengeli(sirali, detay_limiti) + genel[:genel_detay]
 
         urunler = []
         for kategori, hit in sirali:
@@ -128,11 +149,38 @@ class MakerWorldKaynak:
                 continue
             if not isinstance(tasarim, dict) or not tasarim.get("id") or _atlanacak(tasarim):
                 continue
-            urunler.append(urune_cevir(tasarim, kategori, trend_sira.get(str(tasarim["id"]))))
+            kendi = kategori not in (TREND_KATEGORI, GENEL_KATEGORI)
+            if kategori == GENEL_KATEGORI:
+                kategori = genel_kategori(tasarim)
+            u = urune_cevir(tasarim, kategori, trend_sira.get(str(tasarim["id"])))
+            if not kendi:
+                u["genel"] = True   # bizim kategorilerimiz dışında: Türkiye pazar kontrolü gerekir
+            urunler.append(u)
         return urunler
 
 
 TREND_KATEGORI = "Trend / sezonluk"
+GENEL_KATEGORI = "Diğer"
+# MakerWorld'ün ana kategorileri → panelde görünen Türkçe ad ("Diğer · Sanat"). Listede yoksa İngilizcesi.
+MW_KATEGORILERI = {
+    "Art": "Sanat", "Household": "Ev eşyası", "Home & Living": "Ev eşyası", "Toys & Games": "Oyuncak ve oyun",
+    "Toys": "Oyuncak ve oyun", "Fashion": "Moda ve takı", "Tools": "Alet ve atölye",
+    "Education": "Eğitim", "Hobby & DIY": "Hobi ve kendin yap", "Props & Cosplay": "Kostüm ve aksesuar",
+    "Miniatures": "Minyatür", "Gadgets": "Gadget", "Sports & Outdoor": "Spor ve outdoor",
+    "Sports & Outdoors": "Spor ve outdoor", "3D Printer": "Yazıcı parçası", "Tech": "Teknoloji",
+    "Electronics": "Elektronik", "Pets": "Evcil hayvan", "Seasonal": "Sezonluk", "Holiday": "Sezonluk",
+    "Automotive": "Otomotiv", "Garden": "Bahçe", "Kitchen": "Mutfak", "Office": "Ofis",
+}
+
+
+def genel_kategori(tasarim: dict) -> str:
+    """Bizim kategorilerimize uymayan model için MakerWorld'ün ana kategorisi: "Diğer · Sanat"."""
+    kategoriler = [k for k in tasarim.get("categories") or [] if isinstance(k, dict) and k.get("name")]
+    if not kategoriler:
+        return GENEL_KATEGORI
+    ana = next((k for k in kategoriler if k.get("picUrl")), kategoriler[-1])  # ana kategorinin simgesi var
+    ad = str(ana["name"]).strip()
+    return f"{GENEL_KATEGORI} · {MW_KATEGORILERI.get(ad, ad)}"
 
 
 def kategori_bul(hit: dict, kategoriler: dict[str, list[str]]) -> str:

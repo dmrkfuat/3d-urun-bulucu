@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import httpx
 
 from . import (aciklama, bildirim, config, etsy, gorsel, istatistik, kesif, kota, maliyet, ozet, pazar,
-               puanlama, siparis, talep, tasarimci)
+               puanlama, siparis, talep, tasarimci, tr_kontrol)
 from .db import depo_olustur, satis_verisi
 from .kaynaklar.makerworld import MakerWorldHatasi, MakerWorldKaynak
 
@@ -35,10 +35,12 @@ def calistir(bugun: date | None = None) -> int:
     kaynak = MakerWorldKaynak()
     print("MakerWorld'den son 30 günün modelleri toplanıyor (yavaş ve az istekle, birkaç dakika sürebilir)...")
     try:
-        # Toplam detay isteği MAKERWORLD_DETAY_LIMITI civarında kalsın: önce trend, kalanı aramadan.
+        # Toplam detay isteği MAKERWORLD_DETAY_LIMITI civarında: trend + kategori dışı, kalanı aramadan.
         urunler = kaynak.topla(config.KATEGORILER, config.ARAMA_ADET,
-                               config.MAKERWORLD_DETAY_LIMITI - config.MAKERWORLD_TREND_ADET,
-                               config.MAKERWORLD_GUN, trend_adet=config.MAKERWORLD_TREND_ADET)
+                               config.MAKERWORLD_DETAY_LIMITI - config.MAKERWORLD_TREND_ADET
+                               - config.GENEL_DETAY_ADET,
+                               config.MAKERWORLD_GUN, trend_adet=config.MAKERWORLD_TREND_ADET,
+                               genel_adet=config.GENEL_ARAMA_ADET, genel_detay=config.GENEL_DETAY_ADET)
     except (MakerWorldHatasi, httpx.HTTPError) as e:
         print(f"HATA: MakerWorld'den veri alınamadı: {e}")
         return 1
@@ -55,11 +57,21 @@ def calistir(bugun: date | None = None) -> int:
                                   en_gec=bugun - timedelta(days=6), en_erken=bugun - timedelta(days=14))
 
     # Daha önce e-ticarette aranmış ürünlerde fiyat piyasaya göre önerilir (puanlamadan önce).
+    kayitlar: dict[int, dict] = {}
     try:
         kayitlar = pazar.kayitlari_oku(depo, urunler)   # yalnızca aynı ürün sayılan sonuçların fiyatı
+    except Exception as e:  # noqa: BLE001 — fiyat maliyetten kalır
+        print(f"UYARI: Piyasa kayıtları okunamadı: {e}")
+    # Kategorilerimiz dışındaki ürünler Türkiye'de satılıyor mu (satılmıyorsa listeye girmez).
+    try:
+        tr_kontrol.calistir(depo, urunler, kayitlar, ayarlar, bugun, satis_ozeti=satis_ozeti)
+    except Exception as e:  # noqa: BLE001 — kontrol edilemeyenler listeye girmez
+        tr_kontrol.isaretle(urunler, kayitlar, satis_ozeti)
+        print(f"UYARI: Türkiye pazar kontrolü yapılamadı: {e}")
+    try:
         print(f"Piyasaya göre fiyat: {len(maliyet.piyasaya_uygula(urunler, kayitlar))} ürün")
     except Exception as e:  # noqa: BLE001 — fiyat maliyetten kalır
-        print(f"UYARI: Piyasa fiyatları okunamadı: {e}")
+        print(f"UYARI: Piyasa fiyatları uygulanamadı: {e}")
 
     talepler = talep.oku(config.TALEP_DOSYASI)
     if ayarlar.etsy_key:

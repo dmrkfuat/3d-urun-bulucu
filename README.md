@@ -350,6 +350,16 @@ Görünüm Tailwind ile yazılıdır ama tarayıcıya üçüncü parti betik yü
 
 Aynı kategoriden en fazla 4 ürün seçilir (çeşitlilik için).
 
+**Kategori dışı ürünler ve Türkiye kontrolü:** `config.KATEGORILER` dışındaki ürünler de taranır:
+MakerWorld'de anahtar kelimesiz arama (tüm kategoriler, son 30 günün en çok indirilen
+`GENEL_ARAMA_ADET` modeli). Kategorilerimize uyanlar o kategoriye girer; uymayanlardan en çok indirilen
+`GENEL_DETAY_ADET` tanesi "Diğer · <MakerWorld kategorisi>" olarak eklenir. Bunlar ve kategorimize
+uymayan trend modelleri ancak **Türkiye'de 3D baskı benzerleri satılıyorsa** listeye girer
+(`tr_kontrol.py`): Google Alışveriş (Türkiye) araması, en az `TR_KONTROL_EN_AZ_ILAN` satış ilanı.
+Arama `SERPER_KEY` ile yapılır (SerpApi kotası harcanmaz; yoksa SerpApi günlük payının üçte biri),
+günde en çok `TR_KONTROL_GUNLUK` ürün; sonuç 30 gün geçerli ve e-ticaret kaydına yazılır.
+Kontrol edilemeyen ürün o gün listeye girmez; daha önce sattığın ürün kontrolsüz geçer.
+
 ### Maliyet tahmini
 
 `maliyet = gram × (1 + fire) × filament TL/kg ÷ 1000 + baskı saati × saat maliyeti`,

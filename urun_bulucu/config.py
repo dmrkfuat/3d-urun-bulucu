@@ -35,7 +35,24 @@ ARAMA_ADET = 30
 # Yalnızca son kaç günde yüklenen modeller aranır (trend). None = tüm zamanlar.
 MAKERWORLD_GUN = 30
 # Kaç modelin detayı çekilecek. Detay yanıtları büyük (~0,5 MB); siteyi yormamak için sınırlı.
-MAKERWORLD_DETAY_LIMITI = 60
+# (Trend + kategori aramaları + kategori dışı modeller toplamı.)
+MAKERWORLD_DETAY_LIMITI = 70
+
+# --- Kategori dışı modeller: anahtar kelimesiz arama, MakerWorld'ün TÜM kategorileri ---
+# Son MAKERWORLD_GUN günün en çok indirilen GENEL_ARAMA_ADET modeli alınır. Yukarıdaki kategorilerimizden
+# birine uyanlar o kategoriye girer; uymayanlardan en çok indirilen GENEL_DETAY_ADET tanesi
+# "Diğer · <MakerWorld kategorisi>" olarak eklenir. 0: kapalı.
+GENEL_ARAMA_ADET = 50
+GENEL_DETAY_ADET = 12
+
+# --- Türkiye pazar kontrolü (tr_kontrol.py) ---
+# Kategorilerimiz dışındaki ürünler (yukarıdakiler ve kategorisiz trend modelleri) yalnızca Türkiye'de
+# 3D baskı benzerleri satılıyorsa listeye girer. Kontrol: ürün başına 1 Google Alışveriş araması (Türkiye)
+# — SERPER_KEY varsa Serper (SerpApi kotası harcanmaz), yoksa SerpApi'nin günlük payının üçte biri.
+# Kontrol edilemeyen (kota/anahtar yok) ürün o gün listeye girmez. Daha önce sattığın ürün kontrolsüz geçer.
+TR_KONTROL_GUNLUK = 8          # günde en çok kaç ürün aranır
+TR_KONTROL_YENILEME_GUN = 30   # sonuç bu kadar gün geçerli (aynı ürün tekrar aranmaz)
+TR_KONTROL_EN_AZ_ILAN = 2      # Türkiye'de en az bu kadar 3D baskı satış ilanı olmalı (aynı veya benzer ürün)
 # Kullanıcı tercihi: MakerWorld modellerinin hepsi lisansına bakılmadan 🟢 satılabilir sayılır.
 # Asıl lisans metni raporda yine gösterilir. False yapılırsa lisansa göre sınıflandırılır.
 MAKERWORLD_HEPSI_SATILABILIR = True

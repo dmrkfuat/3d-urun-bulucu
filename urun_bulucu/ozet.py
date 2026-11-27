@@ -43,6 +43,8 @@ def neden(urun: dict) -> str:
         nedenler.append(d["piyasa"])
     if d.get("etsy_bonusu"):
         nedenler.append(f"Etsy'de benzerleri {_kisa_sayi(d['etsy_favori'])} kez favorilenmiş")
+    if urun.get("genel") and urun.get("tr_satista") and d.get("turkiye"):
+        nedenler.append(d["turkiye"])
     if d.get("satis_gecmisi"):
         nedenler.append(d["satis_gecmisi"])
     if d.get("instagram") and (d.get("instagram_bonusu") or 0) > 0:
@@ -56,9 +58,12 @@ def neden(urun: dict) -> str:
 
 
 def sec(puanli_urunler: list[dict], adet: int = OZET_ADET) -> list[dict]:
-    """Puan sırasıyla seçer; aynı kategoriden en fazla KATEGORI_BASINA_EN_FAZLA ürün."""
+    """Puan sırasıyla seçer; aynı kategoriden en fazla KATEGORI_BASINA_EN_FAZLA ürün. Kategorilerimiz dışındaki
+    ürünler ("genel") yalnızca Türkiye'de satıldığı doğrulandıysa (tr_satista) girer."""
     secilen, sayac = [], {}
     for u in puanli_urunler:
+        if u.get("genel") and not u.get("tr_satista"):
+            continue  # kategorilerimiz dışında ve Türkiye'de satıldığı doğrulanmadı (tr_kontrol)
         k = u.get("category")
         if sayac.get(k, 0) >= KATEGORI_BASINA_EN_FAZLA:
             continue
