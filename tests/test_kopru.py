@@ -220,16 +220,20 @@ def test_adim_durum_yazar_ve_klip_istegini_isler(monkeypatch):
     saat = Saat()
     depo = SahteDepo(istekler=[{"id": 7, "tur": "klip", "siparis_id": 41, "saniye": 30},
                                {"id": 8, "tur": "klip", "siparis_id": None, "saniye": 30}])
-    k = kopru.Kopru(AYAR, depo, "ffmpeg", saat=saat)
-    for i in range(40):                      # son 40 saniyede saniyede bir kare
-        k.kare_ekle(JPEG, t=saat.t - 39 + i)
-    k.kare_ekle(JPEG, t=saat.t - 200)        # tampondan düşmüş olmalı
+    kayitlar = []
+
+    def kamera(saniye):                      # istek anında bağlanıp `saniye` kaydeder
+        kayitlar.append(saniye)
+        return [JPEG] * 22, 30.2
+    k = kopru.Kopru(AYAR, depo, "ffmpeg", saat=saat, kamera=kamera)
     k.rapor_al({"print": {"gcode_state": "RUNNING", "mc_percent": 50}})
     k.adim()
     assert depo.durumlar[0][0] == "Bambu P1S" and depo.durumlar[0][1]["yuzde"] == 50
-    assert depo.durumlar[0][1]["kamera"] is True
+    assert depo.durumlar[0][1]["kamera"] is True and depo.durumlar[0][1]["kamera_mod"] == "istek"
+    assert kayitlar == [30]                  # yalnızca geçerli istek için, bir kez bağlandı
     assert depo.guncellemeler[0] == (7, {"durum": "isleniyor"})
-    assert depo.guncellemeler[1][1]["durum"] == "tamam" and depo.guncellemeler[1][1]["sonuc"]["kare"] == 31
+    sonuc = depo.guncellemeler[1][1]
+    assert sonuc["durum"] == "tamam" and sonuc["sonuc"]["kare"] == 22 and sonuc["sonuc"]["sure"] == 30.2
     assert depo.guncellemeler[3][1]["durum"] == "hata" and "Sipariş" in depo.guncellemeler[3][1]["hata"]
     siparis_id, oge = depo.eklenen[0]
     assert siparis_id == 41 and oge["tur"] == "klip" and oge["yol"].startswith("41/") and oge["yol"].endswith(".mp4")
@@ -256,10 +260,86 @@ def test_durum_her_adimda_yazilmaz():
 
 def test_sd_aktar_ve_klip_icin_ffmpeg_yoksa_hata():
     depo = SahteDepo(istekler=[{"id": 1, "tur": "klip", "siparis_id": 5, "saniye": 15}])
-    k = kopru.Kopru(AYAR, depo, None, saat=Saat())
-    k.kare_ekle(JPEG), k.kare_ekle(JPEG)
+    baglandi = []
+    k = kopru.Kopru(AYAR, depo, None, saat=Saat(), kamera=lambda s: baglandi.append(s) or ([JPEG] * 5, 15))
     k.adim()
     assert depo.guncellemeler[-1][1]["durum"] == "hata" and "ffmpeg" in depo.guncellemeler[-1][1]["hata"]
+    assert baglandi == []                    # ffmpeg yokken kameraya boşuna bağlanılmaz
+
+
+def test_kameraya_baglanilamazsa_panele_bildirilir(monkeypatch):
+    _sahte_ffmpeg(monkeypatch)
+    saat = Saat()
+    depo = SahteDepo(istekler=[{"id": 1, "tur": "klip", "siparis_id": 5, "saniye": 15}])
+
+    def kamera(_s):
+        raise ConnectionError("kamera bağlantısı kapandı")
+    k = kopru.Kopru(AYAR, depo, "ffmpeg", saat=saat, kamera=kamera)
+    k.adim()
+    assert depo.guncellemeler[-1][1]["durum"] == "hata" and "Kameraya bağlanılamadı" in depo.guncellemeler[-1][1]["hata"]
+    saat.t += kopru.DURUM_ARALIGI
+    k.adim()
+    assert depo.durumlar[-1][1]["kamera"] is False and "kapandı" in depo.durumlar[-1][1]["kamera_hatasi"]
+
+
+def test_uzun_is_arka_planda_durum_yazimini_durdurmaz(monkeypatch):
+    import threading
+    _sahte_ffmpeg(monkeypatch)
+    saat = Saat()
+    serbest, basladi = threading.Event(), threading.Event()
+
+    def kamera(saniye):                      # 60 sn'lik kayıt gibi uzun süren iş
+        basladi.set()
+        serbest.wait(5)
+        return [JPEG] * 10, saniye
+    depo = SahteDepo(istekler=[{"id": 3, "tur": "klip", "siparis_id": 5, "saniye": 60}])
+    k = kopru.Kopru(AYAR, depo, "ffmpeg", saat=saat, kamera=kamera, arka_planda=True)
+    k.rapor_al({"print": {"gcode_state": "RUNNING"}})
+    k.adim()                                  # iş kuyruğa alındı, adim beklemeden döndü
+    assert basladi.wait(2)
+    yazim = len(depo.durumlar)
+    saat.t += kopru.DURUM_ARALIGI
+    k.adim()                                  # kayıt sürerken durum yazılmaya devam eder
+    assert len(depo.durumlar) == yazim + 1
+    assert depo.guncellemeler[0] == (3, {"durum": "isleniyor"})
+    assert all(a["durum"] != "tamam" for _, a in depo.guncellemeler)
+    serbest.set()
+    for _ in range(50):
+        if any(a["durum"] == "tamam" for _, a in depo.guncellemeler):
+            break
+        threading.Event().wait(0.05)
+    assert any(a["durum"] == "tamam" for _, a in depo.guncellemeler)
+
+
+def test_kamera_kaydet_ilk_kareden_itibaren_sure_kadar_kaydeder(monkeypatch):
+    saat = Saat(0.0)
+    kareler = [_kare(JPEG)] * 30
+
+    class Sok(SahteSoket):
+        def __init__(self):
+            super().__init__(b"".join(kareler))
+            self.gonderilen = b""
+
+        def recv(self, n):
+            saat.t += 0.2                     # her okuma zaman ilerletir (7 baytlık parçalar: ~kare başına 2,2 sn)
+            return super().recv(n)
+
+        def sendall(self, b):
+            self.gonderilen += b
+
+        def settimeout(self, _):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.kapandi = True
+    sok = Sok()
+    monkeypatch.setattr(kopru, "tls_ac", lambda ayar, port, **k: sok)
+    alinan, sure = kopru.kamera_kaydet(AYAR, 10, saat=saat)
+    assert sok.gonderilen == kopru.kamera_kimlik_paketi(AYAR.erisim_kodu)
+    assert 10 <= sure < 12.5 and 5 <= len(alinan) <= 7 and getattr(sok, "kapandi", False)
 
 
 def test_sd_listele_ve_aktar_istekleri(monkeypatch):
@@ -348,6 +428,14 @@ def test_gercek_ffmpeg_kare_ve_avi_donusumu(tmp_path):
     klip = tmp_path / "klip.mp4"
     kopru.kareden_mp4(FFMPEG, [kare] * 10, 10, str(klip))
     assert klip.stat().st_size > 0 and b"ftyp" in klip.read_bytes()[:64]
+    # P1S gibi saniyede ~0,7 kare: 30 sn'lik istek 22 kareyle gelir, klip yine ~30 sn sürmeli
+    ffprobe = os.path.join(os.path.dirname(FFMPEG), "ffprobe" + os.path.splitext(FFMPEG)[1])
+    if os.path.isfile(ffprobe):
+        yavas = tmp_path / "yavas.mp4"
+        kopru.kareden_mp4(FFMPEG, [kare] * 22, 30, str(yavas))
+        sure = float(subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(yavas)],
+                                    capture_output=True, text=True, check=True).stdout)
+        assert 28 <= sure <= 31
     avi = tmp_path / "t.avi"
     subprocess.run([FFMPEG, "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=5", "-t", "2",
                     "-c:v", "mjpeg", str(avi)], check=True)

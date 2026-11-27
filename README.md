@@ -279,7 +279,8 @@ modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
 
 Panel bir web sayfası olduğu için yazıcıya doğrudan bağlanamaz. **Köprü**, evdeki bir bilgisayarda (yazıcıyla
 aynı ağda) çalışan küçük bir programdır: yazıcının durumunu (ilerleme, katman, kalan süre, sıcaklıklar, AMS)
-panele taşır, panelden istenince kameranın son 15/30/60 saniyesini klip yapıp siparişe ekler, SD karttaki
+panele taşır, panelden istenince kamerayı sonraki 15/30/60 saniye kaydedip klibi siparişe ekler (kameraya yalnızca
+kayıt sırasında bağlanır; sürekli bağlı kalmak P1S'te Bambu Handy/Studio canlı görüntüsünü yavaşlatıyor), SD karttaki
 timelapse'leri listeler/aktarır (AVI → MP4) ve baskı bitince timelapse'i otomatik olarak o siparişe ekleyip
 Telegram'a haber verir. Yazıcıya yalnızca bağlanıp **okur**; baskı başlatma/durdurma gibi komut göndermez.
 

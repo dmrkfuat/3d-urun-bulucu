@@ -5,8 +5,8 @@ Bu program evdeki bir bilgisayarda (yazıcıyla aynı ağda) çalışır ve:
 
 - MQTT (8883, TLS) ile yazıcının durumunu okur (ilerleme, katman, kalan süre, sıcaklıklar, AMS) ve
   ~10 saniyede bir Supabase'teki ``yazici_durum`` tablosuna yazar,
-- kameranın (6000, TLS; P1/A1 JPEG akışı) son ``KAMERA_TAMPON_SN`` saniyesini bellekte tutar; panelden
-  "Son 30 sn" istenince bu karelerden MP4 klip yapıp siparişin video arşivine ekler,
+- kameraya (6000, TLS; P1/A1 JPEG akışı) yalnızca panelden klip istenince bağlanır, sonraki 15/30/60 saniyeyi
+  kaydedip MP4 olarak siparişin video arşivine ekler ve bağlantıyı kapatır (canlı görüntü yavaşlamasın),
 - SD karttaki timelapse dosyalarını (FTPS 990) listeler / siparişe aktarır (AVI → MP4, ffmpeg),
 - baskı bitince timelapse'i otomatik olarak o siparişe ekler ve (ayarlıysa) Telegram'a haber verir.
 
@@ -19,13 +19,13 @@ YAZICI_SERI (seri numarası), isteğe bağlı YAZICI_ADI (panelde siparişe yaz�
 """
 from __future__ import annotations
 
-import collections
 import ftplib
 import html
 import json
 import logging
 import os
 import posixpath
+import queue
 import re
 import socket
 import ssl
@@ -52,7 +52,6 @@ EN_BUYUK_BAYT = 50 * 1024 * 1024          # panel ve depolama sınırı
 DURUM_ARALIGI = 10                         # sn: Supabase'e durum yazma sıklığı
 ISTEK_ARALIGI = 3                          # sn: panel isteklerini kontrol etme sıklığı
 PUSHALL_ARALIGI = 300                      # sn: tam durum isteği (P1 serisi yalnızca değişenleri gönderir)
-KAMERA_TAMPON_SN = 120                     # bellekte tutulan kamera süresi
 TIMELAPSE_BEKLEME = 90                     # sn: baskı bitince timelapse dosyasının yazılmasını bekle
 CALISAN = ("PREPARE", "RUNNING", "PAUSE", "SLICING")
 BITEN = ("FINISH", "FAILED")
@@ -279,30 +278,24 @@ def kare_oku(sok) -> bytes | None:
     return kare if kare[:2] == b"\xff\xd8" and kare[-2:] == b"\xff\xd9" else None
 
 
-class Kamera(threading.Thread):
-    def __init__(self, ayar: KopruAyar, kare_geldi):
-        super().__init__(daemon=True, name="kamera")
-        self.ayar, self.kare_geldi = ayar, kare_geldi
-        self.calis = True
-        self.son_kare = 0.0
-
-    def run(self):
-        bekle = 5
-        while self.calis:
-            try:
-                with tls_ac(self.ayar, KAMERA_PORT) as sok:
-                    sok.sendall(kamera_kimlik_paketi(self.ayar.erisim_kodu))
-                    log.info("Kamera bağlandı")
-                    bekle = 5
-                    while self.calis:
-                        kare = kare_oku(sok)
-                        if kare:
-                            self.son_kare = time.time()
-                            self.kare_geldi(kare)
-            except (OSError, ConnectionError, ssl.SSLError) as e:
-                log.warning("Kamera: %s; %d sn sonra yeniden denenecek", e, bekle)
-                time.sleep(bekle)
-                bekle = min(bekle * 2, 120)
+def kamera_kaydet(ayar: KopruAyar, saniye: float, saat=time.time) -> tuple[list[bytes], float]:
+    """Kameraya YALNIZCA istek anında bağlanır, ilk kareden itibaren `saniye` boyunca kaydeder ve bağlantıyı kapatır.
+    P1S'in zayıf işlemcisi sürekli bağlı bir izleyiciyle Bambu Handy/Studio canlı görüntüsünü yavaşlatıyordu
+    (0,78 → 0,66 kare/sn ölçüldü); kayıt dışında kamera serbest kalır. (kareler, gerçek süre) döndürür."""
+    kareler: list[bytes] = []
+    bas = None
+    with tls_ac(ayar, KAMERA_PORT) as sok:
+        sok.settimeout(15)
+        sok.sendall(kamera_kimlik_paketi(ayar.erisim_kodu))
+        while True:
+            kare = kare_oku(sok)
+            simdi = saat()
+            if kare:
+                bas = simdi if bas is None else bas
+                kareler.append(kare)
+            if bas is not None and simdi - bas >= saniye:
+                break
+    return kareler, (saat() - bas) if bas is not None else 0.0
 
 
 # ------------------------------------------------------------------ SD kart (FTPS, örtük TLS)
@@ -403,9 +396,11 @@ def kareden_mp4(ffmpeg: str, kareler: list[bytes], sure_sn: float, cikti: str) -
     """JPEG karelerinden MP4 (H.264). Kare hızı, karelerin gerçekte geldiği hıza göre ayarlanır."""
     if len(kareler) < 2:
         raise RuntimeError("Kamera görüntüsü yok (kamera bağlı değil ya da yazıcı ışığı kapalı)")
-    fps = max(1, round(len(kareler) / max(sure_sn, 1)))
-    komut = [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(fps), "-c:v", "mjpeg", "-i", "-",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+    # P1S kamerası saniyede ~0,7 kare verir: giriş hızı tam (kesirli) alınır ki klip istenen süreyi tutsun;
+    # çıkış 10 fps'e çoğaltılır (oynatıcılar çok düşük kare hızında takılabiliyor).
+    fps = max(0.1, len(kareler) / max(sure_sn, 1))
+    komut = [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", f"{fps:.4f}", "-c:v", "mjpeg", "-i", "-",
+             "-r", "10", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
              "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", cikti]
     subprocess.run(komut, input=b"".join(kareler), check=True, timeout=300, capture_output=True)
 
@@ -467,36 +462,46 @@ class SupabaseKopruDepo:
 # ------------------------------------------------------------------ köprü
 
 class Kopru:
-    def __init__(self, ayar: KopruAyar, depo, ffmpeg: str | None, ftp_ac=None, saat=time.time, bildir=None):
+    def __init__(self, ayar: KopruAyar, depo, ffmpeg: str | None, ftp_ac=None, saat=time.time, bildir=None,
+                 kamera=None, arka_planda: bool = False):
         self.ayar, self.depo, self.ffmpeg = ayar, depo, ffmpeg
         self.ftp_ac = ftp_ac or (lambda: ftps_ac(ayar))
+        self.kamera = kamera or (lambda saniye: kamera_kaydet(ayar, saniye))
         self.saat = saat
         self.bildir = bildir or (lambda metin: None)
         self.kilit = threading.Lock()
         self.rapor: dict = {}
-        self.kareler: collections.deque = collections.deque()
         self.son_yazim = 0.0
         self.son_ozet: dict = {}
         self.onceki_durum: str | None = None
         self.timelapse_zamani: float | None = None
         self.biten_durum: str | None = None
+        self.kamera_hatasi: str | None = None
+        # Uzun işler (klip kaydı, SD aktarımı, timelapse) sırayla bir işçi iş parçacığında yürür; ana döngü bu sırada
+        # da durum yazmaya devam eder (yoksa panel 60 sn sinyal alamayıp köprüyü "kapalı" sanardı).
+        self.arka_planda = arka_planda
+        self.kuyruk: queue.Queue = queue.Queue()
+        if arka_planda:
+            threading.Thread(target=self._isci, daemon=True, name="kopru-isci").start()
+
+    def _isci(self) -> None:
+        while True:
+            gorev = self.kuyruk.get()
+            try:
+                gorev()
+            except Exception as e:  # işçi ölmesin
+                log.warning("Arka plan işi başarısız: %s", e)
+
+    def _gorev(self, gorev) -> None:
+        if self.arka_planda:
+            self.kuyruk.put(gorev)
+        else:
+            gorev()
 
     # --- yazıcıdan gelenler
     def rapor_al(self, veri: dict) -> None:
         with self.kilit:
             self.rapor = birlestir(self.rapor, veri)
-
-    def kare_ekle(self, jpeg: bytes, t: float | None = None) -> None:
-        t = self.saat() if t is None else t
-        with self.kilit:
-            self.kareler.append((t, jpeg))
-            while self.kareler and t - self.kareler[0][0] > KAMERA_TAMPON_SN:
-                self.kareler.popleft()
-
-    def son_kareler(self, saniye: int) -> list[bytes]:
-        simdi = self.saat()
-        with self.kilit:
-            return [j for t, j in self.kareler if simdi - t <= saniye]
 
     # --- döngü adımı (ana döngü birkaç saniyede bir çağırır)
     def adim(self) -> None:
@@ -508,7 +513,9 @@ class Kopru:
         # (panel köprünün açık olduğunu "goruldu" zamanından anlar).
         if durum != self.son_ozet.get("durum") or simdi - self.son_yazim >= DURUM_ARALIGI:
             try:
-                self.depo.durum_yaz(self.ayar.ad, self.ayar.model, {**oz, "kamera": bool(self.son_kareler(10))})
+                self.depo.durum_yaz(self.ayar.ad, self.ayar.model,
+                                    {**oz, "kamera": self.kamera_hatasi is None, "kamera_mod": "istek",
+                                     "kamera_hatasi": self.kamera_hatasi, "is_kuyrugu": self.kuyruk.qsize()})
                 self.son_yazim, self.son_ozet = simdi, oz
             except Exception as e:  # ağ hatası köprüyü durdurmasın
                 log.warning("Durum yazılamadı: %s", e)
@@ -518,17 +525,17 @@ class Kopru:
             self.onceki_durum = durum
         if self.timelapse_zamani and simdi >= self.timelapse_zamani:
             self.timelapse_zamani = None
-            self.baski_bitti(oz)
+            self._gorev(lambda oz=oz: self.baski_bitti(oz))
         try:
             istekler = self.depo.bekleyen_istekler(self.ayar.ad)
         except Exception as e:
             log.warning("İstekler okunamadı: %s", e)
             return
         for istek in istekler:
-            self.isle(istek)
+            self.depo.istek_guncelle(istek["id"], durum="isleniyor")   # bir daha "bekliyor" listesine gelmez
+            self._gorev(lambda istek=istek: self.isle(istek))
 
     def isle(self, istek: dict) -> None:
-        self.depo.istek_guncelle(istek["id"], durum="isleniyor")
         try:
             islem = {"klip": self.klip, "sd_listele": self.sd_listele, "sd_aktar": self.sd_aktar}[istek["tur"]]
             sonuc = islem(istek)
@@ -557,14 +564,20 @@ class Kopru:
     def klip(self, istek: dict) -> dict:
         if not istek.get("siparis_id"):
             raise ValueError("Sipariş seçilmedi")
-        saniye = int(istek.get("saniye") or 30)
-        kareler = self.son_kareler(saniye)
+        saniye = min(120, max(5, int(istek.get("saniye") or 30)))
+        ffmpeg = self._ffmpeg()                      # ffmpeg yoksa kameraya hiç bağlanma
+        ad = f"klip_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{saniye}sn.mp4"
+        try:
+            kareler, sure = self.kamera(saniye)       # şimdi bağlanır, sonraki `saniye`yi kaydeder, kapatır
+            self.kamera_hatasi = None
+        except (OSError, ConnectionError, ssl.SSLError) as e:
+            self.kamera_hatasi = str(e)[:120] or e.__class__.__name__
+            raise RuntimeError(f"Kameraya bağlanılamadı: {self.kamera_hatasi}") from e
         with tempfile.TemporaryDirectory() as klasor:
             cikti = os.path.join(klasor, "klip.mp4")
-            kareden_mp4(self._ffmpeg(), kareler, saniye, cikti)
-            ad = f"klip_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{saniye}sn.mp4"
+            kareden_mp4(ffmpeg, kareler, sure or saniye, cikti)
             oge = self._yukle_ve_ekle(int(istek["siparis_id"]), cikti, ad, "klip")
-        return {"yol": oge["yol"], "kare": len(kareler)}
+        return {"yol": oge["yol"], "kare": len(kareler), "sure": round(sure, 1)}
 
     def sd_listele(self, _istek: dict | None = None) -> dict:
         ftp = self.ftp_ac()
@@ -750,10 +763,9 @@ def main(argv: list[str] | None = None) -> int:
     if sorun := seri_sorunu(ayar.seri):
         log.error("%s. Kamera ve SD kart çalışır ama canlı durum gelmez.", sorun)
     kopru = Kopru(ayar, SupabaseKopruDepo(ayarlar.supabase_url, ayarlar.supabase_key), video_duzenle.ffmpeg_yolu(),
-                  bildir=telegram_bildirici(ayarlar))
+                  bildir=telegram_bildirici(ayarlar), arka_planda=True)
     mqtt_istemci = MqttIstemci(ayar, kopru.rapor_al)
     mqtt_istemci.baslat()
-    Kamera(ayar, kopru.kare_ekle).start()
     log.info("Köprü çalışıyor: %s (%s). Durdurmak için Ctrl+C.", ayar.ad, ayar.ip)
     try:
         while True:

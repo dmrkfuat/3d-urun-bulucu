@@ -1810,21 +1810,22 @@
   function medyaYazici() { const s = sipBul(medyaSipId); return (s && sipYaziciSatiri(s)) || sipYazicilar[0] || null; }
 
   function medyaYaziciCiz() {
-    const y = medyaYazici(), bagli = yaziciBagli(y), d = y?.durum || {}, kamera = bagli && d.kamera;
+    // Köprü kameraya yalnızca istek anında bağlanır (canlı görüntü yavaşlamasın); d.kamera=false son denemede hata demek.
+    const y = medyaYazici(), bagli = yaziciBagli(y), d = y?.durum || {}, kamera = bagli && d.kamera !== false;
     const rozetSinif = "px-2 py-0.5 rounded font-mono text-[11px] font-bold whitespace-nowrap shrink-0";
     const rozet = !bagli ? `<span class="${rozetSinif} bg-surface-container-high text-outline">BAĞLI DEĞİL</span>`
-      : kamera ? `<span class="${rozetSinif} bg-tertiary-fixed/30 text-tertiary">CANLI TAMPON</span>` : `<span class="${rozetSinif} bg-error-container text-on-error-container">KAMERA YOK</span>`;
+      : kamera ? `<span class="${rozetSinif} bg-tertiary-fixed/30 text-tertiary">İSTEKTE KAYIT</span>` : `<span class="${rozetSinif} bg-error-container text-on-error-container">KAMERA HATASI</span>`;
     const durumSatiri = d.durum ? `<br><strong class="text-on-surface">${esc(YAZICI_DURUM[d.durum] || d.durum)}${d.yuzde != null && ["RUNNING", "PAUSE"].includes(d.durum) ? ` • %${esc(d.yuzde)}` : ""}${d.katman != null && d.toplam_katman ? ` • Katman ${esc(d.katman)}/${esc(d.toplam_katman)}` : ""}</strong>` : "";
     const aciklama = bagli
-      ? `Yazıcının son ${medyaKlipSn} saniyelik kamera görüntüsü MP4 klibe çevrilip bu siparişe eklenir.${durumSatiri}`
+      ? `Butona basınca kamera ${medyaKlipSn} saniye kaydedilir ve klip bu siparişe eklenir. Kamera yalnızca kayıt sırasında bağlanır; Bambu Handy/Studio canlı görüntüsü yavaşlamaz.${d.kamera === false && d.kamera_hatasi ? `<br><span class="text-error">Son deneme: ${esc(d.kamera_hatasi)}</span>` : ""}${durumSatiri}`
       : y ? `Köprü kapalı (son sinyal ${esc(saniyeOnce(y.goruldu))}). Evdeki bilgisayarda <code>python -m urun_bulucu.kopru</code> çalışıyor olmalı.`
         : `Yazıcı köprüsü kurulmadı. Evdeki bilgisayarda <code>python -m urun_bulucu.kopru</code> çalışınca bu bölüm canlanır (README: "Yazıcı köprüsü"). Şimdilik timelapse'i Bambu Studio / Handy'den indirip "Video yükle" ile ekle.`;
-    const sn = (n) => `<button type="button" data-klip-sn="${n}" ${bagli ? "" : "disabled"} class="py-1.5 rounded-lg font-label-sm text-label-sm text-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${medyaKlipSn === n ? "border-2 border-primary bg-primary/10 font-bold text-primary" : "border border-surface-container-high bg-surface-container-low text-on-surface hover:bg-surface-container"}">Son ${n}sn</button>`;
+    const sn = (n) => `<button type="button" data-klip-sn="${n}" ${bagli ? "" : "disabled"} class="py-1.5 rounded-lg font-label-sm text-label-sm text-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${medyaKlipSn === n ? "border-2 border-primary bg-primary/10 font-bold text-primary" : "border border-surface-container-high bg-surface-container-low text-on-surface hover:bg-surface-container"}">Sonraki ${n}sn</button>`;
     $("#medyaYaziciKart").innerHTML = `
       <div class="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-surface-container-high"><div class="flex items-center gap-2">${sipIkon("video_camera_front", "text-primary text-[20px]")}<h4 class="font-headline-sm text-[15px] font-bold text-on-surface">Yazıcıdan Anlık Video Çek</h4></div>${rozet}</div>
       <p class="font-body-sm text-[12px] text-outline mb-3">${aciklama}</p>
       <div class="space-y-2 mb-3"><span class="block text-label-sm font-semibold text-on-surface">Süre seçin:</span><div class="grid grid-cols-3 gap-1.5">${sn(15)}${sn(30)}${sn(60)}</div></div>
-      <button type="button" id="medyaKlipCek" ${kamera ? "" : "disabled"} class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-label-md text-label-md font-semibold transition-all ${kamera ? "bg-primary text-on-primary hover:bg-primary/95 shadow-sm" : "bg-surface-container-high text-outline cursor-not-allowed"}">${sipIkon(bagli ? "bolt" : "link_off")}<span>${!bagli ? "Köprü bağlı değil" : kamera ? "Yazıcıdan Çek & Siparişe Ekle" : "Kamera görüntüsü yok"}</span></button>`;
+      <button type="button" id="medyaKlipCek" ${kamera ? "" : "disabled"} class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-label-md text-label-md font-semibold transition-all ${kamera ? "bg-primary text-on-primary hover:bg-primary/95 shadow-sm" : "bg-surface-container-high text-outline cursor-not-allowed"}">${sipIkon(bagli ? "bolt" : "link_off")}<span>${!bagli ? "Köprü bağlı değil" : kamera ? "Kaydı Başlat & Siparişe Ekle" : "Kamera bağlanamadı"}</span></button>`;
     $("#medyaSdYenile").disabled = !bagli;
   }
 
@@ -1832,14 +1833,20 @@
     const s = sipBul(medyaSipId), y = medyaYazici(), dugme = $("#medyaKlipCek");
     if (!s || dugme.disabled) return;
     dugme.disabled = true;
-    medyaYaz(`Yazıcıdan son ${medyaKlipSn} sn alınıyor…`);
+    // Köprü isteği ~1-3 sn'de alır, kamera bağlanır (~2 sn), sonra seçilen süre kaydedilir.
+    const sn = medyaKlipSn, bitis = Date.now() + (sn + 5) * 1000;
+    const sayac = setInterval(() => {
+      const kalan = Math.ceil((bitis - Date.now()) / 1000);
+      medyaYaz(kalan > 0 ? `🔴 Kaydediliyor… ~${kalan} sn` : "Klip hazırlanıyor ve yükleniyor…");
+    }, 500);
     try {
-      const sonuc = await yaziciIstek("klip", { siparis_id: s.id, saniye: medyaKlipSn, yazici: y?.ad ?? null });
+      const sonuc = await yaziciIstek("klip", { siparis_id: s.id, saniye: sn, yazici: y?.ad ?? null });
+      clearInterval(sayac);
       medyaSecili = sonuc.yol || medyaSecili; medyaSekme = "bu";
-      medyaYaz(`Klip eklendi ✓ (${Number(sonuc.kare) || "?"} kare)`);
+      medyaYaz(`Klip eklendi ✓ (${Number(sonuc.kare) || "?"} kare, ${Number(sonuc.sure) || sn} sn)`);
       await siparisYukle();
       if (medyaSipId != null) await medyaCiz();
-    } catch (e) { medyaYaz("Klip alınamadı: " + e.message, true); medyaYaziciCiz(); }
+    } catch (e) { clearInterval(sayac); medyaYaz("Klip alınamadı: " + e.message, true); medyaYaziciCiz(); }
   }
 
   async function medyaSdYenile() {
