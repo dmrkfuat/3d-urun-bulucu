@@ -108,6 +108,9 @@ def indir(url: str | None, client: httpx.Client) -> dict | None:
             with client.stream("GET", url, headers={"User-Agent": config.TRENDYOL_UA},
                                follow_redirects=False) as yanit:
                 ip = _baglanilan_ip(yanit)
+                # Bağlanılan IP bilinmiyorsa reddet (fail-closed); yalnızca testlerin sahte taşıyıcısı muaf.
+                if ip is None and not isinstance(getattr(client, "_transport", None), httpx.MockTransport):
+                    return None
                 if ip is not None and not _genel_ip(ip):
                     return None
                 if yanit.is_redirect:

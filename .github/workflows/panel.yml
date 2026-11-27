@@ -63,5 +63,9 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: panel
+      # Yüklenen paket API'de birkaç saniye sonra görünüyor; hemen aranınca "No artifacts named
+      # github-pages" hatası veriyordu (2026-11-27).
+      - name: Paketin görünmesini bekle
+        run: sleep 15
       - id: dagit
         uses: actions/deploy-pages@v4

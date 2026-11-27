@@ -68,6 +68,15 @@ def test_dns_yeniden_baglama_baglanilan_ip_denetlenir():
     assert gorsel.indir("https://t.example/dis.png", http)["source"]["media_type"] == "image/png"
 
 
+def test_baglanilan_ip_bilinmiyorsa_reddedilir():
+    """Gerçek (sahte olmayan) bir taşıyıcı bağlanılan IP'yi vermezse görsel indirilmez (fail-closed)."""
+    class IpsizTasiyici(httpx.BaseTransport):
+        def handle_request(self, request):
+            return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+    http = httpx.Client(transport=IpsizTasiyici())
+    assert gorsel.indir("https://t.example/a.png", http) is None
+
+
 def test_buyuk_govde_okunmaz(monkeypatch):
     monkeypatch.setattr(gorsel, "EN_BUYUK_BAYT", 50)
     http = httpx.Client(transport=httpx.MockTransport(
