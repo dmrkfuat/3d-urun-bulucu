@@ -441,6 +441,7 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
     gelenler = depo.zamani_gelenler(simdi.isoformat(timespec="seconds"), config.INSTAGRAM_CALISMA_BASINA_EN_FAZLA)
     islenen = depo.islenenler()
     if not gelenler and not islenen:
+        print("Saati gelen Instagram gönderisi yok.")
         return bildirimler
 
     def hata(g: dict, mesaj: str) -> None:
@@ -505,6 +506,8 @@ def isle(depo: InstagramDepo, ig: InstagramIstemci, simdi: datetime,
                              f"<b>{bildirim._e(_ad(depo, g))}</b>"
                              + (f"\n{bildirim._e(baglanti)}" if baglanti else "")
                              + (f"\nℹ️ {bildirim._e(g['_not'])}" if g.get("_not") else ""))
+                    # Günlüğe her zaman yazılır (Telegram'a video olarak gittiyse yazılı bildirim listesine girmez)
+                    print(f"Paylaşıldı: #{g['id']} {_ad(depo, g)} {baglanti or ''}".rstrip())
                     if not _paylasim_sonrasi(depo, g, metin, video_gonder):
                         bildirimler.append(metin)   # video gönderilemediyse bildirim yazıyla gelir
                 elif kod in ("ERROR", "EXPIRED"):
@@ -627,8 +630,6 @@ def calistir() -> int:
     for m in bildirimler:
         print(re.sub(r"<[^>]+>", "", m))
     _bildir(ayarlar, bildirimler)
-    if not bildirimler:
-        print("Saati gelen Instagram gönderisi yok.")
     return 0
 
 

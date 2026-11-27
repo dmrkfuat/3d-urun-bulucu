@@ -298,6 +298,21 @@ def test_isle_duzenlenmis_videoyu_paylasir_notu_bildirir():
     assert depo.gonderiler[1]["status"] == "paylasildi" and "ℹ️ deneme notu" in b[0]
 
 
+def test_isle_paylasimi_gunluge_yazar_gonderi_yok_demez(monkeypatch, capsys):
+    """Telegram'a video olarak giden paylaşımda yazılı bildirim listesi boştur; günlük yine 'Paylaşıldı' der
+    (önceden 'Saati gelen Instagram gönderisi yok.' yazıyordu)."""
+    monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
+    depo = VideoDepo([_gonderi()])
+    client, _ = _api(["FINISHED"])
+    b = instagram.isle(depo, instagram.InstagramIstemci("TOKEN", client), SIMDI,
+                       hazirla=lambda d, g: ("7/1_hazir.mp4", None), video_gonder=lambda d, m: None)
+    cikti = capsys.readouterr().out
+    assert b == [] and "Paylaşıldı: #1" in cikti and "reel/abc" in cikti and "gönderisi yok" not in cikti
+    # Gerçekten gönderi yoksa günlük bunu söyler
+    instagram.isle(VideoDepo([]), instagram.InstagramIstemci("TOKEN", _api([])[0]), SIMDI)
+    assert "Saati gelen Instagram gönderisi yok." in capsys.readouterr().out
+
+
 def test_isle_paylasilan_videoyu_telegrama_gonderir_sonra_siler(monkeypatch):
     monkeypatch.setattr(config, "INSTAGRAM_VIDEO_DUZENLE", True)
     depo = VideoDepo([_gonderi()])
