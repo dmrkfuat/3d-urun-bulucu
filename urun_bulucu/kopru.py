@@ -407,17 +407,23 @@ def kareden_mp4(ffmpeg: str, kareler: list[bytes], sure_sn: float, cikti: str, k
     komut = [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", f"{fps:.4f}", "-c:v", "mjpeg", "-i", "-",
              "-r", "10", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
              "-vf", _vf(kirp, "scale=trunc(iw/2)*2:trunc(ih/2)*2"), "-movflags", "+faststart", cikti]
-    subprocess.run(komut, input=b"".join(kareler), check=True, timeout=300, capture_output=True)
+    subprocess.run(komut, input=b"".join(kareler), check=True, timeout=300, capture_output=True,
+                   env=video_duzenle._ortam())
 
 
 def mp4ye_cevir(ffmpeg: str, girdi: str, cikti: str, kirp: str | None = None) -> None:
     """SD karttaki timelapse'i (P1 serisi AVI) panelin oynatabileceği MP4'e çevirir; 50 MB'ı aşarsa küçültür.
-    kirp: kenar kırpma filtresi (video_duzenle.kirpma; Instagram'la aynı)."""
+    kirp: kenar kırpma filtresi (video_duzenle.kirpma; Instagram'la aynı).
+    Güvenlik: dosya, uzantısının biçimiyle açılır (içerikten tahmin edilmez) ve yalnızca yerel dosya
+    protokolü açıktır; içi HLS/concat listesi olan bir dosya yerel dosya okutamaz, dışarı istek attıramaz.
+    ffmpeg, sırları içermeyen sade bir ortamla çalışır."""
+    bicim = "avi" if Path(girdi).suffix.lower() == ".avi" else "mov"
     for crf, genislik in ((26, 1280), (32, 960), (36, 640)):
-        komut = [ffmpeg, "-y", "-loglevel", "error", "-i", girdi, "-an", "-c:v", "libx264", "-preset", "veryfast",
+        komut = [ffmpeg, "-y", "-loglevel", "error", "-f", bicim, "-protocol_whitelist", "file", "-i", girdi,
+                 "-an", "-c:v", "libx264", "-preset", "veryfast",
                  "-crf", str(crf), "-pix_fmt", "yuv420p", "-vf", _vf(kirp, f"scale='min({genislik},iw)':-2"),
                  "-movflags", "+faststart", cikti]
-        subprocess.run(komut, check=True, timeout=1800, capture_output=True)
+        subprocess.run(komut, check=True, timeout=1800, capture_output=True, env=video_duzenle._ortam())
         if os.path.getsize(cikti) <= EN_BUYUK_BAYT:
             return
     raise RuntimeError("Video 50 MB'ın altına küçültülemedi")

@@ -10,8 +10,10 @@ on:
         type: boolean
         default: false
 
+# Varsayılan: yalnızca okuma. Paket kurulumu, testler ve analiz (dış site verisi + üçüncü parti kod)
+# depoya yazamaz; raporu commit eden küçük "kaydet" işi yazma iznini tek başına alır ve paket kurmaz.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: gunluk-analiz
@@ -35,7 +37,7 @@ jobs:
           echo "Bu, hata uyarısını denemek için kasıtlı bir durdurmadır." | tee "$RUNNER_TEMP/cikti.log"
           exit 1
 
-      - run: pip install -r requirements.txt
+      - run: pip install --require-hashes -r requirements.txt
 
       - name: Testler
         run: python -m pytest -q
@@ -58,17 +60,23 @@ jobs:
           set -o pipefail
           python -m urun_bulucu 2>&1 | tee "$RUNNER_TEMP/cikti.log"
 
-      - name: Raporu depoya kaydet
+      - name: Kaydedilecek dosyaları hazırla
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add raporlar
+          mkdir -p "$RUNNER_TEMP/kayit"
+          [ -d raporlar ] && cp -r raporlar "$RUNNER_TEMP/kayit/"
           # Supabase yoksa geçmiş veriler (7 günlük artış için) yerel veritabanı dosyasında tutulur
-          if [ -z "$SUPABASE_URL" ] && [ -f data/urunler.db ]; then git add -f data/urunler.db; fi
-          git diff --cached --quiet || git commit -m "Günlük özet: $(date -u +%F)"
-          git push
+          if [ -z "$SUPABASE_URL" ] && [ -f data/urunler.db ]; then
+            mkdir -p "$RUNNER_TEMP/kayit/data" && cp data/urunler.db "$RUNNER_TEMP/kayit/data/"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gunluk-kayit
+          path: ${{ runner.temp }}/kayit
+          retention-days: 3
+          if-no-files-found: ignore
 
       # Herhangi bir adım başarısız olursa Telegram'a uyarı gönderilir.
       - name: Hata uyarısı (Telegram)
@@ -81,6 +89,45 @@ jobs:
           [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
           SON=$(tail -n 6 "$RUNNER_TEMP/cikti.log" 2>/dev/null | cut -c1-300 || true)
           METIN=$(printf '⚠️ Bugünkü 3D ürün analizi çalışmadı.\n\n%s\n\nAyrıntı: %s' "${SON:-Analiz adımına gelmeden durdu (kurulum veya testler).}" "$CALISMA")
+          curl -s -o /dev/null -w "telegram: %{http_code}\n" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${METIN}" \
+            --data-urlencode "disable_web_page_preview=true"
+
+  # Raporu depoya yazan tek iş: paket kurmaz, kod çalıştırmaz; yalnızca analiz işinin çıktısını commit eder.
+  kaydet:
+    needs: analiz
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: gunluk-kayit
+          path: .
+
+      - name: Raporu depoya kaydet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -d raporlar ] && git add raporlar
+          [ -f data/urunler.db ] && git add -f data/urunler.db
+          git diff --cached --quiet || git commit -m "Günlük özet: $(date -u +%F)"
+          git push
+
+      - name: Hata uyarısı (Telegram)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CALISMA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          METIN=$(printf '⚠️ Bugünkü 3D ürün analizi çalıştı ama rapor depoya kaydedilemedi.\n\nAyrıntı: %s' "$CALISMA")
           curl -s -o /dev/null -w "telegram: %{http_code}\n" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \

@@ -49,6 +49,32 @@ def test_yonlendirme_her_adimda_denetlenir():
     assert gorsel.indir("https://t.example/dongu", http) is None           # sonsuz yönlendirme
 
 
+class _SahteAkis:
+    def __init__(self, ip):
+        self.ip = ip
+
+    def get_extra_info(self, ad):
+        return (self.ip, 443) if ad == "server_addr" else None
+
+
+def test_dns_yeniden_baglama_baglanilan_ip_denetlenir():
+    """Denetimde herkese açık görünen ad bağlanırken iç IP'ye çözülürse gövde okunmaz."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        ip = "127.0.0.1" if request.url.path == "/ic.png" else "8.8.8.8"
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"},
+                              extensions={"network_stream": _SahteAkis(ip)})
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    assert gorsel.indir("https://t.example/ic.png", http) is None
+    assert gorsel.indir("https://t.example/dis.png", http)["source"]["media_type"] == "image/png"
+
+
+def test_buyuk_govde_okunmaz(monkeypatch):
+    monkeypatch.setattr(gorsel, "EN_BUYUK_BAYT", 50)
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, content=PNG, headers={"content-type": "image/png"})))
+    assert gorsel.indir("https://t.example/a.png", http) is None
+
+
 def _http():
     def handler(request: httpx.Request) -> httpx.Response:
         yol = request.url.path
@@ -106,7 +132,7 @@ def test_karsilastir_istek_ve_eslestirme():
     assert len(gorseller) == 3 and gorseller[0]["source"]["media_type"] == "image/png"
     assert gorseller[1]["source"]["media_type"] == "image/jpeg"
     metin = " ".join(b["text"] for b in istek["messages"][0]["content"] if b["type"] == "text")
-    assert "Aday 1 — ilan başlığı: Örgü Dokulu Figür" in metin and "Aday 2 — ilan başlığı: Mini Noel Baba" in metin
+    assert "<baslik>Örgü Dokulu Figür</baslik>" in metin and "<baslik>Mini Noel Baba</baslik>" in metin
     assert (d.kontrol_edilen, d.girdi_token, d.cikti_token) == (1, 3000, 500)
     assert d.maliyet_usd() == pytest.approx(0.022)
 

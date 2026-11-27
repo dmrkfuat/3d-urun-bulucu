@@ -16,6 +16,7 @@ data/
 
 # Panelin derlenmiş Tailwind CSS'i (yayın iş akışı panel_stil/'den üretir)
 panel/tailwind.css
+node_modules/
 
 # Araç/editör dosyaları
 .playwright-mcp/

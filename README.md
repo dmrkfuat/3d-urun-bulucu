@@ -329,8 +329,10 @@ Bir kerelik kurulum:
 
 Görünüm Tailwind ile yazılıdır ama tarayıcıya üçüncü parti betik yüklenmez: `panel/tailwind.css`,
 `panel_stil/tailwind.config.js` yapılandırmasından derlenir. Yayın iş akışı bunu her seferinde kendisi yapar
-(dosya repoya girmez). Paneli yerelde açmadan önce bir kez derleyin (Node.js gerekir):
-`npx -y tailwindcss@3.4.17 -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify`
+(dosya repoya girmez). Tailwind sürümü `panel_stil/package-lock.json`'da hash'iyle sabittir. Paneli yerelde
+açmadan önce bir kez derleyin (Node.js gerekir; repo kökünden):
+`npm ci --ignore-scripts --prefix panel_stil` ve
+`panel_stil/node_modules/.bin/tailwindcss -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify`
 
 ---
 
@@ -367,8 +369,8 @@ Kontrol edilemeyen ürün o gün listeye girmez; daha önce sattığın ürün k
 fiyat, Google özetinde yazıyorsa alınır.
 
 **Scrapling:** Trendyol ürün sayfaları [Scrapling](https://github.com/D4Vinci/Scrapling)'in HTML
-ayrıştırıcısıyla okunur (JSON-LD, Open Graph yedeği, benzer ürün bağlantıları). `requirements.txt`
-GitHub deposunun v0.5.1 commit'ine sabittir. Yalnızca ayrıştırıcı kullanılır: istekler yine kendini
+ayrıştırıcısıyla okunur (JSON-LD, Open Graph yedeği, benzer ürün bağlantıları). Sürüm v0.5.1'e
+(PyPI, hash'iyle) sabittir. Yalnızca ayrıştırıcı kullanılır: istekler yine kendini
 tanıtan kimlikle `httpx` üzerinden gider, robots.txt kuralları ve "engel görülünce dur" kuralı geçerlidir;
 Scrapling'in gizli tarayıcı, bot korumasını aşma ve proxy özellikleri kullanılmaz.
 
@@ -413,7 +415,8 @@ Bu işaretler bilgilendirme amaçlıdır, hukuki görüş değildir.
 ```
 calistir.bat              ← çift tıkla çalıştır
 .env.example              ← anahtar şablonu (.env'in kopyalanacağı dosya)
-requirements.txt          ← gerekli Python paketleri
+requirements.in           ← doğrudan Python bağımlılıkları (elle düzenlenen liste)
+requirements.txt          ← kilit dosyası: tüm paketler tam sürüm + hash (requirements.in'den uv ile üretilir)
 supabase/schema.sql       ← Supabase tabloları (+ guncelleme_*.sql)
 talep/etsy_talep.csv      ← Etsy talep listeniz
 raporlar/                 ← günlük özetler

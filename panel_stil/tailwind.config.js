@@ -1,6 +1,8 @@
-// Panelin Tailwind yapılandırması (mockup tasarım sistemi). panel/tailwind.css bundan derlenir:
-//   npx -y tailwindcss@3.4.17 -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify
-// GitHub, panel yayınlanırken (.github/workflows/panel.yml) aynı komutla yeniden derler; derlenen dosya repoya girmez.
+// Panelin Tailwind yapılandırması (mockup tasarım sistemi). panel/tailwind.css bundan derlenir (repo kökünden):
+//   npm ci --ignore-scripts --prefix panel_stil
+//   panel_stil/node_modules/.bin/tailwindcss -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify
+// Sürüm panel_stil/package-lock.json'da hash'iyle sabittir. GitHub, panel yayınlanırken
+// (.github/workflows/panel.yml) aynı komutla yeniden derler; derlenen dosya repoya girmez.
 // Preflight kapalı: panelin kendi temel stilleri bozulmasın (bkz. index.html :where(.tw) sıfırlaması).
 const ayar = { corePlugins: { preflight: false }, theme: { extend: {
     colors: { "on-tertiary-container": "#76ffc2", "tertiary-fixed-dim": "#4edea3", "on-surface-variant": "#444654", "inverse-primary": "#b8c3ff", "primary-fixed": "#dde1ff", "on-surface": "#0d1c2e", "surface-dim": "#ccdbf3", "on-primary": "#ffffff", "on-secondary-fixed-variant": "#004c6e", "surface-container-high": "#dce9ff", "on-primary-fixed": "#001355", "primary": "#1a40c2", "inverse-surface": "#233144", "tertiary": "#005b3d", "background": "#f8f9ff", "error-container": "#ffdad6", "surface-bright": "#f8f9ff", "secondary": "#006591", "on-primary-fixed-variant": "#0736ba", "on-primary-container": "#e2e5ff", "surface": "#f8f9ff", "primary-fixed-dim": "#b8c3ff", "error": "#ba1a1a", "inverse-on-surface": "#eaf1ff", "on-secondary-fixed": "#001e2f", "on-secondary-container": "#004666", "on-secondary": "#ffffff", "surface-variant": "#d5e3fc", "on-tertiary-fixed": "#002113", "outline-variant": "#c4c5d6", "secondary-fixed": "#c9e6ff", "outline": "#747686", "on-error": "#ffffff", "secondary-fixed-dim": "#89ceff", "on-error-container": "#93000a", "surface-container-lowest": "#ffffff", "tertiary-fixed": "#6ffbbe", "surface-container-highest": "#d5e3fc", "on-tertiary-fixed-variant": "#005236", "on-background": "#0d1c2e", "primary-container": "#3b5bdb", "surface-container": "#e6eeff", "surface-container-low": "#eff4ff", "surface-tint": "#3052d2", "on-tertiary": "#ffffff", "tertiary-container": "#007650", "secondary-container": "#39b8fd" },
@@ -11,7 +13,7 @@ const ayar = { corePlugins: { preflight: false }, theme: { extend: {
   } } };
 module.exports = {
   ...ayar,
-  content: ["./panel/index.html"],
+  content: ["./panel/index.html", "./panel/uygulama.js"],
   // JS içinde birleştirilerek üretilen sınıflar (ör. lIkon: `text-[${boy}px]`) kaynakta düz yazı olarak geçmez.
   safelist: ["text-[13px]", "text-[14px]", "text-[15px]", "text-[16px]", "text-[18px]", "text-[20px]", "text-[22px]", "text-[24px]", "text-[40px]", "text-[48px]"],
 };

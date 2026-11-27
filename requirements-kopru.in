@@ -1,0 +1,5 @@
+# Yazıcı köprüsü (python -m urun_bulucu.kopru) için; yalnızca köprünün çalıştığı evdeki bilgisayarda gerekir.
+# Düzenledikten sonra kilit dosyasını yeniden üret:
+#   uv pip compile requirements-kopru.in --universal --python-version 3.13 --generate-hashes -o requirements-kopru.txt
+-r requirements.in
+paho-mqtt>=2.1,<3

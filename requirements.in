@@ -1,0 +1,11 @@
+# Doğrudan bağımlılıklar. Bu dosyayı düzenle, sonra kilit dosyasını (requirements.txt) yeniden üret:
+#   uv pip compile requirements.in --universal --python-version 3.13 --generate-hashes -o requirements.txt
+# requirements.txt her paketi (dolaylılar dahil) tam sürüm + hash ile sabitler; pip, hash'i tutmayan
+# bir dosyayı kurmaz. Böylece CI'da her çalışmada yeni (ele geçirilmiş olabilecek) bir sürüm inmez.
+httpx>=0.28,<1
+python-dotenv>=1.0,<2
+supabase>=2.20,<3
+anthropic>=1.17,<2
+# Scrapling (https://github.com/D4Vinci/Scrapling) v0.5.1; yalnızca HTML ayrıştırıcı kullanılır
+scrapling==0.5.1
+pytest>=8,<10

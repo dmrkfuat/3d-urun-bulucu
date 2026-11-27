@@ -1,0 +1,8 @@
+{
+  "name": "panel-stil",
+  "private": true,
+  "description": "Panelin Tailwind CSS derlemesi. Kurulum: npm ci --ignore-scripts --prefix panel_stil; derleme repo kökünden (bkz. tailwind.config.js).",
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

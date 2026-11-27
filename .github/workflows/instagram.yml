@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install --require-hashes -r requirements.txt
       # ffmpeg yalnızca saati gelmiş ve düzenlenecek bir video varsa kurulur (her çalışmada değil).
       - name: Video düzenleme gerekiyor mu
         id: kontrol

@@ -31,15 +31,32 @@ jobs:
             echo "::error::panel/ içinde gizli anahtar var; yayınlanmadı."
             exit 1
           fi
+          # CSP (index.html) panelin bağlandığı Supabase projesine izin vermeli; yoksa panel veri çekemez.
+          PROJE=$(grep -oE 'https://[a-z0-9]+\.supabase\.co' panel/ayar.js | head -n1)
+          if [ -z "$PROJE" ] || ! grep -q "connect-src[^\"]*$PROJE" panel/index.html; then
+            echo "::error::index.html CSP'si ayar.js'deki Supabase adresine ($PROJE) izin vermiyor."
+            exit 1
+          fi
+          # Satır içi betik CSP'ce engellenir: uygulama kodu panel/uygulama.js'de olmalı.
+          if grep -qE '<script>' panel/index.html; then
+            echo "::error::index.html'de satır içi <script> var; CSP bunu engeller (uygulama.js'e taşı)."
+            exit 1
+          fi
 
       # Panel Tailwind CDN betiği yerine derlenmiş CSS kullanır (üçüncü parti betik yok); her yayında
       # index.html'deki sınıflardan yeniden derlenir, böylece HTML ile hep uyumlu kalır.
+      # Güvenlik: Tailwind ve tüm dolaylı paketleri panel_stil/package-lock.json'daki sürüm + integrity
+      # hash'iyle kurulur (npm ci); kurulum betikleri çalıştırılmaz (--ignore-scripts). Yayın yetkisi olan
+      # bu işte her seferinde yeni (ele geçirilmiş olabilecek) bir paket sürümü inmez.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: panel_stil/package-lock.json
       - name: Tailwind CSS'i derle
         run: |
-          npx -y tailwindcss@3.4.17 -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify
+          npm ci --ignore-scripts --no-audit --no-fund --prefix panel_stil
+          panel_stil/node_modules/.bin/tailwindcss -c panel_stil/tailwind.config.js -i panel_stil/giris.css -o panel/tailwind.css --minify
           test -s panel/tailwind.css
 
       - uses: actions/configure-pages@v5
