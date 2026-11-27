@@ -331,7 +331,7 @@
               <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
               <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
               <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
-              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM at" kartı, 9:16</label>
+              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM" kartı, 9:16</label>
               <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Aynı videoyu hikâye olarak da paylaş (hikâye videosu en çok 60 sn)</label>
               <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
               <div class="satir"><button type="button" class="ana igPlanla">Videoyu planla</button><span class="kaydedildi igDurum" role="status"></span></div>
@@ -1404,7 +1404,7 @@
     medyaSipId = id; medyaSekme = "bu"; medyaUrl.clear();
     medyaSecili = sipMedya(sipBul(id))[0]?.yol || null;
     const s = sipBul(id);
-    $("#medyaAciklama").value = s ? `${s.urun_adi} baskıda 🖨️\nSipariş için DM at!` : "";
+    $("#medyaAciklama").value = s ? `${s.urun_adi} baskıda 🖨️\nSipariş için DM'den yazabilirsiniz.` : "";
     $("#medyaZaman").value = sipYerelZaman(new Date(Date.now() + 36e5).toISOString());
     medyaYaz("");
     $("#medyaPencere").hidden = false;

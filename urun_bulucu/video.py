@@ -54,12 +54,12 @@ def kancalar(urun: dict) -> list[str]:
     if HAREKETLI in ozellik and not sonuc:
         sonuc.append("Bu parçalar baskıdan hareketli çıkıyor 🤯")
     if SATISFYING in ozellik:
-        sonuc.append("Bunu elinden bırakamayacaksın 🌀")
+        sonuc.append("Bunu elinizden bırakamayacaksınız 🌀")
     if ISIK in ozellik:
-        sonuc.append("Işığı açınca bak 💡")
+        sonuc.append("Işığı açınca bakın 💡")
     sezon_notu = (urun.get("score_detail") or {}).get("sezon")
     if sezon_notu:
-        sonuc.append(f"{sezon_notu}, şimdiden hazırla")
+        sonuc.append(f"{sezon_notu}, şimdiden hazırlanın")
     if urun.get("trend_rank"):
         sonuc.append("Şu an MakerWorld'de trend olan model 🔥")
     if urun.get("category") == "Hediyelik":

@@ -4,7 +4,7 @@
 - Görüntü dikey 1080x1920'ye (9:16) getirilir; yatay/kare videoların boşluğu videonun
   bulanıklaştırılmış hâliyle doldurulur (siyah bant yok).
 - İlk INSTAGRAM_KANCA_SN saniyede açıklamanın ilk satırı (kanca) büyük harflerle üstte yazar.
-- Sona INSTAGRAM_SON_KART_SN saniyelik kart eklenir: son kare donar, kararır, "SİPARİŞ İÇİN DM AT".
+- Sona INSTAGRAM_SON_KART_SN saniyelik kart eklenir: son kare donar, kararır, "SİPARİŞ İÇİN DM".
 - Ses yoksa sessiz ses kanalı eklenir; çıktı H.264 + AAC MP4 (Instagram'ın istediği biçim).
 
 ffmpeg GitHub Actions'ta apt ile kurulur. Yerelde PATH'te yoksa FFMPEG_YOLU ortam değişkeniyle

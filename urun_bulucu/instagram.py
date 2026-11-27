@@ -52,12 +52,12 @@ ETIKET_GURULTU = {"mini", "little", "small", "tiny", "cute", "new", "test", "hol
                   "collection", "model", "design", "toy", "ams", "noams", "no ams", "no-ams", "multipart",
                   "multi part", "print in place", "printinplace", "multicolor", "multi color", "home"}
 KATEGORI_CUMLESI = {
-    "Fidget ve oyuncak": "🌀 Elinden bırakamayacağın bir stres oyuncağı.",
-    "Eklemli figür": "🦎 Her parçası hareketli, masanın yeni maskotu.",
-    "Masa ve ofis düzenleyici": "🗂️ Masanı toparlamanın en şık yolu.",
-    "Ev dekorasyonu ve saksı": "🏡 Evine küçük ama fark edilen bir dokunuş.",
-    "Hediyelik": "🎁 Sevdiklerine farklı bir hediye.",
-    "Telefon ve kablo aksesuarı": "📱 Günlük kullanımda hep elinin altında.",
+    "Fidget ve oyuncak": "🌀 Elinizden bırakamayacağınız bir stres oyuncağı.",
+    "Eklemli figür": "🦎 Her parçası hareketli, masanızın yeni maskotu.",
+    "Masa ve ofis düzenleyici": "🗂️ Masanızı toparlamanın en şık yolu.",
+    "Ev dekorasyonu ve saksı": "🏡 Evinize küçük ama fark edilen bir dokunuş.",
+    "Hediyelik": "🎁 Sevdiklerinize farklı bir hediye.",
+    "Telefon ve kablo aksesuarı": "📱 Günlük kullanımda hep elinizin altında.",
 }
 
 
@@ -117,10 +117,10 @@ def gonderi_metni(urun: dict) -> str:
         satirlar.append(f"🎨 {urun['color_count']} renk")
     sezon_notu = (urun.get("score_detail") or {}).get("sezon")
     if sezon_notu:
-        satirlar.append(f"{sezon_notu.split(':')[0]} için şimdiden sipariş ver.")
+        satirlar.append(f"{sezon_notu.split(':')[0]} için şimdiden sipariş verebilirsiniz.")
     elif urun.get("category") in KATEGORI_CUMLESI:
         satirlar.append(KATEGORI_CUMLESI[urun["category"]])
-    satirlar += ["", "🎨 İstediğin renkte basabilirim.", "📩 Sipariş ve fiyat için DM at!"]
+    satirlar += ["", "🎨 İstediğiniz renkte basabiliriz.", "📩 Sipariş ve fiyat için DM'den yazabilirsiniz."]
     etiket = " ".join(etiketler(urun))
     govde = "\n".join(satirlar)
     sinir = config.INSTAGRAM_ACIKLAMA_SINIRI - len(etiket) - 2

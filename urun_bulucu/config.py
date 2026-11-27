@@ -179,10 +179,12 @@ INSTAGRAM_TOKEN_API = "https://graph.instagram.com/refresh_access_token"
 # Meta panelindeki "Unified login" Facebook türü token verir (EAA… ile başlar, süresi dolmaz):
 # graph.facebook.com üzerinden çalışır, yenilenmez ve hesap kimliği INSTAGRAM_HESAP_ID'den okunur.
 INSTAGRAM_FB_API = "https://graph.facebook.com/v25.0"
-# Açıklamaları Claude yazar (ANTHROPIC_API_KEY varsa; ilk 10 için günde tek istek, birkaç sent).
+# Açıklamaları Claude yazar (ANTHROPIC_API_KEY varsa; ilk 10 için günde tek istek, ~0,35-0,40 $).
 # Kapalıysa veya hata olursa şablon metin kullanılır. Tasarımcı, süre, makine adı hiçbirinde yazmaz.
 INSTAGRAM_LLM_ACIKLAMA = True
-INSTAGRAM_ACIKLAMA_MODEL = "claude-opus-5-5"
+INSTAGRAM_ACIKLAMA_MODEL = "claude-fable-5-2"
+ACIKLAMA_GIRDI_USD_M = 8.0          # Claude Fable 5.2 fiyatı ($ / 1M token): yalnızca harcama tahmini için
+ACIKLAMA_CIKTI_USD_M = 40.0         # (Opus 5.5'e dönülürse 4.0 / 20.0)
 INSTAGRAM_ETIKET_ADET = 15         # açıklamadaki etiket sayısı (Instagram sınırı 30)
 INSTAGRAM_ACIKLAMA_SINIRI = 2200    # Instagram sınırı
 INSTAGRAM_TOKEN_YENILEME_GUN = 7    # token (60 gün geçerli) bu kadar günde bir yenilenir
@@ -208,7 +210,7 @@ INSTAGRAM_KIRP = {"sol": 0.0, "sag": 0.10, "ust": 0.0, "alt": 0.0}
 KOPRU_KIRP = INSTAGRAM_KIRP
 INSTAGRAM_KANCA_SN = 2.5            # kanca yazısı videonun ilk kaç saniyesinde görünür
 INSTAGRAM_SON_KART_SN = 2.5         # sona eklenen "DM" kartının süresi (0: eklenmez)
-INSTAGRAM_SON_KART = ("SİPARİŞ İÇİN DM AT", "İstediğin renkte basılır")
+INSTAGRAM_SON_KART = ("SİPARİŞ İÇİN DM", "İstediğiniz renkte basılır")
 INSTAGRAM_DUZENLEME_SURESI_SN = 400  # bir videonun düzenlenmesi en fazla bu kadar sürebilir
 
 # Web paneli (GitHub Pages). Telegram mesajının sonunda bağlantısı verilir.
