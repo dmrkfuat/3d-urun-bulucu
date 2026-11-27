@@ -26,6 +26,8 @@
     const s = Math.floor(dk / 60), d = dk % 60;
     return s && d ? `${s} sa ${d} dk` : s ? `${s} sa` : `${d} dk`;
   };
+  // Arama karşılaştırması: Türkçe küçük harfe çevirip ı/i ayrımını kaldırır ("GRINCH" yazan ürün "grinch" ile bulunsun).
+  const duz = (t) => String(t ?? "").toLocaleLowerCase("tr-TR").replace(/ı/g, "i");
   const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   // Veritabanından gelen bağlantılar yalnızca https ise kullanılır (javascript:, data: vb. engellenir).
   const url = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" ? esc(x.href) : "#"; } catch (e) { return "#"; } };
@@ -72,7 +74,7 @@
       : await sb.from("print_plan").upsert({ product_id: pid, quantity: 1, done: false, updated_at: new Date().toISOString() });
     if (error) { alert("Plan güncellenemedi: " + error.message); return; }
     varMi ? planIdleri.delete(pid) : planIdleri.add(pid);
-    if (dugme) dugme.textContent = planIdleri.has(pid) ? "✓ Planda" : "📋 Plana ekle";
+    if (dugme) dugme.textContent = planDugmeYazi(planIdleri.has(pid));
   }
   // Satış sonuçları: "birebir" işaretli olanlar MakerWorld modeliyle AYNI ürün (sunucudaki
   // pazar.ayni_urun_mu kuralı); diğerleri aynı kategoride farklı ürünlerdir, fiyata katılmaz.
@@ -115,24 +117,34 @@
       : "Bağlantı gönderildi. E-postandaki bağlantıya bu cihazda tıkla.";
   });
   $("#cikis").addEventListener("click", async () => { await sb.auth.signOut(); goster("#girisEkrani"); });
-  // Üst bardaki arama: Enter'a basınca "Tüm ürünler" sekmesinde aynı kelimeyle arar.
-  $("#ustAra").addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    $("#tumAra").value = e.target.value.trim();
-    document.querySelector('[data-sekme="tum"]').click();
-  });
 
   // ------------------------------------------------------------ sekmeler
+  // Ana sekmeler iş akışı sırasıyladır (ne üreteyim → üret → Instagram → sipariş). "Ürünler" iki görünüm
+  // içerir (bugünün önerileri, Türkiye'de çok satanlar); az kullanılan ekranlar "Diğer" menüsündedir.
   const SEKME_YUKLE = { liste: () => kartlariCiz(), tum: () => tumYukle(), plan: () => planYukle(),
                         tasarimci: () => tasarimciYukle(), performans: () => performansYukle(),
                         kesif: () => kesifYukle(), instagram: () => igYukle(), siparis: () => siparisYukle() };
-  document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => {
+  const DIGER_SEKMELER = ["tum", "performans", "tasarimci"];
+  const digerKapat = () => { $("#digerMenu").hidden = true; $("#digerDugme").setAttribute("aria-expanded", "false"); };
+  function sekmeAc(ad) {
     document.querySelectorAll("[data-sekme]").forEach((x) => {
-      x.setAttribute("aria-selected", String(x === b));
-      $(`#${x.dataset.sekme}Sekmesi`).hidden = x !== b;
+      const secili = x.dataset.sekme === ad || (x.dataset.kapsar || "").split(" ").includes(ad);
+      x.setAttribute("aria-selected", String(secili));
     });
-    Promise.resolve(SEKME_YUKLE[b.dataset.sekme]()).catch((e) => durumYaz("Veri alınamadı: " + (e.message || e), true));
-  }));
+    for (const s of Object.keys(SEKME_YUKLE)) $(`#${s}Sekmesi`).hidden = s !== ad;
+    $("#urunAlt").hidden = !["liste", "kesif"].includes(ad);
+    $("#digerDugme").classList.toggle("secili", DIGER_SEKMELER.includes(ad));
+    digerKapat();
+    Promise.resolve(SEKME_YUKLE[ad]()).catch((e) => durumYaz("Veri alınamadı: " + (e.message || e), true));
+  }
+  document.querySelectorAll("[data-sekme]").forEach((b) => b.addEventListener("click", () => sekmeAc(b.dataset.sekme)));
+  $("#digerDugme").addEventListener("click", () => {
+    const ac = $("#digerMenu").hidden;
+    $("#digerMenu").hidden = !ac;
+    $("#digerDugme").setAttribute("aria-expanded", String(ac));
+  });
+  document.addEventListener("click", (e) => { if (!$("#digerKap").contains(e.target)) digerKapat(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") digerKapat(); });
 
   // ------------------------------------------------------------ veri
   async function gunleriYukle() {
@@ -165,110 +177,55 @@
     kartlariCiz();
   }
 
-  // ------------------------------------------------------------ günlük liste (kart / tablo görünümü)
+  // ------------------------------------------------------------ ürünler: bugünün önerileri
   const lIkon = (ad, boy = 18, sinif = "") => `<span class="material-symbols-outlined text-[${boy}px] ${sinif}">${ad}</span>`;
   const LISANS_ROZET = { ticari_serbest: ["Satılabilir", "text-tertiary"], nc_sadece_icerik: ["NC: satılamaz", "text-secondary"], kontrol_et: ["Lisansı kontrol et", "text-error"] };
-  const listeSecili = new Set();          // toplu işaretleme için seçilen ürünler
-  let listeTopluAcik = false;
-  let listeGorunum = (() => { try { return localStorage.getItem("listeGorunum") === "tablo" ? "tablo" : "kart"; } catch (_) { return "kart"; } })();
 
   const isaretVar = (m) => m && (m.printed || m.video || m.sold_count > 0 || (m.note || "").trim());
 
   function listeFiltreli() {
-    const kat = $("#kategori").value, sadeceIsaretsiz = $("#isaretsiz").checked, sira = $("#listeSira").value;
-    const ara = $("#listeAra").value.trim().toLocaleLowerCase("tr-TR");
-    const liste = secimler.filter((r) => (!kat || r.products.category === kat)
-      && (!sadeceIsaretsiz || !isaretVar(isaretler.get(r.product_id)))
-      && (!ara || [r.products.name, r.products.creator, r.products.category].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR").includes(ara)));
-    const artan = ["rank", "print_time_min", "cost_tl"].includes(sira);
-    const deger = (r) => sira === "rank" ? r.rank : sira === "score" ? Number(r.score) : r.products[sira];
-    return liste.sort((a, b) => {
-      const x = deger(a), y = deger(b);
-      if (x == null) return 1;
-      if (y == null) return -1;
-      return artan ? x - y : y - x;
-    });
+    const kat = $("#kategori").value;
+    const ara = duz($("#listeAra").value.trim());
+    return secimler.filter((r) => (!kat || r.products.category === kat)
+      && (!ara || duz([r.products.name, r.products.creator, r.products.category].filter(Boolean).join(" ")).includes(ara)));
   }
 
-  // Günün özeti: seçilen günün tüm modelleri üzerinden (filtreden bağımsız).
-  function listeKpiCiz() {
-    const n = secimler.length, m = (r) => isaretler.get(r.product_id) || {};
-    const basilan = secimler.filter((r) => m(r).printed).length;
+  // Tek satırlık özet: seçilen günün tüm önerileri üzerinden (filtreden bağımsız).
+  function listeOzetCiz() {
+    const m = (r) => isaretler.get(r.product_id) || {};
     const planda = secimler.filter((r) => planIdleri.has(r.product_id)).length;
-    const isaretsiz = secimler.filter((r) => !isaretVar(isaretler.get(r.product_id))).length;
-    const trend = secimler.filter((r) => r.products.trend_rank).length;
+    const basilan = secimler.filter((r) => m(r).printed).length;
     const satis = secimler.reduce((t, r) => t + (m(r).sold_count || 0), 0);
-    const ciro = secimler.reduce((t, r) => t + (m(r).sold_count || 0) * (r.products.price_tl || 0), 0);
-    const satilan = secimler.filter((r) => m(r).sold_count > 0).length;
-    const ortPuan = n ? Math.round(secimler.reduce((t, r) => t + Number(r.score || 0), 0) / n) : 0;
-    const yuzde = (a) => n ? Math.round((a / n) * 100) : 0;
-    const kart = (baslik, ikon, ikonSinif, deger, birim, sag, cubuk, oran, degerSinif = "text-on-surface") => `
-      <div class="bg-white rounded-xl p-3 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
-        <div class="flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">${baslik}</span>
-          <div class="w-8 h-8 rounded-lg ${ikonSinif} flex items-center justify-center">${lIkon(ikon)}</div></div>
-        <div class="mt-2 flex items-baseline justify-between gap-2"><div><span class="font-headline-lg text-headline-lg font-bold ${degerSinif}">${deger}</span><span class="font-label-md text-label-md text-on-surface-variant ml-1">${birim}</span></div>${sag}</div>
-        <div class="mt-2 w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden"><div class="${cubuk} h-full rounded-full" style="width:${oran}%"></div></div>
-      </div>`;
-    $("#listeKpi").innerHTML =
-      kart("Günün Seçimi", "inventory_2", "bg-surface-container-low text-primary", n, "model",
-        `<span class="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm">${lIkon("star", 14)} ort. puan ${ortPuan}</span>`, "bg-primary", Math.min(100, ortPuan)) +
-      kart("Basılan / Planda", "precision_manufacturing", "bg-surface-container-low text-tertiary", basilan, "basıldı",
-        `<span class="flex items-center gap-1 font-label-sm text-label-sm text-tertiary"><span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>${planda} planda</span>`, "bg-tertiary-container", yuzde(basilan)) +
-      kart("İşaretlenmemiş", "priority_high", "bg-error-container text-error", isaretsiz, "bekliyor",
-        `<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-error font-label-sm text-label-sm font-semibold">🔥 Trend: ${trend}</span>`, "bg-error", yuzde(isaretsiz), isaretsiz ? "text-error" : "text-on-surface") +
-      kart("Satılan", "check_circle", "bg-surface-container-low text-secondary", satis, "satış",
-        `<span class="font-label-md text-label-md text-secondary font-bold">${tl(ciro)}</span>`, "bg-secondary-container", yuzde(satilan));
-  }
-
-  function listeSeritCiz(liste) {
-    const filament = liste.reduce((t, r) => t + (r.products.weight_g || 0), 0);
-    const sureT = liste.reduce((t, r) => t + (r.products.print_time_min || 0), 0);
-    $("#listeSeritBilgi").innerHTML = `<span class="flex items-center gap-1 font-semibold text-on-surface">${lIkon("check_circle", 18, "text-tertiary")} ${liste.length} model listelendi</span>
-      <span class="text-outline">•</span><span>Filament: <strong class="text-on-surface">${Math.round(filament).toLocaleString("tr-TR")} g</strong></span>
-      <span class="hidden md:inline text-outline">•</span><span class="hidden md:inline">Toplam baskı süresi: <strong class="text-on-surface">${esc(sureT ? sure(sureT) : "-")}</strong></span>`;
-  }
-
-  function listeTopluCiz() {
-    $("#listeTopluBar").hidden = !(listeTopluAcik || listeSecili.size);
-    $("#listeTopluSay").textContent = listeSecili.size ? `${listeSecili.size} model seçili` : "Kartlardaki kutudan model seç";
+    $("#listeOzet").textContent = [`${secimler.length} öneri`, planda ? `${planda} üretim planında` : "", basilan ? `${basilan} basıldı` : "",
+      satis ? `${satis} satış` : ""].filter(Boolean).join(" · ");
   }
 
   function kartlariCiz() {
     grafikler.forEach((g) => g.destroy()); grafikler.clear();
-    listeKpiCiz();
-    for (const id of [...listeSecili]) if (!secimler.some((r) => r.product_id === id)) listeSecili.delete(id);
-    listeTopluCiz();
-    document.querySelectorAll("[data-gorunum]").forEach((b) => {
-      const aktif = b.dataset.gorunum === listeGorunum;
-      b.setAttribute("aria-pressed", String(aktif));
-      b.className = `p-1.5 rounded-md ${aktif ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`;
-    });
-    const liste = listeFiltreli();
-    listeSeritCiz(liste);
-    const kap = $("#kartlar"), tabloKap = $("#listeTabloKap");
-    if (!liste.length) {
-      kap.hidden = false; tabloKap.hidden = true;
-      kap.innerHTML = `<div class="col-span-full bos">Bu filtreye uyan ürün yok.</div>`;
-      return;
-    }
-    kap.hidden = listeGorunum !== "kart"; tabloKap.hidden = listeGorunum !== "tablo";
-    if (listeGorunum === "tablo") { kap.innerHTML = ""; return listeTabloCiz(liste); }
+    listeOzetCiz();
+    const liste = listeFiltreli(), kap = $("#kartlar");
+    if (!liste.length) { kap.innerHTML = `<div class="col-span-full bos">Bu filtreye uyan ürün yok.</div>`; return; }
     kap.innerHTML = liste.map(kartHtml).join("");
     kap.querySelectorAll("[data-pid]").forEach(kartBagla);
   }
 
-  const planDugmeSinifi = (planda) => `planDugme flex items-center gap-1 px-3 py-1.5 rounded-lg font-label-md text-label-md transition-all shadow-sm ${planda ? "bg-tertiary text-on-tertiary" : "bg-white text-on-surface hover:bg-primary hover:text-on-primary"}`;
+  const planDugmeYazi = (planda) => planda ? "✓ Üretimde" : "Üretime ekle";
+  const planDugmeSinifi = (planda) => `planDugme flex-1 px-3 py-2 rounded-lg font-label-lg text-label-lg transition-colors ${planda ? "bg-tertiary text-on-tertiary" : "bg-primary text-on-primary hover:bg-primary-container"}`;
+  // Kartın durum satırı: üretim planı ve işaretler.
+  const durumYazi = (m, planda) => [planda ? "📋 Üretim planında" : "", m.printed ? "✓ Basıldı" : "", m.video ? "🎬 Videosu çekildi" : "",
+    m.sold_count > 0 ? `💰 ${m.sold_count} satıldı` : ""].filter(Boolean).join(" · ");
 
+  // Kartta yalnızca karar için gerekenler görünür: fiyat, maliyet, kâr, Türkiye'de satılıyor mu ve iki eylem
+  // (üretime ekle, Instagram'da paylaş). Gerisi "Ayrıntılar ve işaretler" altındadır.
   function kartHtml(r) {
     const p = r.products, m = isaretler.get(r.product_id) || {}, d = p.score_detail || {};
     const planda = planIdleri.has(r.product_id);
-    const [lisansAd, lisansRenk] = LISANS_ROZET[p.license_flag] || ["Lisans ?", "text-outline"];
-    const bayrak = p.trend_rank ? [`🔥 Trend #${p.trend_rank}`, "bg-error text-on-error"]
-      : d.sezon ? [d.sezon, "bg-tertiary text-on-tertiary"]
-      : m.sold_count > 0 ? [`💰 ${m.sold_count} satıldı`, "bg-secondary text-on-secondary"] : null;
-    const [durumIkon, durumAd, durumRenk] = m.printed ? ["verified", "Basıldı", "text-tertiary"]
-      : planda ? ["hourglass_top", "Planda, sırada", "text-secondary"]
-      : m.video ? ["videocam", "Videosu çekildi", "text-primary"] : ["fiber_new", "Yeni seçim", "text-primary"];
+    // Lisans rozeti yalnızca satışa engel ya da şüphe varsa gösterilir.
+    const lisans = p.license_flag === "ticari_serbest" ? null : (LISANS_ROZET[p.license_flag] || ["Lisans ?", "text-outline"]);
+    const bayrak = p.trend_rank ? [`🔥 Trend #${p.trend_rank}`, "bg-error text-on-error"] : d.sezon ? [d.sezon, "bg-tertiary text-on-tertiary"] : null;
+    const kar = p.price_tl != null && p.cost_tl != null ? p.price_tl - p.cost_tl : null;
+    const durum = durumYazi(m, planda);
+    const rakam = (ad, deger, renk = "text-on-surface") => `<div><span class="block font-label-sm text-label-sm text-outline">${ad}</span><span class="font-label-lg text-label-lg ${renk}">${deger}</span></div>`;
     const cip = (metin, baslik = "") => `<span class="px-2 py-0.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm"${baslik ? ` title="${esc(baslik)}"` : ""}>${metin}</span>`;
     const cipler = [
       d.satis_bonusu ? cip(`💰 sattın +${d.satis_bonusu}`, d.satis_gecmisi) : "",
@@ -277,79 +234,71 @@
       p.color_count > 1 ? cip(`${p.color_count} renk`) : "",
       p.trend_rank && d.sezon ? cip(esc(d.sezon)) : "",
     ].join("");
-    const param = (ad, deger, renk = "text-on-surface") => `<div><span class="block font-label-sm text-label-sm text-outline">${ad}</span><span class="font-label-md text-label-md font-semibold ${renk}">${deger}</span></div>`;
-    const detay = (sinif, ozet, icerik, acik = false) => `<details class="${sinif} rounded-lg bg-surface-container-low/60 px-3 py-1.5"${acik ? " open" : ""}><summary class="font-label-md text-label-md py-1">${ozet}</summary>${icerik}</details>`;
+    const ozellik = [p.material, p.weight_g ? `${Math.round(p.weight_g)} g` : "", p.hourly_profit_tl != null ? `saatte ${tl(p.hourly_profit_tl)} kazanç` : "",
+      `puan ${r.score}`, p.creator ? `tasarım: ${p.creator}` : ""].filter(Boolean).join(" · ");
+    const detay = (sinif, ozet, icerik) => `<details class="${sinif} rounded-lg bg-surface-container-low/60 px-3 py-1.5"><summary class="font-label-md text-label-md py-1">${ozet}</summary>${icerik}</details>`;
     const o = pazar.get(r.product_id);
     return `
-    <article class="urunKart bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col overflow-hidden group" data-pid="${r.product_id}">
-      <div class="relative w-full h-52 bg-surface-container overflow-hidden shrink-0">
-        ${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">`
+    <article class="urunKart bg-white rounded-xl shadow-sm flex flex-col overflow-hidden" data-pid="${r.product_id}">
+      <div class="relative w-full h-48 bg-surface-container overflow-hidden shrink-0">
+        ${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy" class="w-full h-full object-cover">`
           : `<div class="w-full h-full flex items-center justify-center text-outline">${lIkon("view_in_ar", 48)}</div>`}
-        <div class="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
-          <span class="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm font-label-sm text-label-sm font-bold ${lisansRenk}">${lisansAd}</span>
-          <span class="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm font-label-sm text-label-sm text-on-surface">#${r.rank} • ${esc(r.score)} puan</span>
-        </div>
-        <div class="absolute top-2 right-2 flex items-center gap-2">
+        <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-white/90 font-label-md text-label-md font-bold text-on-surface">#${r.rank}</span>
+        <div class="absolute top-2 right-2 flex items-center justify-end gap-1.5 flex-wrap">
+          ${lisans ? `<span class="px-2 py-0.5 rounded-full bg-white/90 font-label-sm text-label-sm font-bold ${lisans[1]}">${lisans[0]}</span>` : ""}
           ${bayrak ? `<span class="px-2 py-0.5 rounded-full ${bayrak[1]} font-label-sm text-label-sm font-semibold shadow-sm">${esc(bayrak[0])}</span>` : ""}
-          <label class="w-7 h-7 rounded-lg bg-white/90 backdrop-blur-sm flex items-center justify-center cursor-pointer shadow-sm" title="Toplu işaretleme için seç">
-            <input type="checkbox" data-lsec="${r.product_id}" ${listeSecili.has(r.product_id) ? "checked" : ""} class="w-4 h-4 rounded accent-primary-container cursor-pointer" aria-label="Modeli seç"></label>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between">
-          <div class="flex items-center gap-1.5 font-label-sm text-label-sm ${durumRenk}">${lIkon(durumIkon, 16)}<span class="font-semibold">${durumAd}</span></div>
-          <span class="font-label-sm text-label-sm text-outline">Baskı: ${esc(sure(p.print_time_min))}</span>
         </div>
       </div>
-      <div class="p-3 flex flex-col gap-2 flex-1">
-        <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <h3 class="font-headline-sm text-headline-sm font-semibold"><a href="${url(p.url)}" target="_blank" rel="noopener" class="text-on-surface no-underline group-hover:text-primary transition-colors">${esc(p.name)}</a></h3>
-            <p class="font-body-sm text-body-sm text-on-surface-variant">Tasarımcı: <strong class="text-on-surface">${esc(p.creator || "-")}</strong> • ${esc(p.category || "-")}</p>
-          </div>
-          <span class="px-2 py-1 rounded-lg bg-surface-container-high text-primary font-label-sm text-label-sm font-bold whitespace-nowrap shrink-0" title="Önerilen satış fiyatı">${p.price_tl != null ? tl(p.price_tl) : "-"}</span>
+      <div class="p-4 flex flex-col gap-3 flex-1">
+        <div>
+          <h3 class="font-headline-sm text-headline-sm font-semibold"><a href="${url(p.url)}" target="_blank" rel="noopener" class="text-on-surface no-underline hover:text-primary transition-colors">${esc(p.name)}</a></h3>
+          <p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">${esc(p.category || "-")} · baskı ${esc(sure(p.print_time_min))}</p>
         </div>
-        <div class="grid grid-cols-4 gap-1 p-2 rounded-lg bg-surface-container-low text-center">
-          ${param("Malzeme", esc(p.material || "-"))}
-          ${param("Ağırlık", p.weight_g ? `${Math.round(p.weight_g)} g` : "-")}
-          ${param("Maliyet", p.cost_tl != null ? tl(p.cost_tl) : "-")}
-          ${param("Saatlik", p.hourly_profit_tl != null ? tl(p.hourly_profit_tl) : "-", "text-secondary")}
+        <div class="grid grid-cols-3 gap-2 p-3 rounded-lg bg-surface-container-low text-center">
+          ${rakam("Satış fiyatı", tl(p.price_tl))}
+          ${rakam("Maliyet", tl(p.cost_tl))}
+          ${rakam("Kâr", tl(kar), "text-tertiary")}
         </div>
-        ${cipler ? `<div class="flex flex-wrap gap-1.5">${cipler}</div>` : ""}
-        <p class="font-body-sm text-body-sm text-on-surface-variant">${esc(r.reason)}</p>
-        <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-surface-container-high">
-          <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-container-low font-label-md text-label-md cursor-pointer"><input type="checkbox" name="printed" ${m.printed ? "checked" : ""} class="w-4 h-4 accent-primary"> Bastım</label>
-          <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-container-low font-label-md text-label-md cursor-pointer"><input type="checkbox" name="video" ${m.video ? "checked" : ""} class="w-4 h-4 accent-primary"> Video çektim</label>
-          <span class="sayac px-2 py-0.5 rounded-lg bg-surface-container-low font-label-md text-label-md">Sattım
-            <button type="button" data-adim="-1" aria-label="Azalt">−</button><output>${m.sold_count || 0}</output><button type="button" data-adim="1" aria-label="Artır">+</button></span>
-          <span class="kaydedildi isaretDurum font-label-sm text-label-sm" role="status"></span>
+        <p class="kartDurum font-body-sm text-body-sm text-on-surface-variant"${durum ? "" : " hidden"}>${esc(durum)}</p>
+        <div class="flex gap-2">
+          <button type="button" class="${planDugmeSinifi(planda)}">${planDugmeYazi(planda)}</button>
+          <button type="button" data-ac="igAc" class="flex-1 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface font-label-lg text-label-lg hover:bg-surface-container-high transition-colors">Instagram'da paylaş</button>
         </div>
         <div class="flex flex-col gap-1.5">
-          ${detay("notAc", "📝 Not", `<textarea class="not w-full mt-1" placeholder="Not (ör. hangi renkte bastın, nerede sattın)">${esc(m.note || "")}</textarea>`, !!(m.note || "").trim())}
           ${o ? detay("pazarAc", esc(pazarYazi(o, p.price_tl)), `${pazarListesi(o)}${sosyalHtml(o)}${o.results?.[0]?.sorgu ? `<p class="muted">Arama metni: "${esc(o.results[0].sorgu)}" · ${esc(String(o.checked_at).slice(0, 10))}</p>` : ""}`) : ""}
-          ${detay("videoAc", "🎬 Video fikri", `<pre class="font-body-sm text-body-sm whitespace-pre-wrap m-0 pb-1">${esc(r.video_idea)}</pre>`)}
-          <details class="igAc rounded-lg bg-surface-container-low/60 px-3 py-1.5"><summary class="font-label-md text-label-md py-1">📸 Instagram'a planla</summary>
+          <details class="igAc rounded-lg bg-surface-container-low/60 px-3 py-1.5"><summary class="font-label-md text-label-md py-1">📸 Instagram paylaşımı</summary>
             <div class="ig">
               <textarea class="igMetin" rows="9" maxlength="2200" aria-label="Instagram açıklaması" placeholder="Açıklama (bu gün için otomatik metin yok)">${esc(r.instagram_caption || "")}</textarea>
               <div class="satir"><button type="button" class="ikincil igKopyala">Metni kopyala</button><span class="muted igSayac"></span></div>
               <label>Video (MP4/MOV, en fazla 50 MB, dikey 9:16 önerilir)<input type="file" class="igVideo" accept="video/mp4,video/quicktime,.mp4,.mov"></label>
-              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle: açıklamanın ilk satırı başta yazı olarak, sonda "Sipariş için DM" kartı, 9:16</label>
-              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Aynı videoyu hikâye olarak da paylaş (hikâye videosu en çok 60 sn)</label>
               <label>Paylaşım zamanı<input type="datetime-local" class="igZaman"></label>
-              <div class="satir"><button type="button" class="ana igPlanla">Videoyu planla</button><span class="kaydedildi igDurum" role="status"></span></div>
-              <label>Ya da kendi fotoğraflarınla carousel (2-10 fotoğraf; JPEG'e çevrilir, 4:5 ile 1.91:1 dışı ortadan kırpılır)<input type="file" class="igFoto" accept="image/*" multiple></label>
-              <div class="satir"><button type="button" class="ikincil igCarousel">Carousel planla</button></div>
+              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igDuzenleKutu" checked> Videoyu otomatik düzenle (başa kanca yazısı, sona "Sipariş için DM" kartı, 9:16)</label>
+              <label class="igDuzenle" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="igHikayeKutu"> Hikâye olarak da paylaş (en çok 60 sn)</label>
+              <div class="satir"><button type="button" class="ana igPlanla">Paylaşımı planla</button><span class="kaydedildi igDurum" role="status"></span></div>
+              <details><summary>Video yerine fotoğraflarla paylaş (carousel)</summary>
+                <label>2-10 fotoğraf (JPEG'e çevrilir; 4:5 ile 1.91:1 dışı ortadan kırpılır)<input type="file" class="igFoto" accept="image/*" multiple></label>
+                <div class="satir" style="margin-top:8px"><button type="button" class="ikincil igCarousel">Carousel planla</button></div>
+              </details>
             </div>
           </details>
-          ${detay("grafikAc", "📈 İndirme geçmişi", `<div class="grafik"><canvas></canvas></div>`)}
+          <details class="ayrintiAc rounded-lg bg-surface-container-low/60 px-3 py-1.5"><summary class="font-label-md text-label-md py-1">Ayrıntılar ve işaretler</summary>
+            <div class="flex flex-col gap-2 pb-2">
+              <p class="font-body-sm text-body-sm text-on-surface-variant">${esc(r.reason)}</p>
+              <p class="font-body-sm text-body-sm text-outline">${esc(ozellik)}</p>
+              ${cipler ? `<div class="flex flex-wrap gap-1.5">${cipler}</div>` : ""}
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white font-label-md text-label-md cursor-pointer"><input type="checkbox" name="printed" ${m.printed ? "checked" : ""} class="w-4 h-4 accent-primary"> Bastım</label>
+                <label class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white font-label-md text-label-md cursor-pointer"><input type="checkbox" name="video" ${m.video ? "checked" : ""} class="w-4 h-4 accent-primary"> Video çektim</label>
+                <span class="sayac px-2 py-0.5 rounded-lg bg-white font-label-md text-label-md">Sattım
+                  <button type="button" data-adim="-1" aria-label="Azalt">−</button><output>${m.sold_count || 0}</output><button type="button" data-adim="1" aria-label="Artır">+</button></span>
+                <span class="kaydedildi isaretDurum font-label-sm text-label-sm" role="status"></span>
+              </div>
+              <textarea class="not w-full" placeholder="Not (ör. hangi renkte bastın, nerede sattın)">${esc(m.note || "")}</textarea>
+              <details class="videoAc"><summary>🎬 Video fikri</summary><pre class="font-body-sm text-body-sm whitespace-pre-wrap m-0 pb-1">${esc(r.video_idea)}</pre></details>
+              <details class="grafikAc"><summary>📈 İndirme geçmişi</summary><div class="grafik"><canvas></canvas></div></details>
+            </div>
+          </details>
         </div>
-      </div>
-      <div class="px-3 py-2 bg-surface-container-low flex items-center justify-between">
-        <div class="flex items-center gap-1">
-          <a href="${url(p.url)}" target="_blank" rel="noopener" title="MakerWorld'de aç" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors no-underline">${lIkon("view_in_ar")}</a>
-          <button type="button" data-ac="grafikAc" title="İndirme geçmişi" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("monitoring")}</button>
-          <button type="button" data-ac="igAc" title="Instagram'a planla" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("photo_camera")}</button>
-          <button type="button" data-ac="videoAc" title="Video fikri" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-white transition-colors">${lIkon("movie")}</button>
-        </div>
-        <button type="button" class="${planDugmeSinifi(planda)}"><span class="planYazi">${planda ? "✓ Planda" : "Plana ekle"}</span>${lIkon(planda ? "event_available" : "queue", 16, "planIkon")}</button>
       </div>
     </article>`;
   }
@@ -357,6 +306,10 @@
   function kartBagla(kart) {
     const pid = Number(kart.dataset.pid);
     const durumAlan = kart.querySelector(".isaretDurum");
+    const durumCiz = () => {
+      const yazi = durumYazi(isaretler.get(pid) || {}, planIdleri.has(pid)), alan = kart.querySelector(".kartDurum");
+      alan.textContent = yazi; alan.hidden = !yazi;
+    };
     let zaman;
     const kaydet = async () => {
       const kayit = {
@@ -371,7 +324,7 @@
       const { error } = await sb.from("product_marks").upsert(kayit);
       durumAlan.style.color = error ? "var(--bad)" : "";
       durumAlan.textContent = error ? "Kaydedilemedi: " + error.message : "Kaydedildi ✓";
-      if (!error) { isaretler.set(pid, kayit); listeKpiCiz(); }
+      if (!error) { isaretler.set(pid, kayit); durumCiz(); listeOzetCiz(); }
     };
     // Yalnızca işaret kutuları kaydeder (Instagram bölümündeki kutular değil)
     kart.querySelectorAll("[name=printed], [name=video]").forEach((c) => c.addEventListener("change", kaydet));
@@ -384,12 +337,9 @@
     kart.querySelector(".grafikAc").addEventListener("toggle", (e) => { if (e.target.open) grafikCiz(pid, kart); }, { once: true });
     kart.querySelector(".planDugme").addEventListener("click", async (e) => {
       const dugme = e.currentTarget;
-      await planaEkleCikar(pid, dugme.querySelector(".planYazi"));
-      const planda = planIdleri.has(pid);
-      dugme.className = planDugmeSinifi(planda);
-      dugme.querySelector(".planYazi").textContent = planda ? "✓ Planda" : "Plana ekle";
-      dugme.querySelector(".planIkon").textContent = planda ? "event_available" : "queue";
-      listeKpiCiz();
+      await planaEkleCikar(pid, dugme);
+      dugme.className = planDugmeSinifi(planIdleri.has(pid));
+      durumCiz(); listeOzetCiz();
     });
     kart.querySelectorAll("[data-ac]").forEach((b) => b.addEventListener("click", () => {
       const bolum = kart.querySelector(`.${b.dataset.ac}`);
@@ -397,92 +347,12 @@
       bolum.open = !bolum.open;
       if (bolum.open) bolum.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }));
-    kart.querySelector("[data-lsec]").addEventListener("change", (e) => {
-      if (e.target.checked) listeSecili.add(pid); else listeSecili.delete(pid);
-      listeTopluCiz();
-    });
     igBagla(kart, pid);
   }
 
-  function listeTabloCiz(liste) {
-    const th = (metin, ek = "") => `<th class="p-3 font-label-sm text-label-sm ${ek}" style="border-bottom:0">${metin}</th>`;
-    const rozet = (metin, sinif) => `<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm ${sinif}">${metin}</span>`;
-    const hepsi = liste.every((r) => listeSecili.has(r.product_id));
-    $("#listeTablo").innerHTML = `<thead><tr class="bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider">
-        <th class="p-3 w-10" style="border-bottom:0"><input type="checkbox" id="listeHepsi" ${hepsi ? "checked" : ""} class="w-4 h-4 rounded accent-primary cursor-pointer" aria-label="Listelenenlerin hepsini seç"></th>
-        ${th("#")}${th("Model")}${th("Puan", "text-right")}${th("Baskı")}${th("Ağırlık", "text-right")}${th("Maliyet → Fiyat", "text-right")}${th("Saatlik", "text-right")}${th("Durum")}${th("", "text-right")}</tr></thead>
-      <tbody class="text-on-surface font-body-sm text-body-sm">${liste.map((r, i) => {
-        const p = r.products, m = isaretler.get(r.product_id) || {}, planda = planIdleri.has(r.product_id);
-        const durum = [m.printed ? rozet("✓ Basıldı", "bg-tertiary-fixed/30 text-tertiary") : "", m.video ? rozet("🎬 Video", "bg-primary-fixed text-on-primary-fixed-variant") : "",
-          m.sold_count > 0 ? rozet(`💰 ${m.sold_count}`, "bg-secondary-fixed text-on-secondary-fixed-variant") : "", planda ? rozet("📋 Planda", "bg-surface-container-high text-on-surface-variant") : ""].join(" ") || `<span class="text-outline">—</span>`;
-        return `<tr data-ltpid="${r.product_id}" class="${i % 2 ? "bg-surface-container-low/20" : "bg-white"} hover:bg-surface-container-low/60 transition-colors">
-          <td class="p-3" style="border-bottom:0"><input type="checkbox" data-lsec="${r.product_id}" ${listeSecili.has(r.product_id) ? "checked" : ""} class="w-4 h-4 rounded accent-primary cursor-pointer" aria-label="Modeli seç"></td>
-          <td class="p-3 font-label-md text-label-md font-bold text-primary" style="border-bottom:0">${r.rank}</td>
-          <td class="p-3" style="border-bottom:0"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg bg-surface-container-high overflow-hidden shrink-0 flex items-center justify-center">${p.image_url ? `<img src="${url(p.image_url)}" alt="" loading="lazy" class="w-full h-full object-cover">` : lIkon("view_in_ar", 20, "text-outline")}</div>
-            <div class="min-w-0 max-w-[280px]"><a href="${url(p.url)}" target="_blank" rel="noopener" class="font-label-md text-label-md font-medium text-on-surface hover:text-primary no-underline truncate block">${esc(p.name)}</a><span class="font-label-sm text-label-sm text-outline">${esc(p.category || "-")} • ${esc(p.creator || "-")}${p.trend_rank ? ` • 🔥 #${p.trend_rank}` : ""}</span></div></div></td>
-          <td class="p-3 text-right font-semibold" style="border-bottom:0">${esc(r.score)}</td>
-          <td class="p-3" style="border-bottom:0">${esc(sure(p.print_time_min))}</td>
-          <td class="p-3 text-right" style="border-bottom:0">${p.weight_g ? `${Math.round(p.weight_g)} g` : "-"}</td>
-          <td class="p-3 text-right" style="border-bottom:0">${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</td>
-          <td class="p-3 text-right text-secondary font-semibold" style="border-bottom:0">${tl(p.hourly_profit_tl)}</td>
-          <td class="p-3" style="border-bottom:0">${durum}</td>
-          <td class="p-3 text-right whitespace-nowrap" style="border-bottom:0"><button type="button" data-lplan="${r.product_id}" class="px-2.5 py-1 rounded-lg font-label-sm text-label-sm ${planda ? "bg-tertiary text-on-tertiary" : "bg-surface-container-low text-on-surface hover:bg-primary hover:text-on-primary"}">${planda ? "✓ Planda" : "Plana ekle"}</button></td>
-        </tr>`;
-      }).join("")}</tbody>`;
-  }
-
-  async function listeToplu(islem) {
-    if (islem === "temizle") { listeSecili.clear(); listeTopluAcik = false; return kartlariCiz(); }
-    if (islem === "secHepsi") { listeFiltreli().forEach((r) => listeSecili.add(r.product_id)); return kartlariCiz(); }
-    const ids = [...listeSecili];
-    if (!ids.length) return alert("Önce kartlardaki kutudan model seç.");
-    const simdi = new Date().toISOString();
-    if (islem === "plan") {
-      const yeni = ids.filter((id) => !planIdleri.has(id));
-      if (yeni.length) {
-        const { error } = await sb.from("print_plan").upsert(yeni.map((id) => ({ product_id: id, quantity: 1, done: false, updated_at: simdi })));
-        if (error) return alert("Plan güncellenemedi: " + error.message);
-        yeni.forEach((id) => planIdleri.add(id));
-      }
-    } else if (islem === "printed" || islem === "video") {
-      const kayitlar = ids.map((id) => {
-        const m = isaretler.get(id) || {};
-        return { product_id: id, printed: !!m.printed, video: !!m.video, sold_count: m.sold_count || 0, note: m.note || null, [islem]: true, updated_at: simdi };
-      });
-      const { error } = await sb.from("product_marks").upsert(kayitlar);
-      if (error) return alert("Kaydedilemedi: " + error.message);
-      kayitlar.forEach((k) => isaretler.set(k.product_id, k));
-    }
-    kartlariCiz();
-  }
-
-  // Günlük liste kontrolleri (kategori ve "sadece işaretlenmemiş" başlatma bölümünde bağlanır)
   $("#listeAra").addEventListener("input", kartlariCiz);
-  $("#listeSira").addEventListener("change", kartlariCiz);
-  document.querySelectorAll("[data-gorunum]").forEach((b) => b.addEventListener("click", () => {
-    listeGorunum = b.dataset.gorunum;
-    try { localStorage.setItem("listeGorunum", listeGorunum); } catch (_) { /* tarayıcı depolaması kapalı olabilir */ }
-    kartlariCiz();
-  }));
-  $("#listeTopluAc").addEventListener("click", () => { listeTopluAcik = !listeTopluAcik; listeTopluCiz(); });
-  $("#listeTopluBar").addEventListener("click", (e) => { const b = e.target.closest("[data-ltoplu]"); if (b) listeToplu(b.dataset.ltoplu); });
-  $("#listePlanaGit").addEventListener("click", () => document.querySelector('[data-sekme="plan"]').click());
-  $("#listeTablo").addEventListener("change", (e) => {
-    if (e.target.id === "listeHepsi") {
-      listeFiltreli().forEach((r) => e.target.checked ? listeSecili.add(r.product_id) : listeSecili.delete(r.product_id));
-      return kartlariCiz();
-    }
-    const sec = e.target.closest("[data-lsec]");
-    if (sec) { const id = Number(sec.dataset.lsec); if (sec.checked) listeSecili.add(id); else listeSecili.delete(id); listeTopluCiz(); }
-  });
-  $("#listeTablo").addEventListener("click", async (e) => {
-    const b = e.target.closest("[data-lplan]");
-    if (!b) return;
-    await planaEkleCikar(Number(b.dataset.lplan));
-    kartlariCiz();
-  });
 
-  // ------------------------------------------------------------ Instagram
+  // ------------------------------------------------------------ Instagram: karttan paylaşım planlama
   const IG_DEPO = "instagram", IG_EN_BUYUK = 50 * 1024 * 1024;
   const yerelZaman = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const varsayilanZaman = () => { const d = new Date(); d.setHours(20, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return yerelZaman(d); };
@@ -602,7 +472,7 @@
           <span>${ESLESME[m.eslesme] || esc(m.eslesme)}</span>
           <a href="${url(m.url)}" target="_blank" rel="noopener">${esc(m.name)}</a>
           <span class="muted">${sure(m.print_time_min)} baskı · maliyet ${tl(m.cost_tl)}${m.kar_tl != null ? ` · ilan başına ~${tl(m.kar_tl)} kâr` : ""}${m.saatlik_kar_tl ? ` (saatte ~${tl(m.saatlik_kar_tl)})` : ""}</span>
-          ${m.product_id ? `<button type="button" class="ikincil" data-kesif-plan="${Number(m.product_id)}">${planIdleri.has(m.product_id) ? "✓ Planda" : "📋 Plana ekle"}</button>` : ""}
+          ${m.product_id ? `<button type="button" class="ikincil" data-kesif-plan="${Number(m.product_id)}">${planDugmeYazi(planIdleri.has(m.product_id))}</button>` : ""}
         </div>`).join("") : `<div class="modelSatir muted">MakerWorld'de eşleşen model bulunamadı${k.mw_sorgu ? ` (aranan: "${esc(k.mw_sorgu)}")` : ""}.</div>`;
       const diger = (k.diger_kaynaklar || []).filter((m) => m.site !== "MakerWorld").slice(0, 3)
         .map((m) => `<a href="${url(m.link)}" target="_blank" rel="noopener">${esc(m.site)}</a>`).join(" · ");
@@ -619,44 +489,108 @@
     kap.querySelectorAll("[data-kesif-plan]").forEach((b) => b.addEventListener("click", () => planaEkleCikar(Number(b.dataset.kesifPlan), b)));
   }
 
+  // ------------------------------------------------------------ Instagram: etkileşim ve paylaşımlar
   const IG_DURUM = { bekliyor: "⏳ Bekliyor", isleniyor: "⚙️ İşleniyor", paylasildi: "✅ Paylaşıldı", hata: "⚠️ Hata" };
   const IG_TUR = { REELS: "🎬 Reels", STORIES: "📱 Hikâye", CAROUSEL: "🖼️ Carousel" };
-  // Günlük analiz paylaşılan gönderilerin istatistiğini günde bir günceller.
-  const igIstatistik = (i) => !i ? "" : [["reach", "erişim"], ["views", "izlenme"], ["likes", "beğeni"], ["saved", "kaydetme"], ["shares", "paylaşım"], ["comments", "yorum"]]
-    .filter(([k]) => i[k] != null).map(([k, ad]) => `${Number(i[k]).toLocaleString("tr-TR")} ${ad}`).join("<br>");
+  const sayi = (n) => n == null ? "—" : Number(n).toLocaleString("tr-TR");
+  const yuzde = (o) => o == null ? "—" : `%${(o * 100).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`;
+  // Etkileşim oranı: (beğeni + yorum + kaydetme + paylaşım) / erişim.
+  const igEtkilesimSayisi = (i) => (i?.likes || 0) + (i?.comments || 0) + (i?.saved || 0) + (i?.shares || 0);
+  const igEtkilesim = (i) => i && i.reach ? igEtkilesimSayisi(i) / i.reach : null;
+  let igVeri = [];   // günlük analiz, paylaşılan gönderilerin sayılarını günde bir günceller (insights)
+
   async function igYukle() {
-    const tablo = $("#igTablo");
-    const { data, error } = await sb.from("instagram_posts").select("*, products(name, url)").order("scheduled_at", { ascending: false }).limit(100);
-    if (error) { tablo.innerHTML = `<tr><td class="hata">${esc(error.message + igSqlIpucu(error))}</td></tr>`; return; }
-    if (!data.length) { tablo.innerHTML = `<tr><td class="muted">Henüz planlanmış gönderi yok. Günlük listede bir ürünün "📸 Instagram'a planla" bölümünü kullan.</td></tr>`; return; }
-    tablo.innerHTML = `<tr><th>Ürün</th><th>Tür</th><th>Zaman</th><th>Durum</th><th>İstatistik</th><th>Sonuç</th><th></th></tr>` + data.map((g) => `<tr data-ig="${g.id}">
-      <td>${g.products ? `<a href="${url(g.products.url)}" target="_blank" rel="noopener">${esc(g.products.name)}</a>` : "-"}
-        ${g.caption ? `<details><summary>Açıklama</summary><pre>${esc(g.caption)}</pre></details>` : ""}</td>
-      <td>${IG_TUR[g.media_type || "REELS"] || esc(g.media_type)}</td>
-      <td>${esc(new Date(g.scheduled_at).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }))}</td>
-      <td>${IG_DURUM[g.status] || esc(g.status)}</td>
-      <td>${igIstatistik(g.insights)}</td>
-      <td>${g.permalink ? `<a href="${url(g.permalink)}" target="_blank" rel="noopener">Instagram'da aç</a>` : g.error ? `<span class="hata" style="padding:0;border:0;background:none">${esc(g.error)}</span>` : ""}</td>
-      <td>${g.status === "hata" ? `<button type="button" class="ikincil" data-tekrar>Tekrar dene</button> ` : ""}${g.status === "isleniyor" ? "" : `<button type="button" class="ikincil" data-sil>${g.status === "bekliyor" ? "İptal" : "Sil"}</button>`}</td></tr>`).join("");
-    tablo.querySelectorAll("tr[data-ig]").forEach((tr) => {
-      const g = data.find((x) => x.id === Number(tr.dataset.ig));
-      tr.querySelector("[data-tekrar]")?.addEventListener("click", async () => {
-        const { error } = await sb.from("instagram_posts").update({ status: "bekliyor", error: null, scheduled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", g.id);
-        if (error) alert("Güncellenemedi: " + error.message); else igYukle();
-      });
-      tr.querySelector("[data-sil]")?.addEventListener("click", async () => {
-        if (!confirm(g.status === "bekliyor" ? "Bu gönderi iptal edilsin ve video silinsin mi?" : "Bu kayıt silinsin mi?")) return;
-        if (g.status !== "paylasildi") {
-          const ayniVideo = g.video_path && data.some((x) => x.id !== g.id && x.video_path === g.video_path && ["bekliyor", "isleniyor"].includes(x.status));
-          const yollar = g.media_type === "CAROUSEL" ? (g.image_paths || [])
-            : ayniVideo ? [] : [g.video_path, g.video_path.replace(/\.[^./]+$/, "") + "_hazir.mp4"];
-          if (yollar.length) await sb.storage.from(IG_DEPO).remove(yollar);
-        }
-        const { error } = await sb.from("instagram_posts").delete().eq("id", g.id);
-        if (error) alert("Silinemedi: " + error.message); else igYukle();
-      });
-    });
+    const { data, error } = await sb.from("instagram_posts").select("*, products(name, url)").order("scheduled_at", { ascending: false }).limit(200);
+    if (error) {
+      $("#igOzet").innerHTML = ""; $("#igIpucu").textContent = ""; $("#igGuncel").textContent = ""; $("#igSirada").innerHTML = "";
+      $("#igTablo").innerHTML = `<tr><td class="hata">${esc(error.message + igSqlIpucu(error))}</td></tr>`;
+      return;
+    }
+    igVeri = data;
+    igCiz();
   }
+
+  // En çok erişim alan 3 saatlik dilim (sunucudaki istatistik.en_iyi_saat kuralı: en az 5 gönderi, dilimde
+  // en az 2; saat tarayıcının yerel saatidir).
+  function igEnIyiSaat(gonderiler) {
+    const dilim = new Map();
+    for (const g of gonderiler) {
+      const t = new Date(g.published_at || NaN), erisim = g.insights?.reach;
+      if (isNaN(t) || !erisim || g.media_type === "STORIES") continue;
+      const s = Math.floor(t.getHours() / 3) * 3;
+      dilim.set(s, [...(dilim.get(s) || []), erisim]);
+    }
+    if ([...dilim.values()].reduce((n, v) => n + v.length, 0) < 5) return null;
+    const aday = [...dilim].filter(([, v]) => v.length >= 2).map(([s, v]) => [s, v.reduce((a, b) => a + b, 0) / v.length]);
+    return aday.length ? aday.sort((a, b) => b[1] - a[1])[0] : null;
+  }
+
+  function igCiz() {
+    const gun = Number($("#igDonem").value), bas = gun ? Date.now() - gun * 864e5 : 0;
+    const tarih = (g) => new Date(g.published_at || g.scheduled_at);
+    const zamanYazi = (t) => esc(new Date(t).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }));
+    const tumPaylasilan = igVeri.filter((g) => g.status === "paylasildi");
+    const paylasilan = tumPaylasilan.filter((g) => tarih(g) >= bas).sort((a, b) => tarih(b) - tarih(a));
+    const sirada = igVeri.filter((g) => g.status !== "paylasildi").sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+
+    // Özet kutuları: seçilen dönemde paylaşılan gönderilerin toplamı.
+    const top = (k) => paylasilan.reduce((t, g) => t + (g.insights?.[k] || 0), 0);
+    const erisim = top("reach"), etkilesim = paylasilan.reduce((t, g) => t + igEtkilesimSayisi(g.insights), 0);
+    const kutu = (ad, deger) => `<div class="kutu"><span>${ad}</span><b>${deger}</b></div>`;
+    $("#igOzet").innerHTML = kutu("Gönderi", sayi(paylasilan.length)) + kutu("Erişim", sayi(erisim)) + kutu("Beğeni", sayi(top("likes")))
+      + kutu("Yorum", sayi(top("comments"))) + kutu("Kaydetme", sayi(top("saved"))) + kutu("Paylaşım", sayi(top("shares")))
+      + kutu("Etkileşim oranı", yuzde(erisim ? etkilesim / erisim : null));
+    const guncel = igVeri.map((g) => g.insights_at).filter(Boolean).sort().pop();
+    $("#igGuncel").textContent = guncel ? `Sayılar ${new Date(guncel).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })} itibarıyla` : "";
+    const saat = igEnIyiSaat(tumPaylasilan), iki = (n) => String(n).padStart(2, "0");
+    $("#igIpucu").textContent = !tumPaylasilan.length ? "" : "Etkileşim oranı = (beğeni + yorum + kaydetme + paylaşım) ÷ erişim."
+      + (saat ? ` En çok erişim alan saat dilimi: ${iki(saat[0])}:00–${iki(saat[0] + 3)}:00 (ortalama ${sayi(Math.round(saat[1]))} erişim).` : "");
+
+    const urunHucre = (g) => g.products ? `<a href="${url(g.products.url)}" target="_blank" rel="noopener">${esc(g.products.name)}</a>` : "-";
+    const tur = (g) => IG_TUR[g.media_type || "REELS"] || esc(g.media_type);
+    $("#igSirada").innerHTML = sirada.length
+      ? `<tr><th>Ürün</th><th>Tür</th><th>Paylaşım zamanı</th><th>Durum</th><th></th></tr>` + sirada.map((g) => `<tr data-ig="${g.id}">
+          <td>${urunHucre(g)}</td><td style="white-space:nowrap">${tur(g)}</td><td style="white-space:nowrap">${zamanYazi(g.scheduled_at)}</td>
+          <td>${IG_DURUM[g.status] || esc(g.status)}${g.error ? `<br><span style="color:var(--bad)">${esc(g.error)}</span>` : ""}</td>
+          <td class="sayi">${g.status === "hata" ? `<button type="button" class="ikincil" data-tekrar>Tekrar dene</button> ` : ""}${g.status === "isleniyor" ? "" : `<button type="button" class="ikincil" data-sil>${g.status === "bekliyor" ? "İptal" : "Sil"}</button>`}</td></tr>`).join("")
+      : `<tr><td class="muted">Sırada paylaşım yok. Ürünler ekranında bir ürünün "Instagram'da paylaş" düğmesini kullan.</td></tr>`;
+
+    // En iyi gönderi: etkileşim oranı en yüksek olan (hikâyeler hariç; karşılaştırma için en az 2 gönderi).
+    const oranlar = paylasilan.filter((g) => g.media_type !== "STORIES").map((g) => [g.id, igEtkilesim(g.insights)]).filter(([, o]) => o != null);
+    const enIyi = oranlar.length >= 2 ? oranlar.sort((a, b) => b[1] - a[1])[0][0] : null;
+    $("#igTablo").innerHTML = paylasilan.length
+      ? `<tr><th>Ürün</th><th>Tür</th><th>Tarih</th><th class="sayi">Erişim</th><th class="sayi">İzlenme</th><th class="sayi">Beğeni</th><th class="sayi">Yorum</th><th class="sayi">Kaydetme</th><th class="sayi">Paylaşım</th><th class="sayi">Etkileşim</th><th></th></tr>`
+        + paylasilan.map((g) => {
+          const i = g.insights || {};
+          return `<tr data-ig="${g.id}">
+          <td>${urunHucre(g)}${g.id === enIyi ? ` <span class="rozet iyi">en iyi</span>` : ""}</td><td style="white-space:nowrap">${tur(g)}</td><td style="white-space:nowrap">${zamanYazi(tarih(g))}</td>
+          <td class="sayi">${sayi(i.reach)}</td><td class="sayi">${sayi(i.views)}</td><td class="sayi">${sayi(i.likes)}</td><td class="sayi">${sayi(i.comments)}</td>
+          <td class="sayi">${sayi(i.saved)}</td><td class="sayi">${sayi(i.shares)}</td><td class="sayi"><b>${yuzde(g.media_type === "STORIES" ? null : igEtkilesim(g.insights))}</b></td>
+          <td class="sayi" style="white-space:nowrap">${g.permalink ? `<a href="${url(g.permalink)}" target="_blank" rel="noopener">Instagram'da aç</a> ` : ""}<button type="button" class="ikincil" data-sil>Sil</button></td></tr>`;
+        }).join("")
+      : `<tr><td class="muted">${tumPaylasilan.length ? "Bu dönemde paylaşılan gönderi yok." : "Henüz paylaşılan gönderi yok."}</td></tr>`;
+  }
+
+  $("#igDonem").addEventListener("change", igCiz);
+  $("#instagramSekmesi").addEventListener("click", async (e) => {
+    const g = igVeri.find((x) => x.id === Number(e.target.closest("tr[data-ig]")?.dataset.ig));
+    if (!g) return;
+    if (e.target.closest("[data-tekrar]")) {
+      const { error } = await sb.from("instagram_posts").update({ status: "bekliyor", error: null, scheduled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", g.id);
+      if (error) alert("Güncellenemedi: " + error.message); else igYukle();
+    } else if (e.target.closest("[data-sil]")) {
+      if (!confirm(g.status === "bekliyor" ? "Bu gönderi iptal edilsin ve video silinsin mi?"
+        : g.status === "paylasildi" ? "Bu kayıt panelden silinsin mi? (Instagram'daki gönderi silinmez; istatistiği panelde görünmez olur.)" : "Bu kayıt silinsin mi?")) return;
+      if (g.status !== "paylasildi") {
+        const ayniVideo = g.video_path && igVeri.some((x) => x.id !== g.id && x.video_path === g.video_path && ["bekliyor", "isleniyor"].includes(x.status));
+        const yollar = g.media_type === "CAROUSEL" ? (g.image_paths || [])
+          : ayniVideo || !g.video_path ? [] : [g.video_path, g.video_path.replace(/\.[^./]+$/, "") + "_hazir.mp4"];
+        if (yollar.length) await sb.storage.from(IG_DEPO).remove(yollar);
+      }
+      const { error } = await sb.from("instagram_posts").delete().eq("id", g.id);
+      if (error) alert("Silinemedi: " + error.message); else igYukle();
+    }
+  });
 
   // ------------------------------------------------------------ siparişler
   const SIP_DURUM = { yeni: "🆕 Yeni", basiliyor: "🖨️ Basılıyor", hazir: "📦 Hazır", kargoda: "🚚 Kargoda", teslim: "✅ Teslim", iptal: "✖️ İptal" };
@@ -975,24 +909,14 @@
     sipEntegrasyonCiz();
   }
 
-  // 4. Entegrasyon kartları: gerçek bağlantılar kurulmadığı için durumlarını dürüstçe gösterir.
+  // 4. Yazıcı köprüsünün durumu (kargo ve pazaryeri bağlantısı kurulmadığı için onlara kart gösterilmez).
   function sipEntegrasyonCiz() {
-    const takipli = sipVeri.filter((s) => s.takip_no).length, kargoda = sipVeri.filter((s) => s.durum === "kargoda").length;
-    const firmalar = [...new Set(sipVeri.map((s) => s.kargo_firmasi).filter(Boolean))].slice(0, 2).join(", ");
-    const son = sipVeri[0];
-    const kanallar = {};
-    for (const s of sipVeri) kanallar[s.kanal] = (kanallar[s.kanal] || 0) + 1;
-    const enCok = Object.entries(kanallar).sort((a, b) => b[1] - a[1])[0];
     const yazicilar = new Set(sipVeri.filter((s) => s.durum === "basiliyor" && s.yazici).map((s) => s.yazici));
     const kart = (ikon, ikonSinif, baslik, alt, sag) => `<div class="p-3 rounded-xl bg-white shadow-sm flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0"><div class="w-10 h-10 rounded-lg ${ikonSinif} flex items-center justify-center shrink-0">${sipIkon(ikon, "text-[20px]")}</div>
         <div class="min-w-0"><div class="font-label-md text-label-md font-semibold text-on-surface">${baslik}</div><div class="font-label-sm text-label-sm text-outline mt-0.5">${alt}</div></div></div>${sag}</div>`;
     const rozet = (metin) => `<span class="px-2 py-0.5 rounded bg-surface-container text-outline font-label-sm text-label-sm font-semibold shrink-0">${metin}</span>`;
     $("#sipEntegrasyon").innerHTML =
-      kart("local_shipping", "bg-tertiary-fixed/20 text-tertiary", "Kargo Takibi",
-        `<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>${takipli} siparişte takip no • ${kargoda} kargoda${firmalar ? ` • ${esc(firmalar)}` : ""}</span>`, rozet("API yok, elle")) +
-      kart("sync", "bg-secondary-fixed text-on-secondary-fixed", "Pazaryeri Siparişleri",
-        son ? `Son sipariş: ${esc(sipZaman(son.created_at))}${enCok ? ` • en çok ${esc(SIP_KANAL[enCok[0]] || enCok[0])}` : ""}` : "Henüz sipariş yok", rozet("Webhook bağlı değil")) +
       (() => {
         const bagli = sipYazicilar.filter(yaziciBagli);
         if (bagli.length) {
@@ -1019,14 +943,14 @@
 
   function sipFiltreli() {
     const durum = $("#sipFiltreDurum").value, kanal = $("#sipFiltreKanal").value, tarih = $("#sipFiltreTarih").value;
-    const ara = $("#sipAra").value.trim().replace(/^#?(sip-)?/i, "").toLocaleLowerCase("tr-TR");
+    const ara = duz($("#sipAra").value.trim().replace(/^#?(sip-)?/i, ""));
     const odenmemis = $("#sipOdenmemis").checked, acil = $("#sipSadeceAcil").checked;
     const sinir = tarih === "bugun" ? new Date(new Date().setHours(0, 0, 0, 0)) : tarih ? new Date(Date.now() - Number(tarih) * 864e5) : null;
     const sekme = SIP_HIZLI_DURUM[sipSekme];
     return sipVeri.filter((s) => (!sekme || sekme.includes(s.durum)) && (!durum || s.durum === durum)
       && (!kanal || s.kanal === kanal) && (!odenmemis || !s.odendi) && (!acil || s.acil)
       && (!sinir || new Date(s.created_at) >= sinir)
-      && (!ara || [s.id, s.urun_adi, s.renk, s.musteri_notu, s.musteri_adi, s.takip_no, s.yazici, s.fatura_no].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR").includes(ara)));
+      && (!ara || duz([s.id, s.urun_adi, s.renk, s.musteri_notu, s.musteri_adi, s.takip_no, s.yazici, s.fatura_no].filter(Boolean).join(" ")).includes(ara)));
   }
 
   function sipGorsel(s, sinif) {
@@ -1820,7 +1744,7 @@
         <td>${esc(p.category || "-")}</td><td class="sayi">${p.score ?? "-"}</td><td class="sayi">${sure(p.print_time_min)}</td>
         <td class="sayi">${p.cost_tl == null ? "-" : `${Math.round(p.cost_tl)} → ${Math.round(p.price_tl)}`}</td>
         <td class="sayi">${tl(p.hourly_profit_tl)}</td><td class="sayi">${(p.downloads || 0).toLocaleString("tr-TR")}</td>
-        <td><button type="button" class="ikincil" data-plan="${p.id}">${planIdleri.has(p.id) ? "✓ Planda" : "📋 Plana ekle"}</button></td></tr>`).join("");
+        <td><button type="button" class="ikincil" data-plan="${p.id}">${planDugmeYazi(planIdleri.has(p.id))}</button></td></tr>`).join("");
     $("#tumTablo").querySelectorAll("[data-plan]").forEach((b) => b.addEventListener("click", () => planaEkleCikar(Number(b.dataset.plan), b)));
   }
   $("#tumAra").addEventListener("input", () => { clearTimeout(tumZaman); tumZaman = setTimeout(() => tumYukle().catch((e) => alert(e.message)), 400); });
@@ -1872,7 +1796,7 @@
           <td class="sayi">${sure(r.products.print_time_min == null ? null : r.products.print_time_min * r.quantity)}</td>
           <td><input type="checkbox" data-bitti ${r.done ? "checked" : ""} aria-label="Basıldı"></td>
           <td><button type="button" class="ikincil" data-sil>Çıkar</button></td></tr>`).join("")
-      : `<tr><td class="muted">Plan boş. Günlük listede veya Tüm ürünler sekmesinde "📋 Plana ekle"ye bas.</td></tr>`;
+      : `<tr><td class="muted">Üretim planı boş. Ürünler ekranında bir ürünün "Üretime ekle" düğmesine bas.</td></tr>`;
 
     $("#planTablo").querySelectorAll("tr[data-pid]").forEach((tr) => {
       const pid = Number(tr.dataset.pid);
@@ -1935,7 +1859,7 @@
     if (error) { $("#isaretTablo").innerHTML = `<tr><td class="hata">${esc(error.message)}</td></tr>`; return; }
     const satirlar = data.filter((m) => isaretVar(m) && m.products);
     if (!satirlar.length) {
-      $("#kategoriTablo").innerHTML = `<tr><td class="muted">Henüz işaret yok. Günlük listede "Bastım / Videosunu çektim / Sattım" işaretlerini kullan.</td></tr>`;
+      $("#kategoriTablo").innerHTML = `<tr><td class="muted">Henüz işaret yok. Ürünler ekranında bir ürünün "Ayrıntılar ve işaretler" bölümündeki "Bastım / Video çektim / Sattım" işaretlerini kullan.</td></tr>`;
       $("#isaretTablo").innerHTML = "";
       return;
     }
@@ -1969,7 +1893,6 @@
   }
   $("#gun").addEventListener("change", () => listeYukle().catch((e) => durumYaz(e.message, true)));
   $("#kategori").addEventListener("change", kartlariCiz);
-  $("#isaretsiz").addEventListener("change", kartlariCiz);
 
   let basladi = false;
   sb.auth.onAuthStateChange((olay, oturum) => {

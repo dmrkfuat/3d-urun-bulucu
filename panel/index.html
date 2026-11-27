@@ -44,20 +44,50 @@
   /* Kabuk: üst bar (mockup header), sekme içerikleri ve alt bilgi */
   .kabuk { position: sticky; top: 0; z-index: 40; background: #ffffff; box-shadow: 0 1px 8px rgba(0,0,0,.04); margin-bottom: 24px; }
   .kabukUst { min-height: 64px; padding: 10px 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-  .kabukAlt { background: #ffffff; box-shadow: 0 -1px 8px rgba(0,0,0,.02); margin-top: 2rem; padding: 1.25rem 2rem; }
   .sekmeler { scrollbar-width: none; }
   .sekmeler::-webkit-scrollbar { display: none; }
-  .sekme { border: 0; background: transparent; color: #444654; padding: 6px 12px; border-radius: 8px; font: 500 12px/16px Inter, system-ui, sans-serif; letter-spacing: .01em; cursor: pointer; white-space: nowrap; flex: none; transition: background-color .15s, color .15s; }
+  .sekme { border: 0; background: transparent; color: #444654; padding: 8px 16px; border-radius: 8px; font: 600 14px/20px Inter, system-ui, sans-serif; cursor: pointer; white-space: nowrap; flex: none; transition: background-color .15s, color .15s; }
   .sekme:hover { color: #0d1c2e; background: #dce9ff; }
-  .sekme[aria-selected="true"] { background: #ffffff; color: #1a40c2; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
-  #uygulama > div[id$="Sekmesi"] { max-width: 1440px; margin: 0 auto; padding: 0 2rem; }
-  @media (max-width: 640px) { .kabukUst, .kabukAlt { padding-left: 16px; padding-right: 16px; } #uygulama > div[id$="Sekmesi"] { padding: 0 16px; } }
+  .sekme[aria-selected="true"], .sekme.secili { background: #ffffff; color: #1a40c2; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+  #digerDugme { background: #eff4ff; }
+  .digerMenu { position: absolute; right: 0; margin-top: 8px; width: 240px; background: #ffffff; border: 1px solid #dce9ff; border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.12); z-index: 50; padding: 6px; display: flex; flex-direction: column; }
+  .digerMenu button { text-align: left; padding: 9px 12px; border-radius: 8px; font: 500 14px/20px Inter, system-ui, sans-serif; color: #0d1c2e; }
+  .digerMenu button:hover, .digerMenu button[aria-selected="true"] { background: #eff4ff; color: #1a40c2; }
+  .digerAyrac { height: 1px; background: #dce9ff; margin: 6px 0; }
+  .digerEposta { padding: 4px 12px; font-size: 12px; color: #747686; overflow-wrap: anywhere; }
+  .digerEposta:empty { display: none; }
+  /* Ürünler sekmesinin alt görünümleri */
+  .altSekme { max-width: 1440px; margin: 0 auto 16px; padding: 0 2rem; display: flex; gap: 8px; flex-wrap: wrap; }
+  .altSekme button { font: 600 14px/20px Inter, system-ui, sans-serif; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; }
+  .altSekme button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  #uygulama > div[id$="Sekmesi"] { max-width: 1440px; margin: 0 auto; padding: 0 2rem 3rem; }
+  @media (max-width: 640px) { .kabukUst { padding-left: 16px; padding-right: 16px; } #uygulama > div[id$="Sekmesi"], .altSekme { padding-left: 16px; padding-right: 16px; }
+    .sekmeler .sekme { flex: 1; padding: 8px 6px; font-size: 13px; }
+    .altSekme { flex-wrap: nowrap; }
+    .altSekme button { flex: 1; padding: 8px 10px; font-size: 13px; }
+    .arac > input[type=text] { min-width: 0; flex: 1 1 100%; } }
   .planDugme { align-self: flex-start; }
   /* Araç çubukları mockup'taki filtre çubuğu gibi: beyaz kart, hap biçimli kontroller */
   .arac { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; background: var(--panel); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.04); padding: 10px 12px; }
   .arac > label { display: flex; align-items: center; gap: 6px; background: var(--chip); padding: 4px 10px; border-radius: 8px; font-size: 12px; color: #747686; }
   .arac > label select, .arac > label input[type=number] { border: 0; background: transparent; font-weight: 600; color: var(--ink); padding: 4px 2px; }
   .arac > input[type=text] { background: var(--chip); border-color: transparent; min-width: 220px; }
+  .arac > .aracSag { margin-left: auto; }
+  /* Özet kutuları (Instagram etkileşimi) */
+  .kutular { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kutu { background: var(--panel); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.04); padding: 14px 16px; }
+  .kutu span { display: block; font-size: 13px; color: var(--muted); }
+  .kutu b { display: block; font: 700 26px/32px "Plus Jakarta Sans", Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .kutu small { color: var(--muted); font-size: 12px; }
+  .yardim { margin: 0 0 16px; }
+  .yardim p { margin: 6px 0 0; }
+  .rozet { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .rozet.iyi { background: #d9f7e8; color: var(--ok); }
+  .rozet.kotu { background: #ffdad6; color: var(--bad); }
+  .siparisForm .sipEk summary { font-size: 13px; }
+  .sipEkAlan { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; align-items: end; margin-top: 8px; }
+  .sipFiltre summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+  .sipFiltre[open] summary { margin-bottom: 10px; }
   .ig { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .ig textarea { width: 100%; resize: vertical; font-size: 13px; }
   .ig label { display: flex; flex-direction: column; gap: 4px; }
@@ -150,108 +180,51 @@
     <header class="tw kabuk">
       <div class="kabukUst">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-9 h-9 rounded-lg bg-primary-container text-on-primary flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.06)] shrink-0"><span class="material-symbols-outlined text-[22px]">view_in_ar</span></div>
+          <div class="w-9 h-9 rounded-lg bg-primary-container text-on-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[22px]">view_in_ar</span></div>
           <h1 class="font-headline-sm text-headline-sm text-on-surface tracking-tight whitespace-nowrap">3D Ürün Paneli</h1>
-          <div class="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-low"><span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span><span class="font-label-sm text-label-sm text-tertiary">Online</span></div>
         </div>
-        <nav class="sekmeler order-3 2xl:order-none w-full 2xl:w-auto flex items-center gap-1 p-1 rounded-xl bg-surface-container-low overflow-x-auto" role="tablist">
-          <button role="tab" data-sekme="liste" aria-selected="true" class="sekme">Günlük liste</button>
-          <button role="tab" data-sekme="tum" aria-selected="false" class="sekme">Tüm ürünler</button>
-          <button role="tab" data-sekme="plan" aria-selected="false" class="sekme">Plan</button>
-          <button role="tab" data-sekme="tasarimci" aria-selected="false" class="sekme">Tasarımcılar</button>
-          <button role="tab" data-sekme="performans" aria-selected="false" class="sekme">İşaretlerim</button>
-          <button role="tab" data-sekme="kesif" aria-selected="false" class="sekme">Çok satanlar</button>
+        <!-- İş akışı sırasıyla: ne üreteyim → üret → Instagram'da paylaş → siparişi takip et -->
+        <nav class="sekmeler order-3 lg:order-none w-full lg:w-auto flex items-center gap-1 p-1 rounded-xl bg-surface-container-low overflow-x-auto" role="tablist">
+          <button role="tab" data-sekme="liste" data-kapsar="kesif" aria-selected="true" class="sekme">Ürünler</button>
+          <button role="tab" data-sekme="plan" aria-selected="false" class="sekme">Üretim</button>
           <button role="tab" data-sekme="instagram" aria-selected="false" class="sekme">Instagram</button>
           <button role="tab" data-sekme="siparis" aria-selected="false" class="sekme">Siparişler</button>
         </nav>
-        <div class="flex items-center gap-3 shrink-0">
-          <div class="hidden md:flex items-center px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant gap-1">
-            <span class="material-symbols-outlined text-[18px]">search</span>
-            <input id="ustAra" type="text" class="bg-transparent border-0 outline-none font-body-sm text-body-sm text-on-surface placeholder:text-outline w-44 p-0" placeholder="Model ara, Enter'a bas..." aria-label="Tüm ürünlerde ara">
-          </div>
+        <div class="flex items-center gap-2 shrink-0">
           <div id="bildirimKap" class="relative">
             <button type="button" id="bildirimDugme" class="w-9 h-9 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors relative" title="Bildirimler" aria-label="Bildirimler"><span class="material-symbols-outlined text-[20px]">notifications</span><span id="bildirimNokta" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-error" hidden></span></button>
             <div id="bildirimMenu" class="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-xl border border-surface-container-high z-50 overflow-hidden" hidden></div>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-sm"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div>
-            <div class="hidden lg:flex flex-col text-left"><span class="font-label-md text-label-md text-on-surface leading-none">Atölye Yöneticisi</span><span id="kullaniciEposta" class="font-label-sm text-label-sm text-outline mt-0.5"></span></div>
+          <!-- Az kullanılan ekranlar ve çıkış -->
+          <div id="digerKap" class="relative">
+            <button type="button" id="digerDugme" class="sekme" aria-haspopup="true" aria-expanded="false">Diğer ▾</button>
+            <div id="digerMenu" class="digerMenu" hidden>
+              <button type="button" data-sekme="tum" aria-selected="false">Tüm ürünler</button>
+              <button type="button" data-sekme="performans" aria-selected="false">Bastıklarım ve sattıklarım</button>
+              <button type="button" data-sekme="tasarimci" aria-selected="false">Tasarımcılar</button>
+              <div class="digerAyrac"></div>
+              <span id="kullaniciEposta" class="digerEposta"></span>
+              <button type="button" id="cikis">Çıkış yap</button>
+            </div>
           </div>
-          <button type="button" id="cikis" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant font-label-md text-label-md hover:bg-error-container hover:text-on-error-container transition-colors"><span class="material-symbols-outlined text-[16px]">logout</span><span class="hidden sm:inline">Çıkış</span></button>
         </div>
       </div>
     </header>
 
-    <div id="listeSekmesi">
-    <div class="tw flex flex-col gap-5">
-      <!-- Günün özeti -->
-      <div id="listeKpi" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
-
-      <!-- Filtre ve aksiyon çubuğu -->
-      <div class="bg-white rounded-xl p-3 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div class="flex flex-wrap items-center gap-2">
-          <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface">
-            <span class="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-            <span class="font-label-sm text-label-sm text-outline">Gün:</span>
-            <select id="gun" class="bg-transparent border-0 p-0 outline-none font-label-md text-label-md font-semibold text-on-surface cursor-pointer" aria-label="Gün"></select>
-          </label>
-          <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface">
-            <span class="material-symbols-outlined text-[18px] text-secondary">tune</span>
-            <span class="font-label-sm text-label-sm text-outline">Kategori:</span>
-            <select id="kategori" class="bg-transparent border-0 p-0 outline-none font-label-md text-label-md font-semibold text-on-surface cursor-pointer" aria-label="Kategori"><option value="">Hepsi</option></select>
-          </label>
-          <label class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
-            <input type="checkbox" id="isaretsiz" class="w-4 h-4 rounded accent-primary-container cursor-pointer">
-            <span class="font-label-md text-label-md text-on-surface-variant font-medium select-none">Sadece işaretlenmemiş</span>
-          </label>
-          <div class="flex items-center px-3 py-2 rounded-lg bg-surface-container-low text-on-surface-variant gap-1 min-w-[220px]">
-            <span class="material-symbols-outlined text-[18px]">search</span>
-            <input id="listeAra" type="text" class="bg-transparent border-0 p-0 outline-none font-body-sm text-body-sm text-on-surface placeholder:text-outline w-full" placeholder="Model, tasarımcı veya kategori ara..." aria-label="Günlük listede ara">
-          </div>
-        </div>
-        <div class="flex items-center gap-2 justify-between lg:justify-end">
-          <div class="flex items-center bg-surface-container-low p-1 rounded-lg" role="group" aria-label="Görünüm">
-            <button type="button" data-gorunum="kart" class="p-1.5 rounded-md" title="Kart görünümü" aria-label="Kart görünümü"><span class="material-symbols-outlined text-[18px]">grid_view</span></button>
-            <button type="button" data-gorunum="tablo" class="p-1.5 rounded-md" title="Tablo görünümü" aria-label="Tablo görünümü"><span class="material-symbols-outlined text-[18px]">table_rows</span></button>
-          </div>
-          <button type="button" id="listeTopluAc" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
-            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">checklist</span><span class="hidden sm:inline">Toplu İşaretle</span>
-          </button>
-          <button type="button" id="listePlanaGit" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md hover:bg-primary transition-colors shadow-sm">
-            <span class="material-symbols-outlined text-[18px]">event_note</span><span>Baskı Planı</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Toplu işaretleme çubuğu (kart seçilince ya da "Toplu İşaretle" ile açılır) -->
-      <div id="listeTopluBar" class="w-full bg-primary-fixed/60 rounded-xl px-3 py-2 flex flex-wrap items-center gap-2" hidden>
-        <span class="material-symbols-outlined text-[18px] text-primary">checklist</span>
-        <span id="listeTopluSay" class="font-label-md text-label-md font-semibold text-on-primary-fixed-variant mr-2"></span>
-        <button type="button" data-ltoplu="printed" class="px-3 py-1 rounded-lg bg-primary text-on-primary font-label-sm text-label-sm font-semibold">✓ Bastım işaretle</button>
-        <button type="button" data-ltoplu="video" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">🎬 Videosu çekildi</button>
-        <button type="button" data-ltoplu="plan" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">📋 Plana ekle</button>
-        <button type="button" data-ltoplu="secHepsi" class="px-3 py-1 rounded-lg bg-white text-on-surface font-label-sm text-label-sm hover:bg-surface-container">Listelenenlerin hepsini seç</button>
-        <button type="button" data-ltoplu="temizle" class="ml-auto px-3 py-1 rounded-lg text-on-surface-variant font-label-sm text-label-sm hover:bg-white">Seçimi temizle</button>
-      </div>
-
-      <!-- Listelenenlerin özeti ve sıralama -->
-      <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface-container-low font-label-md text-label-md text-on-surface-variant">
-        <div id="listeSeritBilgi" class="flex flex-wrap items-center gap-3"></div>
-        <label class="flex items-center gap-2">
-          <span class="font-label-sm text-label-sm text-outline">Sıralama:</span>
-          <select id="listeSira" class="bg-transparent border-0 p-0 outline-none font-label-sm text-label-sm font-semibold text-primary cursor-pointer" aria-label="Sıralama">
-            <option value="rank">Günün sırası</option><option value="score">Puan</option><option value="hourly_profit_tl">Saatlik kazanç</option>
-            <option value="print_time_min">En kısa baskı</option><option value="cost_tl">En düşük maliyet</option>
-          </select>
-        </label>
-      </div>
-
-      <!-- Ürün kartları / tablo -->
-      <div id="kartlar" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
-      <div id="listeTabloKap" class="bg-white rounded-xl shadow-sm overflow-hidden" hidden>
-        <div class="overflow-x-auto"><table id="listeTablo" class="w-full text-left" style="border:0;border-radius:0;margin:0"></table></div>
-      </div>
+    <!-- Ürünler sekmesinin iki görünümü -->
+    <div id="urunAlt" class="altSekme" role="tablist">
+      <button type="button" role="tab" data-sekme="liste" aria-selected="true">Bugünün önerileri</button>
+      <button type="button" role="tab" data-sekme="kesif" aria-selected="false">Türkiye'de çok satanlar</button>
     </div>
+
+    <div id="listeSekmesi">
+      <div class="arac">
+        <label>Gün <select id="gun" aria-label="Gün"></select></label>
+        <label>Kategori <select id="kategori" aria-label="Kategori"><option value="">Hepsi</option></select></label>
+        <input id="listeAra" type="text" placeholder="Ürün ara" aria-label="Önerilerde ara">
+        <span id="listeOzet" class="muted aracSag"></span>
+      </div>
+      <div class="tw"><div id="kartlar" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div></div>
     </div>
 
     <div id="tumSekmesi" hidden>
@@ -271,13 +244,13 @@
 
     <div id="planSekmesi" hidden>
       <div class="arac">
-        <label>Günde kaç saat baskı? <input id="gunlukSaat" type="number" min="1" max="24" value="8" style="width:70px"></label>
+        <label>Günde kaç saat baskı <input id="gunlukSaat" type="number" min="1" max="24" value="8" style="width:70px"></label>
         <label><input type="checkbox" id="bitenleriGoster"> Basılanları da göster</label>
       </div>
       <div id="planOzet" class="rakamlar" style="margin-bottom:14px"></div>
       <h2>Filament listesi</h2>
       <div class="tablo-kap"><table id="filamentTablo"></table></div>
-      <h2>Basılacaklar</h2>
+      <h2>Üretilecekler</h2>
       <div class="tablo-kap"><table id="planTablo"></table></div>
     </div>
 
@@ -295,62 +268,69 @@
     </div>
 
     <div id="kesifSekmesi" hidden>
-      <p class="muted">Türkiye'de çok satan 3D baskı ürünler (haftada bir). <b>Satıcı sayısı</b>, aynı ürünü satan farklı satıcılardır (Google Alışveriş + görsel arama; satıcı başlıktaki markadan anlaşılır, bir satıcının renk ilanları tek sayılır). Satış adedi değil, talep işaretidir. 🎯 Görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 İsimle bulundu: görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (tahmin).</p>
+      <p class="muted">Türkiye'de birden çok satıcının sattığı 3D baskı ürünler ve üretebileceğin MakerWorld modeli. Haftada bir yenilenir.</p>
+      <details class="yardim"><summary>Sayılar nasıl okunur?</summary>
+        <p class="muted"><b>Satıcı sayısı</b>, aynı ürünü satan farklı satıcılardır (Google Alışveriş + görsel arama; bir satıcının renk ilanları tek sayılır). Satış adedi değil, talep işaretidir. 🎯 Görsel eşleşme: ürünün fotoğrafı MakerWorld'deki modele götürdü. 🔤 İsimle bulundu: görselleri karşılaştırıp doğrula. Kâr = piyasa ortancası − maliyet (tahmin).</p>
+      </details>
       <div id="kesifListe" class="kesifler"></div>
     </div>
 
     <div id="instagramSekmesi" hidden>
-      <p class="muted">Günlük listede bir ürünün "📸 Instagram'a planla" bölümünden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video (kutu işaretliyse başına kanca yazısı, sonuna "Sipariş için DM" kartı eklenip 9:16 yapılarak) Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir.</p>
+      <div class="arac">
+        <b>Instagram etkileşimi</b>
+        <label>Dönem <select id="igDonem" aria-label="Dönem"><option value="7">Son 7 gün</option><option value="30" selected>Son 30 gün</option><option value="0">Tümü</option></select></label>
+        <span id="igGuncel" class="muted aracSag"></span>
+      </div>
+      <div id="igOzet" class="kutular"></div>
+      <p id="igIpucu" class="muted"></p>
+      <h2>Sıradaki paylaşımlar</h2>
+      <div class="tablo-kap"><table id="igSirada"></table></div>
+      <h2>Paylaşılan gönderiler</h2>
       <div class="tablo-kap"><table id="igTablo"></table></div>
+      <details class="yardim"><summary>Paylaşım nasıl çalışır?</summary>
+        <p class="muted">Ürünler ekranında bir ürünün "Instagram'da paylaş" düğmesinden video yükleyip saat seçersin. GitHub 15 dakikada bir kontrol eder; saati gelen video (kutu işaretliyse başına kanca yazısı, sonuna "Sipariş için DM" kartı eklenip 9:16 yapılarak) Reels olarak paylaşılır, sonucu Telegram'a gelir ve ürüne "Videosunu çektim" işareti konur. Paylaşılan video depodan silinir. Erişim, beğeni, yorum, kaydetme ve paylaşım sayıları günde bir kez Instagram'dan alınır.</p>
+      </details>
     </div>
 
     <div id="siparisSekmesi" hidden>
     <div class="tw">
-      <!-- Üst başlık ve hızlı durum -->
-      <div class="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-        <div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-headline-lg text-headline-lg text-on-surface">Sipariş Yönetimi</span>
-            <span class="px-2.5 py-0.5 rounded-full bg-primary-container/10 text-primary font-label-sm text-label-sm uppercase tracking-wider">Canlı Üretim Hattı</span>
-          </div>
-          <p class="font-body-sm text-body-sm text-outline mt-1">Gelen siparişleri, 3D yazıcı iş kuyruklarını ve kargo aşamalarını izle.</p>
-        </div>
-        <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <div id="sipDurumCip" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low shadow-sm"></div>
-          <button type="button" id="sipYeniAc" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-on-primary font-label-md text-label-md shadow-md hover:bg-primary/95 transition-all">
-            <span class="material-symbols-outlined text-[18px]">add_shopping_cart</span><span>+ Yeni Sipariş Oluştur</span>
-          </button>
-        </div>
+      <!-- Hızlı durum ve yeni sipariş -->
+      <div class="w-full flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div id="sipDurumCip" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low"></div>
+        <button type="button" id="sipYeniAc" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg shadow-sm hover:bg-primary/95 transition-all">
+          <span class="material-symbols-outlined text-[18px]">add</span><span>Yeni sipariş</span>
+        </button>
       </div>
 
       <!-- Yeni sipariş formu (butonla açılır) -->
       <div id="sipFormKart" class="bg-white rounded-xl shadow-sm p-4 mb-5" hidden>
         <form id="siparisFormu" class="siparisForm" autocomplete="off" style="margin:0;border:0;padding:0">
-          <div class="genis font-label-md text-label-md font-semibold text-on-surface">Sipariş</div>
           <label class="genis">Ürün (listeden seç ya da yaz)<input type="text" id="sipUrun" list="sipUrunler" maxlength="200" required></label>
           <datalist id="sipUrunler"></datalist>
           <label>Adet<input type="number" id="sipAdet" min="1" max="1000" value="1" required></label>
           <label>Renk / filament<input type="text" id="sipRenk" maxlength="100" placeholder="ör. PETG siyah"></label>
           <label>Tutar (TL, toplam)<input type="number" id="sipFiyat" min="0" step="0.01"></label>
           <label>Kanal<select id="sipKanal"></select></label>
-          <label>Ödeme yöntemi<select id="sipOdeme"></select></label>
-          <label>Termin<input type="datetime-local" id="sipTermin"></label>
-          <label>Yazıcı<input type="text" id="sipYazici" list="sipYazicilar" maxlength="60" placeholder="ör. Bambu P1S #1"></label>
-          <label style="flex-direction:row;align-items:center;gap:6px;align-self:center"><input type="checkbox" id="sipAcil"> ⚡ Acil sipariş</label>
-          <div class="genis font-label-md text-label-md font-semibold text-on-surface" style="margin-top:6px">Müşteri, teslimat ve fatura <span class="font-label-sm text-label-sm text-outline font-normal">(isteğe bağlı; yalnızca panel kullanıcıları görür)</span></div>
           <label>Müşteri adı<input type="text" id="sipMusteri" maxlength="120" autocomplete="off"></label>
           <label>Telefon<input type="text" id="sipTel" maxlength="30" inputmode="tel" autocomplete="off" placeholder="05xx xxx xx xx"></label>
-          <label>E-posta<input type="text" id="sipEposta" maxlength="200" inputmode="email" autocomplete="off"></label>
-          <label>TC kimlik no (fatura için)<input type="text" id="sipTc" maxlength="11" inputmode="numeric" autocomplete="off"></label>
           <label class="genis">Teslimat adresi<input type="text" id="sipAdres" maxlength="500" autocomplete="off" placeholder="Mahalle, cadde, no, ilçe / il"></label>
-          <label>Kargo firması<input type="text" id="sipKargo" list="sipKargolar" maxlength="50"></label>
-          <label>Takip no<input type="text" id="sipTakip" maxlength="60"></label>
-          <label>Fatura no<input type="text" id="sipFatura" maxlength="50"></label>
-          <div class="genis font-label-md text-label-md font-semibold text-on-surface" style="margin-top:6px">Baskı sonrası</div>
-          <label>Gerçek süre (dk, toplam)<input type="number" id="sipSure" min="1"></label>
-          <label>Gerçek filament (g, toplam)<input type="number" id="sipGram" min="1"></label>
           <label class="genis">Not<input type="text" id="sipNot" maxlength="500" placeholder="ör. hediye paketi istedi"></label>
-          <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span></div>
+          <details class="genis sipEk"><summary>Diğer alanlar (ödeme, termin, yazıcı, kargo, fatura)</summary>
+            <div class="sipEkAlan">
+              <label>Ödeme yöntemi<select id="sipOdeme"></select></label>
+              <label>Termin<input type="datetime-local" id="sipTermin"></label>
+              <label>Yazıcı<input type="text" id="sipYazici" list="sipYazicilar" maxlength="60" placeholder="ör. Bambu P1S #1"></label>
+              <label style="flex-direction:row;align-items:center;gap:6px;align-self:center"><input type="checkbox" id="sipAcil"> ⚡ Acil sipariş</label>
+              <label>E-posta<input type="text" id="sipEposta" maxlength="200" inputmode="email" autocomplete="off"></label>
+              <label>TC kimlik no (fatura için)<input type="text" id="sipTc" maxlength="11" inputmode="numeric" autocomplete="off"></label>
+              <label>Kargo firması<input type="text" id="sipKargo" list="sipKargolar" maxlength="50"></label>
+              <label>Takip no<input type="text" id="sipTakip" maxlength="60"></label>
+              <label>Fatura no<input type="text" id="sipFatura" maxlength="50"></label>
+              <label>Gerçek süre (dk, toplam)<input type="number" id="sipSure" min="1"></label>
+              <label>Gerçek filament (g, toplam)<input type="number" id="sipGram" min="1"></label>
+            </div>
+          </details>
+          <div class="genis" style="display:flex;gap:8px;align-items:center"><button type="submit" class="ana">Sipariş ekle</button><span class="kaydedildi" id="sipDurum" role="status"></span><span class="muted">Müşteri bilgilerini yalnızca panel kullanıcıları görür.</span></div>
         </form>
       </div>
       <datalist id="sipYazicilar"></datalist>
@@ -361,6 +341,14 @@
 
       <!-- 2. Filtre ve aksiyon çubuğu -->
       <div class="w-full bg-white p-3 rounded-xl shadow-sm mb-3 flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="relative w-full sm:w-96">
+            <span class="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-outline">search</span>
+            <input type="text" id="sipAra" class="w-full bg-surface-container-low border-0 rounded-lg pl-9 pr-3 py-2 font-body-sm text-body-sm text-on-surface placeholder:text-outline outline-none focus:bg-white focus:ring-1 focus:ring-primary transition-all" placeholder="Sipariş no, müşteri adı, model veya takip no ara..." aria-label="Siparişlerde ara">
+          </div>
+          <div id="sipHizli" class="flex items-center gap-1 overflow-x-auto w-full sm:w-auto"></div>
+        </div>
+        <details class="sipFiltre"><summary>Filtreler, dışa aktarma ve toplu işlem</summary>
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div class="flex flex-wrap items-center gap-2">
             <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface">
@@ -398,13 +386,7 @@
             </button>
           </div>
         </div>
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
-          <div class="relative w-full sm:w-96">
-            <span class="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-outline">search</span>
-            <input type="text" id="sipAra" class="w-full bg-surface-container-low border-0 rounded-lg pl-9 pr-3 py-2 font-body-sm text-body-sm text-on-surface placeholder:text-outline outline-none focus:bg-white focus:ring-1 focus:ring-primary transition-all" placeholder="Sipariş no, müşteri adı, model veya takip no ara..." aria-label="Siparişlerde ara">
-          </div>
-          <div id="sipHizli" class="flex items-center gap-1 overflow-x-auto w-full sm:w-auto"></div>
-        </div>
+        </details>
       </div>
 
       <!-- Toplu işlem çubuğu (satır seçilince ya da "Toplu İşlem" ile açılır) -->
@@ -436,8 +418,8 @@
         </div>
       </div>
 
-      <!-- 4. Entegrasyon ve lojistik durumu -->
-      <div id="sipEntegrasyon" class="w-full grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      <!-- 4. Yazıcı köprüsünün durumu -->
+      <div id="sipEntegrasyon" class="w-full max-w-xl"></div>
 
       <!-- Sipariş detay çekmecesi -->
       <div id="sipCekmece" class="fixed inset-0 z-50 flex justify-end" hidden>
@@ -586,12 +568,7 @@
     </div>
     </div>
 
-    <footer class="tw kabukAlt">
-      <div class="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <span class="font-label-md text-label-md text-outline">3D Ürün Paneli • Üretim ve Sipariş Takip Sistemi © 2026</span>
-        <span class="font-label-md text-label-md text-outline">MakerWorld · Supabase · GitHub Actions</span>
-      </div>
-    </footer>
+    
   </section>
 
   <div id="durum" class="bos" hidden></div>

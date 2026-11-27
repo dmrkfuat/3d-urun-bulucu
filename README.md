@@ -29,10 +29,13 @@ ve modele özel bir **video planı** (kanca, çekim adımları, açıklama, hash
   PttAVM, Etsy ve 3D baskı satan bağımsız Türk mağazaları tutulur (`config.PAZAR_SITELERI`,
   `PAZAR_BAGIMSIZ_MAGAZALAR`). Siteler doğrudan taranmaz (Trendyol
   robots.txt aramayı yasaklıyor, Hepsiburada/n11 otomatik isteği engelliyor). `SERPAPI_KEY` gerekir.
-- **Web paneli:** <https://dmrkfuat.github.io/3d-urun-bulucu/> — günlük listeler, indirme grafiği,
-  "bastım / videosunu çektim / sattım" işaretleri, **tüm ürünlerde arama/sıralama**, **baskı planı**
-  (toplam süre, kaç gün, renk renk filament listesi), **tasarımcı takibi** ve "İşaretlerim"de
-  kategoriye göre satış ve kâr. Yalnızca izinli e-postayla giriş yapılır.
+- **Web paneli:** <https://dmrkfuat.github.io/3d-urun-bulucu/> — iş akışı sırasıyla dört sekme:
+  **Ürünler** (bugünün önerileri ve Türkiye'de çok satanlar; kartta satış fiyatı, maliyet, kâr, "Üretime ekle"
+  ve "Instagram'da paylaş"), **Üretim** (baskı planı: toplam süre, kaç gün, renk renk filament listesi),
+  **Instagram** (erişim, beğeni, yorum, kaydetme, paylaşım, etkileşim oranı; sıradaki ve paylaşılan gönderiler)
+  ve **Siparişler**. "Bastım / video çektim / sattım" işaretleri, not, video fikri ve indirme grafiği kartın
+  "Ayrıntılar ve işaretler" bölümündedir; **tüm ürünlerde arama/sıralama**, **tasarımcı takibi** ve kategoriye
+  göre satış ve kâr "Diğer" menüsündedir. Yalnızca izinli e-postayla giriş yapılır.
 
 ---
 
@@ -183,7 +186,7 @@ Sonuç: Telegram mesajı ve yerel `raporlar/trendyol-TARİH.md` (depoya gönderi
 `python -m urun_bulucu.trendyol` (`--telegram` ile mesaj, `--sinir 40` ile daha az sayfa).
 Trendyol bu bağlantıyı da engellerse analiz durur ve Telegram'a bildirir; engel aşılmaya çalışılmaz.
 
-Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Çok satanlar** sekmesi.
+Sonuç: `raporlar/cok-satanlar-TARİH.md`, Telegram mesajı ve panelde **Ürünler → Türkiye'de çok satanlar** görünümü.
 Kota: haftada ~28 arama (ayda ~120; 10 kategori + 10 Trendyol süzgeçli + 8 görsel); SerpApi'de 50'den az hak kaldıysa atlanır, aynı ürünün Lens
 sonucu 28 gün yeniden kullanılır. Elle çalıştırma: `python -m urun_bulucu.kesif` (`--telegram` ile
 mesaj da gönderilir). Supabase'te bir kez `supabase/guncelleme_2026-11-10_kesif.sql` çalıştırılmalıdır.
@@ -199,7 +202,7 @@ Yalnızca **resmi Instagram API'si** kullanılır (şifreyle giriş, bot veya ta
   çoğu Türkçe 8-12 etiket (kodla denetlenir: marka/yazıcı, tasarımcı, sayılı etiketler atılır).
   Anahtar yoksa veya hata olursa şablon metin kullanılır (etiketler MakerWorld'den, Türkçeye
   çevrilerek). İkisinde de tasarımcı adı, baskı süresi, yazıcı adı ve fiyat yazmaz. İlk 3'ün açıklaması Telegram'a
-  dokununca kopyalanan bloklar hâlinde gelir; hepsi panelde kartın "📸 Instagram'a planla" bölümündedir.
+  dokununca kopyalanan bloklar hâlinde gelir; hepsi panelde kartın "Instagram'da paylaş" bölümündedir.
   **Bunun için kurulum gerekmez.**
 - Paylaşım: ürünü basıp videosunu çekersin, panelde açıklamayı düzenleyip videoyu yüklersin ve saat
   seçersin. GitHub her 15 dakikada bir `.github/workflows/instagram.yml`'i çalıştırır; saati gelen
@@ -270,7 +273,7 @@ modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
   aranır; ilk 10 ilanın toplam favorisi ≥1000 → +1, ≥5000 → +3, ≥20000 → +5 (Etsy listesi bonusuyla büyük olan).
 - **Trendyol rakip fiyatları:** Trendyol analizi (`python -m urun_bulucu.trendyol`) önceki okumaya göre
   fiyatı %10'dan fazla düşen rakip ürünleri raporda ve Telegram'da ayrıca listeler.
-- **Hikâye ve carousel:** panelde "📸 Instagram'a planla" bölümünde "Aynı videoyu hikâye olarak da paylaş"
+- **Hikâye ve carousel:** panelde kartın "Instagram'da paylaş" bölümünde "Hikâye olarak da paylaş"
   kutusu (hikâye videosu en çok 60 sn) ve kendi fotoğraflarınla **carousel** (2-10 fotoğraf; tarayıcıda
   JPEG'e çevrilir, Instagram'ın 4:5–1.91:1 oran sınırına göre ortadan kırpılır) var.
 - **Özel günler:** takvime Kadınlar Günü, 23 Nisan ve Cumhuriyet Bayramı eklendi (3 hafta önceden +5).
