@@ -360,6 +360,18 @@ Arama `SERPER_KEY` ile yapılır (SerpApi kotası harcanmaz; yoksa SerpApi günl
 günde en çok `TR_KONTROL_GUNLUK` ürün; sonuç 30 gün geçerli ve e-ticaret kaydına yazılır.
 Kontrol edilemeyen ürün o gün listeye girmez; daha önce sattığın ürün kontrolsüz geçer.
 
+**Trendyol / Hepsiburada / Amazon TR site araması:** `SERPER_KEY` varsa e-ticaret araması ve (az ilan
+çıkarsa) Türkiye kontrolü, Google'ın dizinindeki bu üç sitenin ürün sayfalarına da bakar
+(`"<Türkçe ad> 3d baskı" site:trendyol.com OR site:hepsiburada.com OR site:amazon.com.tr`, ürün başına
+1 Serper kredisi; `config.PAZAR_SITE_ARAMA`). Siteler doğrudan taranmaz. Yalnızca 3D baskı ilanlar sayılır;
+fiyat, Google özetinde yazıyorsa alınır.
+
+**Scrapling:** Trendyol ürün sayfaları [Scrapling](https://github.com/D4Vinci/Scrapling)'in HTML
+ayrıştırıcısıyla okunur (JSON-LD, Open Graph yedeği, benzer ürün bağlantıları). `requirements.txt`
+GitHub deposunun v0.5.1 commit'ine sabittir. Yalnızca ayrıştırıcı kullanılır: istekler yine kendini
+tanıtan kimlikle `httpx` üzerinden gider, robots.txt kuralları ve "engel görülünce dur" kuralı geçerlidir;
+Scrapling'in gizli tarayıcı, bot korumasını aşma ve proxy özellikleri kullanılmaz.
+
 ### Maliyet tahmini
 
 `maliyet = gram × (1 + fire) × filament TL/kg ÷ 1000 + baskı saati × saat maliyeti`,
@@ -417,9 +429,10 @@ urun_bulucu/
   video.py                ← modele özel video planı
   sezon.py                ← sezon takvimi
   tasarimci.py            ← tasarımcı takibi
-  pazar.py                ← e-ticaret araştırması (SerpApi Google Lens)
+  pazar.py                ← e-ticaret araştırması (SerpApi Google Lens + Alışveriş, Serper site araması)
+  tr_kontrol.py           ← kategori dışı ürünler Türkiye'de satılıyor mu
   kesif.py                ← pazar keşfi: Türkiye'de çok satanlar → MakerWorld modeli (haftalık)
-  trendyol.py             ← Trendyol 3D mağaza analizi: en çok satanlar, aktif mağazalar (haftalık)
+  trendyol.py             ← Trendyol 3D mağaza analizi: en çok satanlar, aktif mağazalar (haftalık; Scrapling ayrıştırıcı)
   ozet.py                 ← özet (rapor)
   bildirim.py             ← Telegram
   instagram.py            ← Instagram açıklaması + zamanlanmış Reels paylaşımı

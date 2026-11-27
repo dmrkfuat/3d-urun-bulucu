@@ -140,6 +140,10 @@ KOTA_GUNLUK_ASGARI = 2        # keşiften sonra her gün için en az bu kadar ar
 KESIF_TAHMINI_ARAMA = 26      # bir keşfin yaklaşık arama sayısı (8 sorgu × 2 + 8 Lens + sezon)
 # SerpApi hakkı bitince Google Alışveriş aramaları Serper.dev ile yapılır (SERPER_KEY varsa; Lens yedeği yok).
 SERPER_API = "https://google.serper.dev"
+# Site bazlı arama (SERPER_KEY varsa): Google'ın dizinindeki Trendyol / Hepsiburada / Amazon TR ürün sayfaları
+# "<Türkçe ad> 3d baskı site:…" ile aranır (ürün başına 1 Serper kredisi). Siteler doğrudan taranmaz.
+PAZAR_SITE_ARAMA = True
+SITE_ARAMA_SITELERI = ["trendyol.com", "hepsiburada.com", "amazon.com.tr"]
 
 # --- Trendyol 3D mağaza analizi (trendyol.py): en çok satan 3D ürünler ve aktif 3D mağazaları ---
 # Yalnızca robots.txt'te AÇIK olan ürün sayfaları okunur (arama, mağaza ve sıralama sayfaları kapalı;

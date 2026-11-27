@@ -346,6 +346,50 @@ def serper_alisveris(api_key: str, params: dict, client: httpx.Client | None = N
     return {"shopping_results": sonuc}
 
 
+def site_ara(api_key: str, sorgu: str, client: httpx.Client | None = None) -> dict:
+    """Serper.dev normal Google araması, yalnızca config.SITE_ARAMA_SITELERI içinde (Trendyol, Hepsiburada,
+    Amazon TR). Siteler doğrudan taranmaz: Google'ın kendi dizinindeki ürün sayfaları okunur (1 kredi)."""
+    client = client or httpx.Client(timeout=90)
+    filtre = " OR ".join(f"site:{alan}" for alan in config.SITE_ARAMA_SITELERI)
+    yanit = client.post(f"{config.SERPER_API}/search", headers={"X-API-KEY": api_key},
+                        json={"q": f"{sorgu} {filtre}", "gl": "tr", "hl": "tr"})
+    try:
+        veri = yanit.json()
+    except ValueError as e:
+        raise PazarHatasi(f"Serper beklenmeyen yanıt verdi ({yanit.status_code}).") from e
+    if yanit.status_code != 200:
+        raise PazarHatasi(f"Serper: {veri.get('message') or yanit.status_code}")
+    return veri
+
+
+_SNIPPET_FIYAT = re.compile(r"(?:₺\s?(\d[\d.,]*)|(\d[\d.,]*)\s?(?:TL\b|₺))")
+
+
+def site_sonuclari(yanit: dict) -> list[dict]:
+    """Site aramasının organik sonuçları → satış sonucu (3D baskı ürünler; fiyat metinde yazıyorsa).
+    Google bazen bağlantıyı kendi yönlendirmesiyle verir; site, görünen adresten (displayedLink) okunur."""
+    sonuc = []
+    for x in yanit.get("organic") or []:
+        link = guvenli_link(x.get("link"))
+        gorunen = str(x.get("displayedLink") or "").split(" ")[0]
+        host = (urlparse(gorunen if "://" in gorunen else f"https://{gorunen}").hostname or "").lower()
+        if not host:
+            host = (urlparse(link or "").hostname or "").lower()
+        if not link or not any(_alan_eslesir(host, a) for a in config.SITE_ARAMA_SITELERI):
+            continue
+        site = site_bul(f"https://{host}/", None)
+        metin = f"{x.get('title') or ''} {x.get('snippet') or ''}"
+        if not site or not uc_d_mi(metin, None, link):
+            continue
+        m = _SNIPPET_FIYAT.search(x.get("snippet") or "")
+        fiyat = _fiyat_metinden(m.group(1) or m.group(2)) if m else None
+        if fiyat is not None and fiyat < config.PAZAR_EN_DUSUK_FIYAT_TL:
+            fiyat = None
+        sonuc.append({"site": site, "pazar_yeri": True, "title": temiz_baslik(x.get("title")), "link": link,
+                      "price": fiyat, "thumbnail": None, "kaynak": "site"})
+    return sonuc
+
+
 def _istek(api_key: str, params: dict, client: httpx.Client | None) -> dict:
     client = client or httpx.Client(timeout=90)
     yanit = client.get(API, params={**params, "api_key": api_key})
@@ -926,11 +970,16 @@ def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tu
     sosyal = sosyal_sonuclari(lens, anahtarlar)
     metin = alisveris_sonuclari(alisveris_ara(api_key, sorgu, client)) if sorgu else []
     satis = birlestir(gorsel, metin)
+    if config.PAZAR_SITE_ARAMA and YEDEK_KEY and sorgu:
+        try:
+            satis = birlestir(gorsel, metin, site_sonuclari(site_ara(YEDEK_KEY, sorgu, client)), en_fazla=20)
+        except (PazarHatasi, httpx.HTTPError) as e:
+            print(f"UYARI: Site araması (Trendyol/Hepsiburada/Amazon) atlandı: {e}")
     if config.PAZAR_YEDEK_ARAMA and len(satis) < config.PAZAR_YEDEK_ALT_SINIR:
         genis = genis_metin(sorgu)
         kalan = kalan_hak(api_key, client) if genis else None
         if genis and kalan is not None and kalan >= config.PAZAR_YEDEK_KOTA_ESIGI:
-            satis = birlestir(gorsel, metin, alisveris_sonuclari(alisveris_ara(api_key, genis, client)))
+            satis = birlestir(satis, alisveris_sonuclari(alisveris_ara(api_key, genis, client)), en_fazla=20)
             sorgu = f"{sorgu} · {genis}"
     return satis + sosyal, sorgu
 

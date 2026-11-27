@@ -2,4 +2,6 @@ httpx>=0.28,<1
 python-dotenv>=1.0,<2
 supabase>=2.20,<3
 anthropic>=1.17,<2
+# Scrapling (https://github.com/D4Vinci/Scrapling), v0.5.1 commit'ine sabit; yalnızca HTML ayrıştırıcı kullanılır
+scrapling @ git+https://github.com/D4Vinci/Scrapling@3a4bb5b0a008233c85269a0a38a6d08edd4ce329
 pytest>=8,<10

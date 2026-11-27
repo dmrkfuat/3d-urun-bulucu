@@ -4,7 +4,8 @@ Kategorilerimiz (config.KATEGORILER) Türkiye'de satıldığı bilinen ürün ti
 ürünler (MakerWorld'ün anahtar kelimesiz aramasından "Diğer · …" ve kategorimize uymayan trend modelleri;
 ürün sözlüğünde "genel" işaretli) ancak Türkiye'de 3D BASKI benzerleri satışta bulunursa listeye girer.
 
-Kontrol: Google Alışveriş (Türkiye, TL) "<Türkçe ad> <ürün tipi> 3d baskı" araması, ürün başına 1 arama.
+Kontrol: Google Alışveriş (Türkiye, TL) "<Türkçe ad> <ürün tipi> 3d baskı" araması, ürün başına 1 arama;
+az ilan çıkarsa Serper ile Trendyol / Hepsiburada / Amazon TR site araması da yapılır (pazar.site_ara).
 Sonuç pazar.alisveris_sonuclari ile süzülür (yalnızca 3D baskı, Türk pazar yerleri ve bağımsız 3D baskı
 mağazaları; dijital dosya ve yurt dışı pazar yerleri sayılmaz). En az TR_KONTROL_EN_AZ_ILAN satış ilanı
 (aynı ürün ya da aynı tipte benzer ürün) varsa "Türkiye'de satılıyor" sayılır.
@@ -67,7 +68,12 @@ def ara(urun: dict, serper_key: str = "", serpapi_key: str = "",
         yanit = pazar.serper_alisveris(serper_key, {"q": sorgu, "gl": "tr", "hl": "tr"}, client)
     else:
         yanit = pazar.alisveris_ara(serpapi_key, sorgu, client)
-    return pazar.alisveris_sonuclari(yanit), sorgu
+    sonuclar = pazar.alisveris_sonuclari(yanit)
+    # Alışveriş az ilan bulduysa Trendyol / Hepsiburada / Amazon TR ürün sayfalarında da bakılır (+1 kredi).
+    if serper_key and config.PAZAR_SITE_ARAMA and len(sonuclar) < config.TR_KONTROL_EN_AZ_ILAN:
+        sonuclar = pazar.birlestir(sonuclar, pazar.site_sonuclari(pazar.site_ara(serper_key, sorgu, client)),
+                                   en_fazla=20)
+    return sonuclar, sorgu
 
 
 def butce(ayarlar: config.Ayarlar, bugun: date, client: httpx.Client | None = None) -> tuple[int, str]:

@@ -31,6 +31,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 import httpx
+from scrapling.parser import Selector  # yalnızca HTML ayrıştırıcı (istekler httpx ile, kendi kimliğimizle)
 
 from . import bildirim, config, kesif, kota, pazar
 from .kaynaklar import makerworld as mw
@@ -111,8 +112,45 @@ def _metin(s: str) -> str:
         return s
 
 
-def _ld_urun(html: str) -> dict | None:
-    for blok in LD_JSON.findall(html):
+def sayfa_ac(html: str) -> Selector:
+    """Sayfa Scrapling ayrıştırıcısıyla bir kez ayrıştırılır (CSS seçiciler, lxml)."""
+    return Selector(html, url=KOK)
+
+
+def _ld_bloklari(sayfa: Selector, html: str) -> list[str]:
+    bloklar = [b for b in sayfa.css('script[type*="ld+json"]::text').getall() if b and b.strip()]
+    return bloklar or LD_JSON.findall(html)   # ayrıştırıcı bulamazsa eski yöntem
+
+
+def _meta(sayfa: Selector, ad: str) -> str | None:
+    deger = (sayfa.css(f'meta[property="{ad}"]::attr(content)').get()
+             or sayfa.css(f'meta[name="{ad}"]::attr(content)').get())
+    return str(deger).strip() or None if deger else None
+
+
+def _meta_urun(sayfa: Selector) -> dict | None:
+    """Yapılandırılmış veri (JSON-LD) yoksa Open Graph etiketlerinden asgari ürün bilgisi."""
+    ad = _meta(sayfa, "og:title") or (sayfa.css("h1::text").get() or "").strip() or None
+    if not ad:
+        return None
+    fiyat = _meta(sayfa, "product:price:amount")
+    return {"@type": "Product", "name": ad, "image": _meta(sayfa, "og:image"),
+            "offers": {"price": fiyat} if fiyat else {}}
+
+
+def _benzer_linkler(sayfa: Selector, html: str) -> list[str]:
+    """Sayfadaki ürün bağlantıları: <a href> (ayrıştırıcı) + sayfa durumundaki adresler (metin)."""
+    linkler = []
+    for href in sayfa.css('a[href*="-p-"]::attr(href)').getall():
+        m = BENZER.fullmatch(str(href).split("?")[0].split("#")[0])
+        if m:
+            linkler.append(m.group(1))
+    return list(dict.fromkeys(linkler + BENZER.findall(html)))
+
+
+def _ld_urun(html: str, sayfa: Selector | None = None) -> dict | None:
+    sayfa = sayfa if sayfa is not None else sayfa_ac(html)
+    for blok in _ld_bloklari(sayfa, html):
         try:
             veri = json.loads(blok)
         except ValueError:
@@ -133,7 +171,11 @@ def _sayi(x, tur=int):
 def urun_ayikla(html: str, yol: str) -> dict | None:
     """Ürün sayfası → ürün bilgisi (yapılandırılmış veri + sayfa durumu); ürün sayfası değilse None."""
     m = URUN_YOLU.match(yol)
-    ld = _ld_urun(html) if m else None
+    if not m:
+        return None
+    sayfa = sayfa_ac(html)
+    # Doğrulama (bot kontrolü) sayfası ürün sanılmasın: Open Graph yedeği yalnızca normal sayfada.
+    ld = _ld_urun(html, sayfa) or (None if DOGRULAMA.search(html[:20000]) else _meta_urun(sayfa))
     if not ld or not ld.get("name"):
         return None
     marka = ld.get("brand")
@@ -159,7 +201,7 @@ def urun_ayikla(html: str, yol: str) -> dict | None:
         "favori": int(favori.group(1)) if favori else 0,
         "stokta": "outofstock" not in str((teklif or {}).get("availability", "") if isinstance(teklif, dict) else "").lower(),
         "gorsel": pazar.guvenli_link(str(gorsel)) if gorsel else None,
-        "benzer": [b for b in dict.fromkeys(BENZER.findall(html)) if b != yol],
+        "benzer": [b for b in _benzer_linkler(sayfa, html) if b != yol],
     }
 
 
