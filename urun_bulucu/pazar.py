@@ -104,6 +104,7 @@ IFADELER = {
     "name tag": "isimlik", "name plate": "isimlik", "bottle opener": "açacak", "dice tower": "zar kulesi",
     "text embosser": "kabartma mühür", "paper embosser": "kabartma mühür",
     "wall art": "duvar dekoru", "night light": "gece lambası", "business card": "kartvizitlik",
+    "gingerbread house": "kurabiye ev", "gingerbread man": "kurabiye adam",
 }
 CEVIRI = {
     "magnetic": "manyetik", "swing": "salıncak", "diorama": "diorama", "gnome": "cüce", "gnomo": "cüce",
@@ -143,6 +144,7 @@ CEVIRI = {
     "chaveiro": "anahtarlık", "portachiavi": "anahtarlık", "papai": "noel baba",
     "reindeer": "geyik", "deer": "geyik", "snowflake": "kar tanesi", "angel": "melek", "elf": "elf",
     "cake": "kek", "chain": "zincir", "locket": "madalyon", "pendant": "kolye ucu", "knit": "örgü",
+    "gingerbread": "zencefilli kurabiye", "jesus": "isa",
 }
 GURULTU = {
     "print", "printed", "printing", "in", "place", "pip", "no", "ams", "tpu", "the", "a", "an", "for", "with",
@@ -438,6 +440,31 @@ DIJITAL = re.compile(r"bask[ıi]\s?modeli|\bstl\b|\b3mf\b|dosyas[ıi]|dijital|di
 PARCA = re.compile(r"(?:bask[ıi]|yaz[ıi]c[ıi]|projeler[iı]?|printer|printing)\s+[iİı][çc]in\b|\bfor\s+3d\s+print"
                    r"|yedek\s+par[çc]a|\bnozzle\b|\bekstr[üu]der\b|\bhotend\b", re.I)
 
+# 3D yazıcının KENDİSİ ve sarf malzemesi (reçine, filament makarası): basılmış ürün değildir. Arama metni
+# zayıf kaldığında ("örgü 3d baskı") Google bunları döndürür ("Bambu Lab A1 3D Yazıcı", "Anycubic 3D
+# Yazıcı Reçine"). "3D Yazıcı Baskı Geyik Figürü", "3D Yazıcı Üretimi ..." ise basılmış üründür.
+MAKINE = re.compile(
+    r"bambu\s?lab|creality|anycubic|elegoo|\bzaxe\b|snapmaker|formlabs|\bprusa\b|flashforge|heygears|miicraft"
+    r"|\buniz\b|kingroon|\bsovol\b|\bqidi\b|phrozen|voxelab|raise3d|ultimaker|\bender[\s-]?\d"
+    r"|filament\w*\s[^|]*?(?:\b\d+(?:[.,]\d+)?\s?kg\b|\b1[.,]75\s?mm\b)"
+    r"|(?:\b\d+(?:[.,]\d+)?\s?kg\b|\b1[.,]75\s?mm\b)[^|]*?filament",
+    re.I,
+)
+YAZICI = re.compile(r"(?:3\s?d|3\s?boyutlu|üç\s?boyutlu)\s?yaz[ıi]c[ıi]", re.I)
+# Başlığın basılmış bir ürünü anlattığını gösteren ifadeler ("3D Baskı", "3D Yazıcı Baskı/Üretimi",
+# "3D yazıcıyla üretilmiş", "3 Boyutlu Yazıcı ile Basılmış").
+BASILMIS = re.compile(
+    r"(?:3\s?d|boyutlu)\s?bask|3\s?d[\s-]?print|yaz[ıi]c[ıi](?:s[ıi])?\s*(?:bask|[üu]retim|[çc][ıi]kt|ile\b|mamul|i[şs]i\b)"
+    r"|yaz[ıi]c[ıi](?:dan|yla|da)\b", re.I)
+
+
+def makine_mi(baslik: str | None) -> bool:
+    """İlan bir 3D yazıcı ya da sarf malzemesi mi (basılmış ürün değil)? Yazıcı markası/filament makarası
+    geçiyorsa ya da "3D yazıcı" deyip basılmış ürün olduğunu söylemiyorsa evet. (Pazar yerleri uzun başlığı
+    kestiği için "… 3D Yazıcı" ile biten ama başında "3D Yazıcı Baskı" yazan başlık üründür.)"""
+    baslik = baslik or ""
+    return bool(MAKINE.search(baslik) or (YAZICI.search(baslik) and not BASILMIS.search(baslik)))
+
 
 # Dijital model dosyası satan/paylaşan siteler: fiziksel ürün satmazlar, karşılaştırmaya girmez.
 DIJITAL_SITELER = ("cults3d", "thingiverse", "printables", "makerworld", "cgtrader", "myminifactory",
@@ -463,7 +490,7 @@ def yabanci_pazar_mi(link: str | None, satici: str | None = None) -> bool:
 
 def uc_d_mi(baslik: str | None, satici: str | None = None, link: str | None = None) -> bool:
     baslik = baslik or ""
-    if DIJITAL.search(baslik) or PARCA.search(baslik) or dijital_site_mi(link, satici):
+    if DIJITAL.search(baslik) or PARCA.search(baslik) or makine_mi(baslik) or dijital_site_mi(link, satici):
         return False
     return bool(UC_D.search(baslik) or (satici and UC_D_SATICI.search(satici)))
 
@@ -683,10 +710,41 @@ def gorselle_kontrol(sonuclar: list[dict], urun: dict, dogrulayici) -> tuple[lis
     return yeni, True
 
 
-def isaretle(sonuclar: list[dict], ad: str | None) -> list[dict]:
-    """Satış sonuçlarına 'birebir' (aynı ürün mü) işareti koyar; sosyal medya sonuçlarına dokunmaz."""
+def ilanla_ilgili(baslik: str | None, ad: str | None, sorgu: str | None) -> bool:
+    """Satış ilanı ürünle ilgili mi (aynı ürün ya da aynı tipte benzer ürün): 3D yazıcı, sarf malzemesi,
+    parça ya da dosya değil ve başlığında model adının ya da Türkçe arama metninin bir kelimesi (Türkçe
+    eklerle: "geyik" → "geyiği") geçiyor. Arama metni zayıf kaldığında gelen alakasız ilanlar ("örgü 3d
+    baskı" → 3D yazıcılar) benzer ürün sayılmasın ve Türkiye kontrolünü geçirmesin diye."""
+    baslik = baslik or ""
+    if DIJITAL.search(baslik) or PARCA.search(baslik) or makine_mi(baslik):
+        return False
+    bicimler = {_norm(k) for k in anahtar_kelimeler(ad, (sorgu or "").replace("·", " "))} - {"3d", "baski"}
+    # Model adının bugünkü sözlükle Türkçe karşılıkları da sayılır (kayıtlı arama metni eski olabilir).
+    bicimler |= {k for kavram in kavramlar(ad) for bicim in kavram for k in bicim.split()}
+    if not bicimler:
+        return True   # ne arandığı bilinmiyor: karar verilemez, ilan tutulur
+    kelimeler = re.findall(r"[a-z0-9]+", _norm(baslik))
+    return any(_kelime_uyar(b, k) for b in bicimler for k in kelimeler)
+
+
+def isaretle(sonuclar: list[dict], ad: str | None, sorgu: str | None = None) -> list[dict]:
+    """Satış sonuçlarına 'birebir' (aynı ürün mü) ve 'ilgili' (aynı ürün ya da aynı tipte benzer ürün mü,
+    bkz. ilanla_ilgili) işaretlerini koyar; sosyal medya sonuçlarına dokunmaz. `sorgu` verilmezse
+    sonuçta kayıtlı arama metni kullanılır."""
     kav = kavramlar(ad)
-    return [r if r.get("kaynak") == "sosyal" else {**r, "birebir": ayni_urun_mu(r, kav)} for r in sonuclar]
+    yeni = []
+    for r in sonuclar:
+        if r.get("kaynak") != "sosyal":
+            birebir = ayni_urun_mu(r, kav)
+            r = {**r, "birebir": birebir,
+                 "ilgili": birebir or ilanla_ilgili(r.get("title"), ad, sorgu if sorgu is not None else r.get("sorgu"))}
+        yeni.append(r)
+    return yeni
+
+
+def ilgili_sayisi(sonuclar: list[dict], ad: str | None, sorgu: str | None) -> int:
+    """Ürünle ilgili satış ilanı sayısı (sosyal medya hariç)."""
+    return sum(1 for r in isaretle(sonuclar, ad, sorgu) if r.get("kaynak") != "sosyal" and r.get("ilgili"))
 
 
 # ---------------------------------------------------------------- ayıklama
@@ -866,14 +924,16 @@ def ayni_urunler(o: dict | None) -> list[dict]:
 
 
 def benzer_urunler(o: dict | None) -> list[dict]:
-    """Aynı kategoride ama aynı ürün sayılmayan satış sonuçları (fiyata katılmaz)."""
-    return [r for r in (o or {}).get("results") or [] if r.get("kaynak") != "sosyal" and not r.get("birebir")]
+    """Aynı kategoride ama aynı ürün sayılmayan satış sonuçları (fiyata katılmaz). Ürünle ilgisiz
+    çıkan ilanlar (ilgili=False: 3D yazıcı, alakasız ürün) sayılmaz."""
+    return [r for r in (o or {}).get("results") or []
+            if r.get("kaynak") != "sosyal" and not r.get("birebir") and r.get("ilgili") is not False]
 
 
 def ozetle(product_id: int, sonuclar: list[dict], sorgu: str | None = None, ad: str | None = None) -> dict:
     """`ad` (MakerWorld model adı) verilirse sonuçlar aynı ürün kurallarıyla işaretlenir."""
     if ad is not None:
-        sonuclar = isaretle(sonuclar, ad)
+        sonuclar = isaretle(sonuclar, ad, sorgu)
     fiyatlar = _fiyat_kumesi(sonuclar)
     return {
         "product_id": product_id,
@@ -975,7 +1035,7 @@ def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tu
             satis = birlestir(gorsel, metin, site_sonuclari(site_ara(YEDEK_KEY, sorgu, client)), en_fazla=20)
         except (PazarHatasi, httpx.HTTPError) as e:
             print(f"UYARI: Site araması (Trendyol/Hepsiburada/Amazon) atlandı: {e}")
-    if config.PAZAR_YEDEK_ARAMA and len(satis) < config.PAZAR_YEDEK_ALT_SINIR:
+    if config.PAZAR_YEDEK_ARAMA and ilgili_sayisi(satis, ad, sorgu) < config.PAZAR_YEDEK_ALT_SINIR:
         genis = genis_metin(sorgu)
         kalan = kalan_hak(api_key, client) if genis else None
         if genis and kalan is not None and kalan >= config.PAZAR_YEDEK_KOTA_ESIGI:

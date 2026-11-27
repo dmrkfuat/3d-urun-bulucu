@@ -134,3 +134,30 @@ def test_calistir_anahtarsiz_kimse_gecmez():
     ayarlar = config.Ayarlar(supabase_url="", supabase_key="", veritabani_yolu=None)
     assert tr_kontrol.calistir(_Depo(), [g], {}, ayarlar, BUGUN) == {}
     assert g["tr_satista"] is None
+
+
+def test_yazici_ve_ilgisiz_ilanlar_turkiye_kontrolunu_gecirmez():
+    """2026-11-27: "Gnomo Nordico…" 2 cüce ilanı + 9 yazıcı/reçine ilanıyla "11 ilan" sayılmıştı;
+    "Knitted Jesus" gibi yalnızca yazıcı ilanı dönen ürün ise kontrolü geçmemeli."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search"):                      # site araması: sonuç yok
+            return httpx.Response(200, json={"organic": []})
+        return httpx.Response(200, json={"shopping": [
+            {"title": "Bambu Lab A1 3D Yazıcı", "source": "Robolink Market", "link": "https://robolinkmarket.com/a",
+             "price": "17.011,50 TL"},
+            {"title": "Anycubic 3D Yazıcı Reçine", "source": "Hepsiburada", "link": "https://www.hepsiburada.com/r",
+             "price": "1.125 TL"},
+            {"title": "Kartal Dekoratif Duvar Süsü 3D Baskı", "source": "Trendyol", "link": "https://www.trendyol.com/k-p-2",
+             "price": "80 TL"},
+        ]})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    g = urun(7, "Knitted Jesus", 10, 100, kategori="Diğer · Sanat", genel=True)
+    ayarlar = config.Ayarlar(supabase_url="", supabase_key="", veritabani_yolu=None, serper_key="x")
+    kayitlar = {}
+    tr_kontrol.calistir(_Depo(), [g], kayitlar, ayarlar, BUGUN, client=client)
+    assert tr_kontrol.ilan_sayisi(kayitlar[7]) == 0
+    assert g["tr_satista"] is False and "(0 ilan)" in g["tr_kontrol"]
+    # ilgisiz işaretli sonuçlar sayılmaz; işareti olmayan eski kayıt eskisi gibi sayılır
+    assert tr_kontrol.ilan_sayisi({"results": [{"kaynak": "metin", "ilgili": False}, {"kaynak": "metin", "ilgili": True},
+                                               {"kaynak": "metin"}, {"kaynak": "sosyal"}]}) == 2

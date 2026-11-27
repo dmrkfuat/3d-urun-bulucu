@@ -32,8 +32,10 @@ def gerekli_mi(u: dict) -> bool:
 
 
 def ilan_sayisi(o: dict | None) -> int:
-    """Kayıttaki Türkiye satış ilanları (sosyal medya hariç; aynı ürün ve aynı tipte benzer ürünler)."""
-    return sum(1 for r in (o or {}).get("results") or [] if r.get("kaynak") != "sosyal")
+    """Kayıttaki Türkiye satış ilanları (sosyal medya hariç; aynı ürün ve aynı tipte benzer ürünler).
+    Ürünle ilgisiz çıkan ilanlar (pazar.isaretle → ilgili=False: 3D yazıcı, alakasız ürün) sayılmaz."""
+    return sum(1 for r in (o or {}).get("results") or []
+               if r.get("kaynak") != "sosyal" and r.get("ilgili") is not False)
 
 
 def taze_mi(o: dict | None, simdi: datetime | None = None) -> bool:
@@ -70,7 +72,8 @@ def ara(urun: dict, serper_key: str = "", serpapi_key: str = "",
         yanit = pazar.alisveris_ara(serpapi_key, sorgu, client)
     sonuclar = pazar.alisveris_sonuclari(yanit)
     # Alışveriş az ilan bulduysa Trendyol / Hepsiburada / Amazon TR ürün sayfalarında da bakılır (+1 kredi).
-    if serper_key and config.PAZAR_SITE_ARAMA and len(sonuclar) < config.TR_KONTROL_EN_AZ_ILAN:
+    if (serper_key and config.PAZAR_SITE_ARAMA
+            and pazar.ilgili_sayisi(sonuclar, urun.get("name"), sorgu) < config.TR_KONTROL_EN_AZ_ILAN):
         sonuclar = pazar.birlestir(sonuclar, pazar.site_sonuclari(pazar.site_ara(serper_key, sorgu, client)),
                                    en_fazla=20)
     return sonuclar, sorgu

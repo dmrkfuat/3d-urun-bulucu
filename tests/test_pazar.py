@@ -481,3 +481,48 @@ def test_az_sonucta_genis_arama_kota_varsa():
     pazar.urun_ara("K", u, _yedek_istemci(10, istekler))            # kota azsa ek arama yok
     assert [i for i in istekler if i != "hesap"] == [("google_lens", "fidget yüzük 3d baskı"),
                                                      ("google_shopping", "fidget yüzük 3d baskı")]
+
+
+def test_yazici_ve_sarf_malzemesi_urun_sayilmaz():
+    """2026-11-27 kayıtları: zayıf arama metni ("örgü 3d baskı", "cüce 3d baskı") 3D yazıcı ve reçine
+    ilanları döndürdü; bunlar "3D Yazıcı" yazdığı için 3D baskı ürün sayılıyordu."""
+    for baslik in ("ZAXE X4 3D Yazıcı", "Bambu Lab A1 Combo 3d Yazıcı Materyal Ve Gelişmiş Özellikler",
+                   "Anycubic Tough 3D Yazıcı Reçine", "Dental 4K LCD 3D Yazıcı RF-3024D Platform B",
+                   "3D Yazıcı: Bir Sonraki Seviye", "eSun PLA+ Filament 1.75 mm 1 kg Siyah"):
+        assert pazar.makine_mi(baslik) and not pazar.uc_d_mi(baslik), baslik
+    for baslik in ("3D Yazıcı Baskı Dekoratif Geyik Figürü", "Yılbaşı Temalı 3D Yazıcı Üretimi Basmalı Noel Baba",
+                   "3 Boyutlu Yazıcı ile Basılmış Vazo", "PLA filament ile üretilmiş vazo 3D baskı",
+                   # pazar yerinin kestiği uzun başlık "… 3D Yazıcı" ile bitse de basılmış üründür
+                   "Geometrik Geyik Figür Seti – 20 cm 3D Yazıcı Baskı PLA Malzeme - Geometrik Geyik Seti 3D Yazıcı "):
+        assert not pazar.makine_mi(baslik) and pazar.uc_d_mi(baslik), baslik
+
+
+def test_ilgisiz_ilan_benzer_urun_sayilmaz():
+    ad, sorgu = "Knitted Reindeer", "örgü geyik 3d baskı"
+    assert pazar.ilanla_ilgili("Minimalist 3D Baskı Geyik Figürü", ad, sorgu)
+    assert pazar.ilanla_ilgili("Alternatif Yılbaşı Geyiği Süsü 3D Baskı", ad, sorgu)       # Türkçe ek: geyik → geyiği
+    assert pazar.ilanla_ilgili("3D Printed Knitted Reindeer Ornament", ad, sorgu)          # model adındaki kelime
+    assert not pazar.ilanla_ilgili("Creeper Figürü", ad, sorgu)
+    assert not pazar.ilanla_ilgili("Bambu Lab A1 3D Yazıcı", ad, sorgu)
+    assert not pazar.ilanla_ilgili("Clicker Blue Switch 3D Baskı İçin 10 adet", "Clicky Clicker", "clicker 3d baskı")
+    assert pazar.ilanla_ilgili("Herhangi bir ilan 3D Baskı", None, None)                   # ne arandığı bilinmiyor
+    # Kayıtlı arama metni eski olsa da model adının bugünkü Türkçe karşılığı sayılır.
+    assert pazar.ilanla_ilgili("3D Baskı Kurabiye Adam Yılbaşı Maketi", "Gingerbread House Kit Card", "ev süs 3d baskı")
+
+    sonuclar = [
+        {"site": "Pixu3D", "title": "Geyik Duvar Dekorasyonu 3D Baskı", "price": 319.0, "kaynak": "metin"},
+        {"site": "Filamentsan", "title": "Anycubic 3D Yazıcı Reçine", "price": 719.0, "kaynak": "metin"},
+        {"site": "3DŞehri", "title": "Creeper Figürü", "price": 130.0, "kaynak": "metin"},
+        {"site": "Trendyol", "title": "Örgü Geyik Süsü 3D Baskı", "price": 250.0, "kaynak": "metin"},
+        {"site": "Instagram", "title": "geyik", "kaynak": "sosyal"},
+    ]
+    o = pazar.ozetle(1, sonuclar, sorgu, ad)
+    assert [r.get("ilgili") for r in o["results"]] == [True, False, False, True, None]
+    assert o["found_count"] == 1 and [r["title"] for r in pazar.ayni_urunler(o)] == ["Örgü Geyik Süsü 3D Baskı"]
+    assert [r["title"] for r in pazar.benzer_urunler(o)] == ["Geyik Duvar Dekorasyonu 3D Baskı"]
+    assert "aynı kategoride 1 farklı ürün" in pazar.fiyat_yazi(o)
+    assert pazar.ilgili_sayisi(sonuclar, ad, sorgu) == 2
+    # Eski kayıt (ilgili işareti yok) yeniden işaretlenince aynı sonuca varır; işaretsiz kayıt eskisi gibi sayılır.
+    eski = {**o, "results": [{k: v for k, v in r.items() if k != "ilgili"} for r in o["results"]]}
+    assert len(pazar.benzer_urunler(eski)) == 3
+    assert len(pazar.benzer_urunler(pazar.yeniden_ozetle(eski, ad))) == 1

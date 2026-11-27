@@ -79,7 +79,8 @@
   // Satış sonuçları: "birebir" işaretli olanlar MakerWorld modeliyle AYNI ürün (sunucudaki
   // pazar.ayni_urun_mu kuralı); diğerleri aynı kategoride farklı ürünlerdir, fiyata katılmaz.
   const ayniUrunler = (o) => ((o && o.results) || []).filter((r) => r.kaynak !== "sosyal" && r.birebir);
-  const benzerUrunler = (o) => ((o && o.results) || []).filter((r) => r.kaynak !== "sosyal" && !r.birebir);
+  // "ilgili: false" (sunucudaki pazar.ilanla_ilgili): 3D yazıcı ya da alakasız ilan; benzer ürün sayılmaz.
+  const benzerUrunler = (o) => ((o && o.results) || []).filter((r) => r.kaynak !== "sosyal" && !r.birebir && r.ilgili !== false);
   const pazarYazi = (o, onerilen) => {
     if (!o) return "";
     const ayni = ayniUrunler(o), benzer = benzerUrunler(o).length;
