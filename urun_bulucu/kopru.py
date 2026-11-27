@@ -68,6 +68,16 @@ class KopruAyar:
     parmak_izi: str = ""   # yazıcı sertifikasının SHA-256 izi (boşsa denetlenmez; --dene gösterir)
 
 
+def seri_sorunu(seri: str) -> str | None:
+    """Sık yapılan hata: seri yerine MAC adresi. Yanlış seriyle yazıcı MQTT bağlantısını hemen kapatır."""
+    if re.fullmatch(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", seri or ""):
+        return ("YAZICI_SERI bir MAC adresi (AA:BB:CC:…); yazıcının SERİ NUMARASINI yaz: P1S'te 01P ile başlar, "
+                "15 karakterdir (yazıcı ekranı: Ayarlar → Cihaz; Bambu Studio: Cihaz sekmesi; ya da arkadaki etiket)")
+    if not re.fullmatch(r"[0-9A-Z]{8,20}", seri or ""):
+        return "YAZICI_SERI yalnızca büyük harf ve rakamdan oluşmalı (P1S: 01P ile başlar, 15 karakter)"
+    return None
+
+
 def kopru_ayarlari() -> KopruAyar | None:
     ip, kod, seri = (os.getenv(k, "").strip() for k in ("YAZICI_IP", "YAZICI_ERISIM_KODU", "YAZICI_SERI"))
     if not (ip and kod and seri):
@@ -184,6 +194,10 @@ class MqttIstemci:
         # yükselir; paho bunu bağlantı hatası sayar, erişim kodunu göndermeden bekleyip yeniden dener.
         self.istemci.on_socket_open = self._soket_denetim
         self.istemci.on_connect = self._baglandi
+        self.istemci.on_disconnect = self._koptu
+        self.istemci.on_subscribe = self._abone_olundu
+        self.son_kopma: str | None = None
+        self.kopma_sayisi = 0
         self.istemci.on_message = self._mesaj
         self.bagli = False
         self.son_pushall = 0.0
@@ -207,6 +221,16 @@ class MqttIstemci:
         log.info("MQTT bağlandı")
         istemci.subscribe(f"device/{self.ayar.seri}/report")
         self.pushall()
+
+    def _koptu(self, _istemci, _v, _bayrak, kod, _p=None):
+        self.bagli = False
+        self.kopma_sayisi += 1
+        self.son_kopma = str(kod)
+        log.warning("MQTT bağlantısı koptu: %s", kod)
+
+    def _abone_olundu(self, _istemci, _v, _mid, kodlar, _p=None):
+        if any(getattr(k, "is_failure", False) for k in kodlar or []):
+            log.error("MQTT aboneliği reddedildi (%s): YAZICI_SERI yazıcının seri numarası mı?", ", ".join(map(str, kodlar)))
 
     def _mesaj(self, _istemci, _v, mesaj):
         try:
@@ -319,11 +343,16 @@ def ftps_ac(ayar: KopruAyar) -> ftplib.FTP_TLS:
     return ftp
 
 
+def yazici_saati(damga: str) -> str:
+    """Yazıcının dosya saati (YYYYMMDDHHMMSS) yazıcının yerel saatiyle gelir (dosya adındaki saatle aynı);
+    köprü aynı evde çalıştığı için bilgisayarın saat dilimiyle yorumlanıp UTC'ye çevrilir."""
+    return datetime.strptime(damga, "%Y%m%d%H%M%S").astimezone(timezone.utc).isoformat()
+
+
 def _mdtm(ftp, yol: str) -> str | None:
     try:
         yanit = ftp.sendcmd(f"MDTM {yol}")            # "213 20261126174512"
-        d = datetime.strptime(yanit.split()[-1][:14], "%Y%m%d%H%M%S")
-        return d.replace(tzinfo=timezone.utc).isoformat()
+        return yazici_saati(yanit.split()[-1][:14])
     except (ftplib.Error, ValueError, IndexError):
         return None
 
@@ -337,7 +366,7 @@ def sd_listele(ftp) -> list[dict]:
                 tarih = None
                 if bilgi.get("modify"):
                     try:
-                        tarih = datetime.strptime(bilgi["modify"][:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).isoformat()
+                        tarih = yazici_saati(bilgi["modify"][:14])
                     except ValueError:
                         pass
                 dosyalar.append({"ad": ad, "boyut": int(bilgi.get("size") or 0), "tarih": tarih})
@@ -625,6 +654,8 @@ def dene(ayar: KopruAyar) -> int:
     """Bağlantıları bir kez dener (kurulumda): MQTT, kamera, SD kart, ffmpeg, Supabase. Erişim kodunu yazdırmaz."""
     sonuc = 0
     print(f"Yazıcı: {ayar.ad} ({ayar.model}) @ {ayar.ip}")
+    if sorun := seri_sorunu(ayar.seri):
+        print(f"UYARI: {sorun}")
     try:
         from dataclasses import replace
         with tls_ac(ayar, MQTT_PORT, zaman_asimi=10, dogrula=False) as sok:   # yalnızca iz okunur
@@ -652,7 +683,13 @@ def dene(ayar: KopruAyar) -> int:
             time.sleep(0.5)
         m.durdur()
         oz = ozet(birlestir({}, *gelen[:1])) if gelen else {}
-        print(f"MQTT: {'OK, durum ' + str(oz.get('durum')) + ' %' + str(oz.get('yuzde')) if gelen else 'rapor gelmedi (erişim kodu / seri / LAN modu?)'}")
+        if gelen:
+            print(f"MQTT: OK, durum {oz.get('durum')} %{oz.get('yuzde')}")
+        elif m.kopma_sayisi >= 2:
+            print("MQTT: bağlantı kuruluyor ama yazıcı hemen kapatıyor → genellikle YAZICI_SERI yanlış "
+                  "(seri numarası 01P… olmalı, MAC adresi değil)")
+        else:
+            print("MQTT: rapor gelmedi (erişim kodu / seri / LAN modu?)")
         sonuc |= 0 if gelen else 1
     except ImportError:
         print("MQTT: paho-mqtt kurulu değil → pip install -r requirements-kopru.txt")
@@ -693,6 +730,8 @@ def main(argv: list[str] | None = None) -> int:
         logging.basicConfig(level=logging.INFO, format=bicim, handlers=[isleyici])
     else:
         logging.basicConfig(level=logging.INFO, format=bicim)
+    for gurultulu in ("httpx", "httpcore", "hpack"):   # her 3 sn'deki Supabase isteklerini günlüğe yazma
+        logging.getLogger(gurultulu).setLevel(logging.WARNING)
     ayar = kopru_ayarlari()
     if not ayar:
         print("Yazıcı ayarları eksik. .env dosyasına YAZICI_IP, YAZICI_ERISIM_KODU ve YAZICI_SERI ekle "
@@ -708,6 +747,8 @@ def main(argv: list[str] | None = None) -> int:
     if not ayarlar.supabase_var:
         print("SUPABASE_URL ve SUPABASE_KEY (gizli anahtar) .env dosyasında olmalı.")
         return 2
+    if sorun := seri_sorunu(ayar.seri):
+        log.error("%s. Kamera ve SD kart çalışır ama canlı durum gelmez.", sorun)
     kopru = Kopru(ayar, SupabaseKopruDepo(ayarlar.supabase_url, ayarlar.supabase_key), video_duzenle.ffmpeg_yolu(),
                   bildir=telegram_bildirici(ayarlar))
     mqtt_istemci = MqttIstemci(ayar, kopru.rapor_al)

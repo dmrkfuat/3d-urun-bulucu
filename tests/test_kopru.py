@@ -1,6 +1,7 @@
 """Yazıcı köprüsü: rapor birleştirme, özet, kamera paketi, SD kart, istek işleme ve baskı bitişi."""
 import ftplib
 import io
+from datetime import datetime, timezone
 import os
 import shutil
 import ssl
@@ -163,7 +164,10 @@ DOSYALAR = [("video_eski.avi", 1000, "20261125100000"), ("video_yeni.avi", 2000,
 def test_sd_listele_mlsd_ve_yedek(mlsd_var):
     liste = kopru.sd_listele(SahteFTP(DOSYALAR, mlsd_var))
     assert [d["ad"] for d in liste] == ["video_yeni.avi", "video_eski.avi"]
-    assert liste[0]["boyut"] == 2000 and liste[0]["tarih"].startswith("2026-11-26T17:00:00")
+    assert liste[0]["boyut"] == 2000
+    # Yazıcı saati yerel saattir; bilgisayarın saat dilimiyle UTC'ye çevrilir
+    beklenen = datetime(2026, 11, 26, 17, 0, 0).astimezone(timezone.utc).isoformat()
+    assert liste[0]["tarih"] == beklenen
 
 
 class SahteDepo:
@@ -279,7 +283,9 @@ def test_baski_bitince_timelapse_eklenir_ve_bildirilir(monkeypatch):
     _sahte_ffmpeg(monkeypatch)
     saat, mesajlar = Saat(), []
     ftp = SahteFTP(DOSYALAR)
-    aktif = {"id": 41, "urun_adi": "Skull Planter", "medya": [], "baski_baslangic": "2026-11-26T15:00:00+00:00"}
+    # Baskı yerel saatle 16:00'da başladı: 17:00'deki dosya dahil, önceki günün dosyası hariç
+    baslangic = datetime(2026, 11, 26, 16, 0).astimezone(timezone.utc).isoformat()
+    aktif = {"id": 41, "urun_adi": "Skull Planter", "medya": [], "baski_baslangic": baslangic}
     depo = SahteDepo(aktif=aktif)
     k = kopru.Kopru(AYAR, depo, "ffmpeg", ftp_ac=lambda: ftp, saat=saat, bildir=mesajlar.append)
     k.rapor_al({"print": {"gcode_state": "RUNNING", "subtask_name": "Skull"}})
@@ -309,6 +315,14 @@ def test_basarisiz_baski_bildirimi():
     saat.t += kopru.TIMELAPSE_BEKLEME + 1
     k.adim()
     assert "başarısız" in mesajlar[0] and "&lt;Vazo&gt;" in mesajlar[0]
+
+
+def test_seri_sorunu_mac_ve_bicim():
+    assert "MAC" in kopru.seri_sorunu("AA:BB:CC:11:22:33")
+    assert "MAC" in kopru.seri_sorunu("aa-bb-cc-11-22-33")
+    assert kopru.seri_sorunu("01p00a123456789") is not None     # küçük harf
+    assert kopru.seri_sorunu("01P 00A1") is not None
+    assert kopru.seri_sorunu("01P00A123456789") is None
 
 
 def test_ayarlar_eksikse_none(monkeypatch):
