@@ -143,6 +143,9 @@ SERPER_API = "https://google.serper.dev"
 # Site bazlı arama (SERPER_KEY varsa): Google'ın dizinindeki Trendyol / Hepsiburada / Amazon TR ürün sayfaları
 # "<Türkçe ad> 3d baskı site:…" ile aranır (ürün başına 1 Serper kredisi). Siteler doğrudan taranmaz.
 PAZAR_SITE_ARAMA = True
+# SerpApi'nin o günkü bütçesi 0 ise (hak bitti) e-ticaret araması Serper ile, görselle arama (Lens) olmadan
+# sürer: günde bu kadar ürün, ürün başına 2 kredi (Alışveriş + site araması).
+PAZAR_SERPER_GUNLUK_ADET = 3
 SITE_ARAMA_SITELERI = ["trendyol.com", "hepsiburada.com", "amazon.com.tr"]
 
 # --- Trendyol 3D mağaza analizi (trendyol.py): en çok satan 3D ürünler ve aktif 3D mağazaları ---

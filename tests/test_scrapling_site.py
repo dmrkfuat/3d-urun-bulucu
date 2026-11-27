@@ -79,3 +79,34 @@ def test_tr_kontrol_az_ilan_cikinca_site_aramasi():
     client = httpx.Client(transport=httpx.MockTransport(handler))
     sonuc, sorgu = tr_kontrol.ara(urun(1, "Flexi Spider", 1, 1, tags=["spider"]), serper_key="x", client=client)
     assert istekler == ["/shopping", "/search"] and len(sonuc) == 3 and sorgu
+
+
+def test_serpapi_hakki_yokken_serper_ile_arar():
+    istekler = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "google.serper.dev"   # SerpApi'ye (Lens) hiç gidilmez
+        istekler.append(request.url.path)
+        if request.url.path == "/shopping":
+            return httpx.Response(200, json={"shopping": [
+                {"title": "Örümcek Fidget 3D Baskı", "source": "n11", "link": "https://www.n11.com/urun/x",
+                 "price": "175 TL"}]})
+        return httpx.Response(200, json=ORGANIK)
+
+    class Depo:
+        kaydedilen = []
+
+        def pazar_kontrol_tarihleri(self, ids):
+            return {}
+
+        def pazar_kaydet(self, satirlar):
+            self.kaydedilen.extend(satirlar)
+
+    u = urun(5, "Flexi Spider", 1, 1, tags=["spider"], image_url="https://x/k.jpg")
+    secim = {"rank": 1, "product_id": 5, "urun": u}
+    depo = Depo()
+    sonuc = pazar.calistir(depo, [secim], "", client=httpx.Client(transport=httpx.MockTransport(handler)),
+                           adet=3, serper_key="x")
+    assert istekler == ["/shopping", "/search"]
+    siteler = {r["site"] for r in sonuc[5]["results"]}
+    assert siteler == {"n11", "Trendyol", "Hepsiburada", "Amazon TR"} and depo.kaydedilen[0]["product_id"] == 5

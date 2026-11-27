@@ -112,15 +112,26 @@ def calistir(bugun: date | None = None) -> int:
               + (f"; yeni takip: {', '.join(yeni_takip)}" if yeni_takip else ""))
     except Exception as e:  # noqa: BLE001 — isteğe bağlı özellik
         print(f"UYARI: Tasarımcı takibi atlandı: {e}")
-    if ayarlar.serpapi_key:
+    if ayarlar.serpapi_key or ayarlar.serper_key:
         try:
             # Aylık bütçe: kalan hak, yenilemeye kalan günlere bölünür (ay ortasında bitmesin).
             pazar.yedek_ayarla(ayarlar.serper_key)
-            kalan = pazar.kalan_hak(ayarlar.serpapi_key)
-            adet = kota.gunluk_urun(kalan, bugun)
-            print(kota.yazi(kalan, bugun))
-            aranan = pazar.calistir(depo, secimler, ayarlar.serpapi_key, dogrulayici=dogrulayici, adet=adet)
-            print(f"E-ticaret araması: {len(aranan)} ürün arandı (bütçe {adet}).")
+            adet = 0
+            if ayarlar.serpapi_key:
+                kalan = pazar.kalan_hak(ayarlar.serpapi_key)
+                adet = kota.gunluk_urun(kalan, bugun)
+                print(kota.yazi(kalan, bugun))
+            if adet:
+                aranan, servis = pazar.calistir(depo, secimler, ayarlar.serpapi_key, dogrulayici=dogrulayici,
+                                                adet=adet), "SerpApi"
+            elif ayarlar.serper_key:
+                # SerpApi hakkı yok (veya anahtar yok): Lens'siz, Serper ile Alışveriş + site araması.
+                adet = config.PAZAR_SERPER_GUNLUK_ADET
+                aranan, servis = pazar.calistir(depo, secimler, "", dogrulayici=dogrulayici, adet=adet,
+                                                serper_key=ayarlar.serper_key), "Serper, görselsiz"
+            else:
+                aranan, servis = {}, "SerpApi hakkı yok"
+            print(f"E-ticaret araması ({servis}): {len(aranan)} ürün arandı (bütçe {adet}).")
         except Exception as e:  # noqa: BLE001
             print(f"UYARI: E-ticaret araması atlandı: {e}")
     try:

@@ -984,6 +984,17 @@ def urun_ara(api_key: str, urun: dict, client: httpx.Client | None = None) -> tu
     return satis + sosyal, sorgu
 
 
+def serper_urun_ara(serper_key: str, urun: dict, client: httpx.Client | None = None) -> tuple[list[dict], str | None]:
+    """SerpApi hakkı yokken: görselle arama (Lens) yapılmadan, Serper ile Google Alışveriş + (açıksa)
+    Trendyol / Hepsiburada / Amazon TR site araması. Ürün başına 2 Serper kredisi; sosyal medya sonucu yok."""
+    sorgu = arama_metni(urun.get("name"), None, urun.get("tags"))
+    if not sorgu:
+        return [], None
+    metin = alisveris_sonuclari(serper_alisveris(serper_key, {"q": sorgu, "gl": "tr", "hl": "tr"}, client))
+    site = site_sonuclari(site_ara(serper_key, sorgu, client)) if config.PAZAR_SITE_ARAMA else []
+    return birlestir(metin, site, en_fazla=20), sorgu
+
+
 def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
     """SerpApi'de bu ay kalan arama hakkı (hesap sorgusu ücretsizdir, hak düşmez). Okunamazsa None
     döner; o durumda ek arama yapılmaz."""
@@ -998,16 +1009,20 @@ def kalan_hak(api_key: str, client: httpx.Client | None = None) -> int | None:
 
 
 def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | None = None,
-             dogrulayici=None, adet: int | None = None) -> dict[int, dict]:
+             dogrulayici=None, adet: int | None = None, serper_key: str = "") -> dict[int, dict]:
     """Seçilen ürünleri arar (varsa ilanları görselle de kontrol eder), veritabanına yazar;
     {product_id: özet} döndürür (bugün aranmış olanlar). `adet`: bugünkü bütçe (kota.gunluk_urun).
+    `api_key` boş ve `serper_key` verilmişse yalnızca Serper ile aranır (serper_urun_ara; Lens yok).
     Bir ürünün araması hata verirse (ör. hak bitti) o ana kadar arananlar yine kaydedilir."""
     hedefler = secilecekler(secimler, depo.pazar_kontrol_tarihleri([s["product_id"] for s in secimler]),
                             adet=adet)
     ozetler = {}
     for s in hedefler:
         try:
-            sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
+            if api_key:
+                sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
+            else:
+                sonuclar, sorgu = serper_urun_ara(serper_key, s["urun"], client)
         except (PazarHatasi, httpx.HTTPError) as e:
             print(f"UYARI: E-ticaret araması durdu ({s['urun'].get('name')}): {e}")
             break
