@@ -416,8 +416,9 @@
               <select id="medyaTur" class="rounded-lg px-2 py-1.5 bg-surface-container-low border-0 font-label-sm text-label-sm text-on-surface outline-none cursor-pointer" aria-label="Yüklenecek video türü">
                 <option value="timelapse">Timelapse</option><option value="klip">Klip</option><option value="hata">Hata klibi</option>
               </select>
+              <button type="button" id="medyaSdYenile" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-sm text-label-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Yazıcının SD kartındaki timelapse dosyalarını listele (köprü gerekir)"><span class="material-symbols-outlined text-[18px] text-primary">sync</span><span>MicroSD&#39;yi Yenile</span></button>
               <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-sm text-label-sm font-medium transition-colors cursor-pointer" title="SD karttan indirdiğin timelapse'i yükle">
-                <span class="material-symbols-outlined text-[18px] text-primary">upload</span><span>Video yükle (SD kart)</span>
+                <span class="material-symbols-outlined text-[18px] text-primary">upload</span><span>Video yükle</span>
                 <input type="file" id="medyaDosya" accept="video/mp4,video/quicktime,.mp4,.mov" class="hidden">
               </label>
               <button type="button" data-medya-kapat title="Kapat" class="w-9 h-9 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-error-container hover:text-on-error-container flex items-center justify-center transition-colors ml-1"><span class="material-symbols-outlined text-[22px]">close</span></button>
@@ -486,19 +487,7 @@
             <!-- Sağ kenar: yazıcı, sosyal format, toplu indirme -->
             <div class="w-full lg:w-[380px] bg-surface-container-low/40 border-t lg:border-t-0 lg:border-l border-surface-container-high p-5 flex flex-col justify-between overflow-y-auto space-y-5 shrink-0">
               <div class="space-y-4">
-                <div class="p-4 rounded-xl bg-white border border-surface-container shadow-sm">
-                  <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-surface-container-high">
-                    <div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">video_camera_front</span><h4 class="font-headline-sm text-[15px] font-bold text-on-surface">Yazıcıdan Anlık Video Çek</h4></div>
-                    <span class="px-2 py-0.5 rounded bg-surface-container-high text-outline font-mono text-[11px] font-bold whitespace-nowrap shrink-0">BAĞLI DEĞİL</span>
-                  </div>
-                  <p class="font-body-sm text-[12px] text-outline mb-3">Panel tarayıcıda çalışır; yazıcının SD kartına (FTPS) ve kamerasına doğrudan bağlanamaz. Bunun için ev ağında çalışan bir yazıcı köprüsü gerekir. Şimdilik timelapse'i Bambu Studio / Handy'den indirip yukarıdan yükle.</p>
-                  <div class="grid grid-cols-3 gap-1.5 mb-3 opacity-50">
-                    <button type="button" disabled class="py-1.5 rounded-lg border border-surface-container-high bg-surface-container-low font-label-sm text-label-sm text-on-surface text-center cursor-not-allowed">Son 15sn</button>
-                    <button type="button" disabled class="py-1.5 rounded-lg border-2 border-primary bg-primary/10 font-label-sm text-label-sm font-bold text-primary text-center cursor-not-allowed">Son 30sn</button>
-                    <button type="button" disabled class="py-1.5 rounded-lg border border-surface-container-high bg-surface-container-low font-label-sm text-label-sm text-on-surface text-center cursor-not-allowed">Son 60sn</button>
-                  </div>
-                  <button type="button" disabled class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-high text-outline font-label-md text-label-md font-semibold cursor-not-allowed"><span class="material-symbols-outlined text-[18px]">link_off</span><span>Yazıcı köprüsü kurulmadı</span></button>
-                </div>
+                <div id="medyaYaziciKart" class="p-4 rounded-xl bg-white border border-surface-container shadow-sm"></div>
 
                 <div class="p-4 rounded-xl bg-white border border-surface-container shadow-sm">
                   <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-surface-container-high">
@@ -1045,9 +1034,50 @@
 
   // Baskı ilerlemesi: elle girilmişse o; yoksa "Basılıyor"a geçiş zamanı ve MakerWorld süre tahmininden.
   function sipToplamDk(s) { return s.products?.print_time_min ? s.products.print_time_min * s.adet : null; }
+
+  // ------------------------------------------------------------ yazıcı köprüsü (python -m urun_bulucu.kopru)
+  let sipYazicilar = [];        // yazici_durum satırları: {ad, model, durum, goruldu}
+  const YAZICI_DURUM = { IDLE: "Boşta", PREPARE: "Hazırlanıyor", SLICING: "Dilimleniyor", RUNNING: "Yazdırıyor", PAUSE: "Duraklatıldı", FINISH: "Bitti", FAILED: "Başarısız" };
+  const yaziciSqlIpucu = (h) => /yazici_|relation|not found|schema cache/i.test(h.message || "") ? " (Supabase'te supabase/guncelleme_2026-11-26c_yazici_koprusu.sql çalıştırıldı mı?)" : "";
+  const yaziciBagli = (y) => !!y && Date.now() - new Date(y.goruldu).getTime() < 60000;
+  const saniyeOnce = (t) => { const sn = Math.max(0, Math.round((Date.now() - new Date(t).getTime()) / 1000)); return sn < 60 ? `${sn} sn önce` : sn < 3600 ? `${Math.round(sn / 60)} dk önce` : sipZaman(t); };
+  // Siparişin yazıcısı: adı eşleşen köprü; ad girilmemişse ve tek köprü varsa o.
+  const sipYaziciSatiri = (s) => sipYazicilar.find((y) => y.ad === s.yazici) || (!s.yazici && sipYazicilar.length === 1 ? sipYazicilar[0] : null);
+  async function yaziciGetir() {
+    const { data, error } = await sb.from("yazici_durum").select("*");
+    sipYazicilar = error ? [] : data || [];
+    return sipYazicilar;
+  }
+  // Basılmakta olan sipariş için köprünün canlı verisi (yoksa null → tahmin kullanılır)
+  function sipCanli(s) {
+    if (s.durum !== "basiliyor") return null;
+    const y = sipYaziciSatiri(s);
+    if (!yaziciBagli(y)) return null;
+    const d = y.durum || {};
+    return ["RUNNING", "PAUSE", "PREPARE"].includes(d.durum) ? d : null;
+  }
+  // Panelden köprüye istek gönderir ve sonucunu bekler (köprü 3 sn'de bir bakar).
+  async function yaziciIstek(tur, ek = {}) {
+    const { data, error } = await sb.from("yazici_istekleri").insert({ tur, ...ek }).select("id").single();
+    if (error) throw new Error(error.message + yaziciSqlIpucu(error));
+    const bitis = Date.now() + 5 * 60e3;
+    while (Date.now() < bitis) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const { data: r } = await sb.from("yazici_istekleri").select("durum, sonuc, hata").eq("id", data.id).single();
+      if (r?.durum === "tamam" || r?.durum === "hata") {
+        sb.from("yazici_istekleri").delete().eq("id", data.id).then(() => {}, () => {});
+        if (r.durum === "hata") throw new Error(r.hata || "Köprü isteği işleyemedi");
+        return r.sonuc || {};
+      }
+    }
+    throw new Error("Köprü 5 dakikada yanıt vermedi; evdeki bilgisayarda köprü çalışıyor mu?");
+  }
+
   function sipIlerleme(s) {
     if (["hazir", "kargoda", "teslim"].includes(s.durum)) return 100;
     if (s.durum !== "basiliyor") return null;
+    const canli = sipCanli(s);
+    if (canli?.yuzde != null) return canli.yuzde;
     if (s.ilerleme != null) return s.ilerleme;
     const toplam = sipToplamDk(s);
     if (!s.baski_baslangic || !toplam) return null;
@@ -1055,6 +1085,8 @@
     return Math.min(99, Math.max(0, Math.round((gecen / toplam) * 100)));
   }
   function sipKalanDk(s) {
+    const canli = sipCanli(s);
+    if (canli?.kalan_dk != null) return canli.kalan_dk;
     const toplam = sipToplamDk(s), yuzde = sipIlerleme(s);
     if (s.durum !== "basiliyor" || !toplam || yuzde == null) return null;
     return Math.max(0, Math.round(toplam * (1 - yuzde / 100)));
@@ -1077,6 +1109,8 @@
   function sipDurumAlanlari(s, durum) {
     const alanlar = { durum };
     if (durum === "basiliyor" && !s.baski_baslangic) alanlar.baski_baslangic = new Date().toISOString();
+    // Tek yazıcı (köprü) varsa ve siparişe yazıcı yazılmamışsa otomatik atanır.
+    if (durum === "basiliyor" && !s.yazici && sipYazicilar.length === 1) alanlar.yazici = sipYazicilar[0].ad;
     return alanlar;
   }
 
@@ -1292,8 +1326,21 @@
         `<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>${takipli} siparişte takip no • ${kargoda} kargoda${firmalar ? ` • ${esc(firmalar)}` : ""}</span>`, rozet("API yok, elle")) +
       kart("sync", "bg-secondary-fixed text-on-secondary-fixed", "Pazaryeri Siparişleri",
         son ? `Son sipariş: ${esc(sipZaman(son.created_at))}${enCok ? ` • en çok ${esc(SIP_KANAL[enCok[0]] || enCok[0])}` : ""}` : "Henüz sipariş yok", rozet("Webhook bağlı değil")) +
-      kart("router", "bg-primary-fixed text-on-primary-fixed-variant", "Bambu Yazıcılar",
-        `${yazicilar.size} yazıcıda baskı var (panelden atanan)`, rozet("Canlı bağlantı yok"));
+      (() => {
+        const bagli = sipYazicilar.filter(yaziciBagli);
+        if (bagli.length) {
+          const y = bagli[0], d = y.durum || {};
+          const ayrinti = [YAZICI_DURUM[d.durum] || "Rapor bekleniyor", d.yuzde != null && ["RUNNING", "PAUSE"].includes(d.durum) ? `%${d.yuzde}` : "",
+            d.nozul != null ? `${d.nozul}°C / ${d.tabla ?? "-"}°C` : ""].filter(Boolean).join(" • ");
+          return kart("router", "bg-primary-fixed text-on-primary-fixed-variant", esc(bagli.length > 1 ? `${bagli.length} Yazıcı Bağlı` : y.ad),
+            `<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>${esc(ayrinti)} • ${esc(saniyeOnce(y.goruldu))}</span>`,
+            `<span class="px-2 py-0.5 rounded bg-tertiary-fixed/30 text-tertiary font-label-sm text-label-sm font-semibold shrink-0">Köprü bağlı</span>`);
+        }
+        const son = sipYazicilar[0];
+        return kart("router", "bg-primary-fixed text-on-primary-fixed-variant", "Bambu Yazıcılar",
+          son ? `Köprü kapalı • son sinyal ${esc(saniyeOnce(son.goruldu))}` : `${yazicilar.size} yazıcıda baskı var (panelden atanan)`,
+          rozet(son ? "Köprü kapalı" : "Köprü kurulmadı"));
+      })();
   }
 
   function sipHizliCiz() {
@@ -1326,12 +1373,15 @@
     if (s.durum === "iptal") return `<span class="font-label-sm text-label-sm text-outline">İptal edildi</span>`;
     if (["hazir", "teslim"].includes(s.durum)) return `<span class="font-label-sm text-label-sm text-tertiary font-semibold flex items-center gap-1">${sipIkon("check_circle", "text-[16px]")} Tamamlandı</span><span class="font-label-sm text-label-sm text-outline mt-0.5 block">${s.durum === "hazir" ? "Paketlemede" : "Teslim edildi"}${s.yazici ? ` • ${esc(s.yazici)}` : ""}</span>`;
     if (s.durum === "kargoda") return `<span class="font-label-sm text-label-sm text-outline">${esc(s.kargo_firmasi || "Kargoda")}</span><span class="font-label-sm text-label-sm text-primary font-semibold block mt-0.5">${s.takip_no ? `Takip: #${esc(s.takip_no)}` : "Takip no yok"}</span>`;
-    if (!s.yazici) return `<span class="font-label-sm text-label-sm text-outline italic">Atanmamış (boşta yazıcı aranıyor)</span>
+    const canli = sipCanli(s);
+    const yaziciAd = s.yazici || (canli ? sipYaziciSatiri(s).ad : "");
+    if (!yaziciAd) return `<span class="font-label-sm text-label-sm text-outline italic">Atanmamış (boşta yazıcı aranıyor)</span>
       <button type="button" data-islem="ata" class="mt-1 flex items-center gap-1 px-2 py-0.5 rounded bg-primary-fixed text-primary font-label-sm text-label-sm font-semibold hover:bg-primary hover:text-on-primary transition-colors">${sipIkon("send_to_mobile", "text-[14px]")} Yazıcıya Ata</button>`;
     if (s.durum === "yeni") return `<div class="font-label-sm text-label-sm font-semibold text-on-surface">${esc(s.yazici)}</div><span class="font-label-sm text-label-sm text-outline mt-0.5 block">Sırada, başlamadı</span>`;
-    return `<div class="flex items-center justify-between text-label-sm mb-1 w-32"><span class="font-semibold text-on-surface truncate">${esc(s.yazici)}</span><span class="text-secondary font-bold">${yuzde != null ? `%${yuzde}` : "—"}</span></div>
-      <div class="w-32 bg-surface-container-high h-1.5 rounded-full overflow-hidden"><div class="bg-secondary-container h-full rounded-full" style="width:${yuzde || 0}%"></div></div>
-      <span class="font-label-sm text-label-sm text-outline mt-1 block">${kalan != null ? `Kalan Süre: ${esc(sure(kalan))}` : "Süre tahmini yok"}</span>`;
+    return `<div class="flex items-center justify-between gap-2 text-label-sm mb-1 w-36"><span class="font-semibold text-on-surface truncate">${esc(yaziciAd)}</span><span class="text-secondary font-bold">${yuzde != null ? `%${yuzde}` : "—"}</span></div>
+      <div class="w-36 bg-surface-container-high h-1.5 rounded-full overflow-hidden"><div class="${canli?.durum === "PAUSE" ? "bg-error" : "bg-secondary-container"} h-full rounded-full" style="width:${yuzde || 0}%"></div></div>
+      <span class="font-label-sm text-label-sm text-outline mt-1 block">${kalan != null ? `Kalan Süre: ${esc(sure(kalan))}` : "Süre tahmini yok"}</span>
+      ${canli ? `<span class="font-label-sm text-label-sm ${canli.durum === "PAUSE" ? "text-error" : "text-tertiary"} flex items-center gap-1 mt-0.5"><span class="w-1.5 h-1.5 rounded-full ${canli.durum === "PAUSE" ? "bg-error" : "bg-tertiary animate-pulse"}"></span>${canli.durum === "PAUSE" ? "Duraklatıldı" : "Canlı"}${canli.katman != null && canli.toplam_katman ? ` • Katman ${canli.katman}/${canli.toplam_katman}` : ""}</span>` : ""}`;
   }
 
   function sipSatirHtml(s, i) {
@@ -1517,7 +1567,7 @@
     const adim = Math.max(0, SIP_AKIS.indexOf(s.durum));
     const baskiYuzde = sipIlerleme(s);
     const genelYuzde = s.durum === "iptal" ? 0 : s.durum === "basiliyor" && baskiYuzde != null ? baskiYuzde : Math.round((adim / (SIP_AKIS.length - 1)) * 100);
-    const toplamDk = sipToplamDk(s), kalan = sipKalanDk(s);
+    const toplamDk = sipToplamDk(s), kalan = sipKalanDk(s), canli = sipCanli(s);
     const tahmin = toplamDk ? sure(toplamDk) : "-";
     const tahminGram = p.weight_g ? `${p.weight_g * s.adet} g` : "-";
     const birim = s.fiyat_tl != null && s.adet ? s.fiyat_tl / s.adet : null;
@@ -1561,7 +1611,7 @@
       <div id="sipUretimK" class="p-5 rounded-2xl bg-white border border-surface-container shadow-sm scroll-mt-4">
         <div class="flex items-center justify-between gap-2 pb-3 border-b border-surface-container-high">
           <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full ${s.durum === "basiliyor" ? "bg-tertiary animate-pulse" : "bg-outline-variant"}"></span><span class="font-headline-sm text-headline-sm font-bold text-on-surface">${s.durum === "basiliyor" ? "Aktif 3D Baskı Süreci" : "Üretim Süreci"}</span></div>
-          <span class="px-2.5 py-1 rounded-md bg-primary/10 text-primary font-label-sm text-label-sm font-semibold tracking-wide uppercase">${esc(s.yazici || "Yazıcı atanmadı")}</span>
+          <span class="px-2.5 py-1 rounded-md bg-primary/10 text-primary font-label-sm text-label-sm font-semibold tracking-wide uppercase">${esc(s.yazici || (canli ? sipYaziciSatiri(s).ad : "Yazıcı atanmadı"))}${canli ? " • CANLI" : ""}</span>
         </div>
         <div class="flex flex-col sm:flex-row items-center gap-4 mt-4">
           <div class="relative w-24 h-24 rounded-xl bg-surface-container-high overflow-hidden shrink-0 flex items-center justify-center shadow-inner">${sipGorsel(s, "text-[40px]")}<div class="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-on-background/80 text-white font-label-sm text-[10px]">${s.adet} Adet</div></div>
@@ -1571,9 +1621,15 @@
             <div class="flex items-center justify-between text-label-sm text-outline mt-1.5"><span>${kalan != null ? `Kalan Süre: <strong class="text-on-surface font-semibold">${esc(sure(kalan))}</strong> (Toplam: ${esc(tahmin)})` : `Durum: <strong class="text-on-surface font-semibold">${durumAd}</strong>`}</span><span>Adım: <strong class="text-on-surface font-semibold">${adim + 1} / ${SIP_AKIS.length}</strong></span></div>
           </div>
         </div>
+        ${canli ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-surface-container-high">
+          ${mini("Nozül &amp; Tabla", `${canli.nozul ?? "-"}°C / ${canli.tabla ?? "-"}°C`, `hedef ${canli.nozul_hedef ?? "-"} / ${canli.tabla_hedef ?? "-"}°C`)}
+          ${mini("Katman", canli.katman != null ? `${canli.katman} / ${canli.toplam_katman ?? "?"}` : "-", esc(YAZICI_DURUM[canli.durum] || canli.durum || ""), "text-primary")}
+          ${mini("AMS Filament", esc((canli.ams || []).slice(0, 2).map((t) => `${t.tur}${t.kalan != null ? ` %${t.kalan}` : ""}`).join(", ") || "-"), `${(canli.ams || []).length} dolu yuva`, "text-tertiary")}
+          ${mini("Yazıcıdaki dosya", esc(canli.dosya || "-"), "köprüden canlı")}
+        </div>` : ""}
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-surface-container-high">
           <label class="p-2.5 rounded-lg bg-surface-container-low block"><span class="block text-label-sm text-outline">Yazıcı</span><input type="text" list="sipYazicilar" maxlength="60" data-cekme-alan="yazici" value="${esc(s.yazici || "")}" placeholder="ör. Bambu P1S #1" class="w-full mt-0.5 font-label-md text-label-md font-semibold" style="padding:3px 6px"><span class="text-[11px] text-outline font-medium">atama</span></label>
-          <label class="p-2.5 rounded-lg bg-surface-container-low block"><span class="block text-label-sm text-outline">İlerleme ${s.ilerleme != null ? `<button type="button" data-ilerleme-oto class="text-primary font-semibold">(otomatik yap)</button>` : "(otomatik)"}</span><input type="range" min="0" max="100" step="1" data-cekme-alan="ilerleme" value="${baskiYuzde ?? 0}" class="w-full mt-1.5 accent-primary" aria-label="İlerleme yüzdesi"><span class="text-[11px] text-outline font-medium">${s.ilerleme != null ? "elle girildi" : s.baski_baslangic ? "baskı başlangıcından" : "başlangıç yok"}</span></label>
+          <label class="p-2.5 rounded-lg bg-surface-container-low block"><span class="block text-label-sm text-outline">İlerleme ${s.ilerleme != null ? `<button type="button" data-ilerleme-oto class="text-primary font-semibold">(otomatik yap)</button>` : "(otomatik)"}</span><input type="range" min="0" max="100" step="1" data-cekme-alan="ilerleme" value="${baskiYuzde ?? 0}" class="w-full mt-1.5 accent-primary" aria-label="İlerleme yüzdesi"><span class="text-[11px] text-outline font-medium">${canli ? "yazıcıdan canlı" : s.ilerleme != null ? "elle girildi" : s.baski_baslangic ? "baskı başlangıcından" : "başlangıç yok"}</span></label>
           ${mini("Tahmini süre", esc(tahmin), "MakerWorld profili")}
           ${mini("Filament", esc(tahminGram), esc(s.renk || "renk belirtilmedi"), "text-primary")}
           ${miniGirdi("Gerçek süre (dk)", "gercek_sure_dk", "dk")}
@@ -1686,6 +1742,7 @@
     medyaYaz("");
     $("#medyaPencere").hidden = false;
     document.body.style.overflow = "hidden";
+    await yaziciGetir().catch(() => {});
     await medyaCiz();
   }
   function medyaKapat() {
@@ -1709,8 +1766,9 @@
     $("#medyaBaslik").textContent = `${s.yazici || "Yazıcı"} – Video & Timelapse Yöneticisi`;
     $("#medyaAltBilgi").innerHTML = `<span>Bu siparişin kayıtları: <strong class="text-on-surface font-semibold">${bu.length} dosya (${mb(toplam(bu))})</strong></span><span>•</span><span class="text-tertiary font-medium">Aktif İş: ${esc(s.urun_adi)} x${s.adet} (#SIP-${s.id})</span>`;
     const sekme = (k, ad, n, nokta = "") => `<button type="button" data-medya-sekme="${k}" class="px-3 py-1.5 rounded-lg font-label-sm text-label-sm shrink-0 flex items-center gap-1 transition-colors ${medyaSekme === k ? "bg-primary text-on-primary font-semibold shadow-sm" : "text-on-surface-variant hover:bg-surface-container"}">${nokta}${ad} (${n})</button>`;
-    $("#medyaSekmeler").innerHTML = sekme("bu", "Bu Siparişe Ait Kayıtlar", bu.length) + sekme("tum", "Tüm Yazıcı Arşivi", tum.length) + sekme("hata", "Hata Klipleri", hata.length, `<span class="w-1.5 h-1.5 rounded-full bg-error"></span>`);
-    $("#medyaKlasor").textContent = medyaSekme === "bu" ? `siparis/${s.id}/` : "siparis/";
+    $("#medyaSekmeler").innerHTML = sekme("bu", "Bu Siparişe Ait Kayıtlar", bu.length) + sekme("tum", "Tüm Yazıcı Arşivi", tum.length) + sekme("hata", "Hata Klipleri", hata.length, `<span class="w-1.5 h-1.5 rounded-full bg-error"></span>`)
+      + sekme("sd", "Yazıcı SD Kartı", medyaSd.dosyalar ? medyaSd.dosyalar.length : "?", sipIkon("sd_card", "text-[14px]"));
+    $("#medyaKlasor").textContent = medyaSekme === "sd" ? "yazıcı: /timelapse/" : medyaSekme === "bu" ? `siparis/${s.id}/` : "siparis/";
     const kart = (m) => {
       const aktif = m.yol === medyaSecili, u = medyaUrl.get(m.yol);
       return `<div data-medya="${esc(m.yol)}" class="p-2.5 rounded-xl ${aktif ? "bg-surface-container-low/50 border-2 border-primary/40" : "bg-white border border-surface-container"} flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer">
@@ -1721,8 +1779,9 @@
           <div class="flex items-center justify-between mt-2 pt-2 border-t border-surface-container-high text-[11px] text-outline"><span>${esc(sipZaman(m.tarih))}</span>
             <div class="flex items-center gap-1"><button type="button" data-medya-indir="${esc(m.yol)}" title="İndir" class="p-1 rounded text-primary hover:bg-surface-container-high">${sipIkon("download", "text-[16px]")}</button><button type="button" data-medya-sil="${esc(m.yol)}" data-medya-sip="${m.sipId}" title="Sil" class="p-1 rounded text-outline hover:text-error">${sipIkon("delete", "text-[16px]")}</button></div></div></div></div>`;
     };
-    $("#medyaKutuphane").innerHTML = liste.length ? liste.map(kart).join("")
-      : `<div class="col-span-full p-6 text-center font-body-sm text-body-sm text-outline">${medyaSekme === "bu" ? 'Bu siparişe ait video yok. Sağ üstteki "Video yükle" ile ekle.' : "Kayıt yok."}</div>`;
+    if (medyaSekme === "sd") medyaSdCiz();
+    else $("#medyaKutuphane").innerHTML = liste.length ? liste.map(kart).join("")
+      : `<div class="col-span-full p-6 text-center font-body-sm text-body-sm text-outline">${medyaSekme === "bu" ? 'Bu siparişe ait video yok. Sağ üstteki "Video yükle" ile ekle ya da yazıcının SD kartından aktar.' : "Kayıt yok."}</div>`;
 
     const v = $("#medyaOynatici");
     const u = secili && medyaUrl.get(secili.yol);
@@ -1738,8 +1797,90 @@
     $("#medyaSipariseEkleYazi").textContent = baskasi ? `Siparişe Ekle (#SIP-${s.id})` : `Bu siparişte (#SIP-${s.id})`;
     $("#medyaToplam").textContent = `${bu.length} Dosya (${mb(toplam(bu))})`;
     $("#medyaToplamBoyut").textContent = mb(toplam(bu));
-    $("#medyaDepo").innerHTML = `Supabase "siparis" alanı: <strong class="text-on-surface font-medium">${tum.length} dosya, ${mb(toplam(tum))}</strong> • Yazıcı köprüsü: <strong class="text-outline font-semibold">bağlı değil</strong>`;
+    const y = medyaYazici();
+    $("#medyaDepo").innerHTML = `Supabase "siparis" alanı: <strong class="text-on-surface font-medium">${tum.length} dosya, ${mb(toplam(tum))}</strong> • Yazıcı köprüsü: `
+      + (yaziciBagli(y) ? `<strong class="text-tertiary font-semibold">bağlı (${esc(y.ad)}, ${esc(saniyeOnce(y.goruldu))})</strong>` : `<strong class="text-outline font-semibold">bağlı değil</strong>`);
+    medyaYaziciCiz();
     medyaKontrolCiz();
+  }
+
+  // ---- yazıcı köprüsü: canlı kamera klibi ve SD karttaki timelapse'ler
+  let medyaKlipSn = 30;
+  const medyaSd = { durum: "", dosyalar: null };   // durum: "" | "yukleniyor" | hata metni
+  function medyaYazici() { const s = sipBul(medyaSipId); return (s && sipYaziciSatiri(s)) || sipYazicilar[0] || null; }
+
+  function medyaYaziciCiz() {
+    const y = medyaYazici(), bagli = yaziciBagli(y), d = y?.durum || {}, kamera = bagli && d.kamera;
+    const rozetSinif = "px-2 py-0.5 rounded font-mono text-[11px] font-bold whitespace-nowrap shrink-0";
+    const rozet = !bagli ? `<span class="${rozetSinif} bg-surface-container-high text-outline">BAĞLI DEĞİL</span>`
+      : kamera ? `<span class="${rozetSinif} bg-tertiary-fixed/30 text-tertiary">CANLI TAMPON</span>` : `<span class="${rozetSinif} bg-error-container text-on-error-container">KAMERA YOK</span>`;
+    const durumSatiri = d.durum ? `<br><strong class="text-on-surface">${esc(YAZICI_DURUM[d.durum] || d.durum)}${d.yuzde != null && ["RUNNING", "PAUSE"].includes(d.durum) ? ` • %${esc(d.yuzde)}` : ""}${d.katman != null && d.toplam_katman ? ` • Katman ${esc(d.katman)}/${esc(d.toplam_katman)}` : ""}</strong>` : "";
+    const aciklama = bagli
+      ? `Yazıcının son ${medyaKlipSn} saniyelik kamera görüntüsü MP4 klibe çevrilip bu siparişe eklenir.${durumSatiri}`
+      : y ? `Köprü kapalı (son sinyal ${esc(saniyeOnce(y.goruldu))}). Evdeki bilgisayarda <code>python -m urun_bulucu.kopru</code> çalışıyor olmalı.`
+        : `Yazıcı köprüsü kurulmadı. Evdeki bilgisayarda <code>python -m urun_bulucu.kopru</code> çalışınca bu bölüm canlanır (README: "Yazıcı köprüsü"). Şimdilik timelapse'i Bambu Studio / Handy'den indirip "Video yükle" ile ekle.`;
+    const sn = (n) => `<button type="button" data-klip-sn="${n}" ${bagli ? "" : "disabled"} class="py-1.5 rounded-lg font-label-sm text-label-sm text-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${medyaKlipSn === n ? "border-2 border-primary bg-primary/10 font-bold text-primary" : "border border-surface-container-high bg-surface-container-low text-on-surface hover:bg-surface-container"}">Son ${n}sn</button>`;
+    $("#medyaYaziciKart").innerHTML = `
+      <div class="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-surface-container-high"><div class="flex items-center gap-2">${sipIkon("video_camera_front", "text-primary text-[20px]")}<h4 class="font-headline-sm text-[15px] font-bold text-on-surface">Yazıcıdan Anlık Video Çek</h4></div>${rozet}</div>
+      <p class="font-body-sm text-[12px] text-outline mb-3">${aciklama}</p>
+      <div class="space-y-2 mb-3"><span class="block text-label-sm font-semibold text-on-surface">Süre seçin:</span><div class="grid grid-cols-3 gap-1.5">${sn(15)}${sn(30)}${sn(60)}</div></div>
+      <button type="button" id="medyaKlipCek" ${kamera ? "" : "disabled"} class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-label-md text-label-md font-semibold transition-all ${kamera ? "bg-primary text-on-primary hover:bg-primary/95 shadow-sm" : "bg-surface-container-high text-outline cursor-not-allowed"}">${sipIkon(bagli ? "bolt" : "link_off")}<span>${!bagli ? "Köprü bağlı değil" : kamera ? "Yazıcıdan Çek & Siparişe Ekle" : "Kamera görüntüsü yok"}</span></button>`;
+    $("#medyaSdYenile").disabled = !bagli;
+  }
+
+  async function medyaKlipCek() {
+    const s = sipBul(medyaSipId), y = medyaYazici(), dugme = $("#medyaKlipCek");
+    if (!s || dugme.disabled) return;
+    dugme.disabled = true;
+    medyaYaz(`Yazıcıdan son ${medyaKlipSn} sn alınıyor…`);
+    try {
+      const sonuc = await yaziciIstek("klip", { siparis_id: s.id, saniye: medyaKlipSn, yazici: y?.ad ?? null });
+      medyaSecili = sonuc.yol || medyaSecili; medyaSekme = "bu";
+      medyaYaz(`Klip eklendi ✓ (${Number(sonuc.kare) || "?"} kare)`);
+      await siparisYukle();
+      if (medyaSipId != null) await medyaCiz();
+    } catch (e) { medyaYaz("Klip alınamadı: " + e.message, true); medyaYaziciCiz(); }
+  }
+
+  async function medyaSdYenile() {
+    const y = medyaYazici();
+    medyaSekme = "sd"; medyaSd.durum = "yukleniyor";
+    await medyaCiz();
+    try {
+      const sonuc = await yaziciIstek("sd_listele", { yazici: y?.ad ?? null });
+      medyaSd.dosyalar = Array.isArray(sonuc.dosyalar) ? sonuc.dosyalar : [];
+      medyaSd.durum = "";
+    } catch (e) { medyaSd.durum = e.message; }
+    if (medyaSipId != null) await medyaCiz();
+  }
+
+  async function medyaSdAktar(ad, dugme) {
+    const s = sipBul(medyaSipId), y = medyaYazici();
+    if (!s) return;
+    dugme.disabled = true; dugme.textContent = "Aktarılıyor…";
+    medyaYaz(`${ad} indiriliyor ve MP4'e çevriliyor… (büyük dosyada birkaç dakika sürebilir)`);
+    try {
+      const sonuc = await yaziciIstek("sd_aktar", { siparis_id: s.id, dosya: ad, yazici: y?.ad ?? null });
+      medyaSecili = sonuc.yol || null; medyaSekme = "bu";
+      medyaYaz("Timelapse siparişe eklendi ✓");
+      await siparisYukle();
+      if (medyaSipId != null) await medyaCiz();
+    } catch (e) { medyaYaz("Aktarılamadı: " + e.message, true); dugme.disabled = false; dugme.textContent = "Tekrar dene"; }
+  }
+
+  function medyaSdCiz() {
+    const eklenen = new Set(sipMedya(sipBul(medyaSipId)).map((m) => m.kaynak).filter(Boolean));
+    const bilgi = (metin) => { $("#medyaKutuphane").innerHTML = `<div class="col-span-full p-6 text-center font-body-sm text-body-sm text-outline">${metin}</div>`; };
+    if (medyaSd.durum === "yukleniyor") return bilgi(`${sipIkon("sync", "text-[18px] animate-spin align-middle")} SD kart okunuyor… (köprü birkaç saniyede bir bakar)`);
+    if (medyaSd.durum) return bilgi(`<span class="text-error">${esc(medyaSd.durum)}</span>`);
+    if (!medyaSd.dosyalar) return bilgi(yaziciBagli(medyaYazici()) ? '"MicroSD\'yi Yenile" ile yazıcının SD kartındaki timelapse\'leri listele.' : "SD karta erişmek için yazıcı köprüsü çalışıyor olmalı.");
+    if (!medyaSd.dosyalar.length) return bilgi("SD kartta timelapse yok. Bambu Studio'da baskıyı gönderirken \"Timelapse\" kutusunu işaretle.");
+    $("#medyaKutuphane").innerHTML = medyaSd.dosyalar.map((d) => `<div class="p-3 rounded-xl bg-white border border-surface-container flex flex-col gap-2">
+        <div class="flex items-center gap-2 min-w-0">${sipIkon("sd_card", "text-[20px] text-primary shrink-0")}<span class="font-label-md text-label-md font-bold text-on-surface truncate" title="${esc(d.ad)}">${esc(d.ad)}</span></div>
+        <div class="flex items-center justify-between text-[11px] text-outline"><span>${d.tarih ? esc(sipZaman(d.tarih)) : "-"}</span><span class="font-mono">${mb(Number(d.boyut) || 0)}</span></div>
+        ${eklenen.has(d.ad) ? `<span class="px-2 py-1.5 rounded-lg bg-tertiary-fixed/30 text-tertiary font-label-sm text-label-sm font-semibold text-center">Bu siparişte ✓</span>`
+          : `<button type="button" data-sd-aktar="${esc(d.ad)}" class="px-2 py-1.5 rounded-lg bg-primary text-on-primary font-label-sm text-label-sm font-semibold hover:bg-primary/95 disabled:opacity-60">Siparişe aktar (MP4)</button>`}
+      </div>`).join("");
   }
 
   function medyaKontrolCiz() {
@@ -1864,7 +2005,16 @@
     pencere.addEventListener("click", async (e) => {
       if (e.target.closest("[data-medya-kapat]")) return medyaKapat();
       const sekme = e.target.closest("[data-medya-sekme]");
-      if (sekme) { medyaSekme = sekme.dataset.medyaSekme; return medyaCiz(); }
+      if (sekme) {
+        medyaSekme = sekme.dataset.medyaSekme;
+        if (medyaSekme === "sd" && !medyaSd.dosyalar && !medyaSd.durum && yaziciBagli(medyaYazici())) return medyaSdYenile();
+        return medyaCiz();
+      }
+      const klipSn = e.target.closest("[data-klip-sn]");
+      if (klipSn && !klipSn.disabled) { medyaKlipSn = Number(klipSn.dataset.klipSn); return medyaYaziciCiz(); }
+      if (e.target.closest("#medyaKlipCek")) return medyaKlipCek();
+      const sdAktar = e.target.closest("[data-sd-aktar]");
+      if (sdAktar && !sdAktar.disabled) return medyaSdAktar(sdAktar.dataset.sdAktar, sdAktar);
       const indir = e.target.closest("[data-medya-indir]");
       if (indir) return medyaIndir(indir.dataset.medyaIndir);
       const sil = e.target.closest("[data-medya-sil]");
@@ -1882,6 +2032,7 @@
       }
     });
     $("#medyaCekmeceye").addEventListener("click", () => { const id = medyaSipId; medyaKapat(); if (sipCekmeId == null && id != null) sipCekmeAc(id); });
+    $("#medyaSdYenile").addEventListener("click", medyaSdYenile);
     $("#medyaDosya").addEventListener("change", async (e) => { const f = e.target.files[0]; e.target.value = ""; await medyaYukle(f); });
     $("#medyaIndir").addEventListener("click", () => medyaSecili ? medyaIndir(medyaSecili) : medyaYaz("Önce bir video seç.", true));
     $("#medyaKare").addEventListener("click", medyaKareKaydet);
@@ -1944,7 +2095,7 @@
   async function siparisYukle() {
     sipFormBagla();
     if (!sipUrunAdi.size) sipUrunleriYukle().catch(() => {});
-    try { await sipVeriGetir(); }
+    try { await Promise.all([sipVeriGetir(), yaziciGetir().catch(() => {})]); }
     catch (error) { $("#siparisTablo").innerHTML = `<tr><td class="hata">${esc(error.message + sipSqlIpucu(error))}</td></tr>`; $("#siparisOzet").innerHTML = ""; return; }
     sipOzetCiz();
     sipCiz();
@@ -1957,6 +2108,18 @@
     bildirimCiz();
     if (!$("#siparisSekmesi").hidden && sipCekmeId == null && medyaSipId == null) { sipOzetCiz(); sipCiz(); }
   }, 60000);
+
+  // 10 saniyede bir: yazıcı köprüsünün canlı durumu (yalnızca Siparişler sekmesi ya da video penceresi açıkken).
+  setInterval(async () => {
+    const sekmeAcik = !$("#siparisSekmesi").hidden;
+    if (!sekmeAcik && medyaSipId == null) return;
+    await yaziciGetir().catch(() => {});
+    if (medyaSipId != null) { medyaYaziciCiz(); return; }
+    sipEntegrasyonCiz();
+    if (!sipVeri.some(sipCanli)) return;
+    if (sipCekmeId == null) sipCiz();
+    else if (!$("#sipCekmece").contains(document.activeElement)) sipCekmeCiz();   // yazılan alanı bozma
+  }, 10000);
 
   // ------------------------------------------------------------ tüm ürünler
   let tumZaman;

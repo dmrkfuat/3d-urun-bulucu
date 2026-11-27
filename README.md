@@ -252,8 +252,10 @@ modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
 
 Önce Supabase **SQL Editor** → `supabase/guncelleme_2026-11-26_performans.sql` → **Run** (bir kez).
 
-- **Siparişler** (panelde "Siparişler" sekmesi): ürün, adet, renk, tutar, kanal, durum, ödendi. Müşterinin
-  adını/adresini yazmayın; kısa not yeter. Sattığın ürün listeye tekrar gelirse **+3**, sattığın
+- **Siparişler** (panelde "Siparişler" sekmesi): ürün, adet, renk, tutar, kanal, durum, ödendi. Ayrıca
+  `supabase/guncelleme_2026-11-26b_siparis_detay.sql` çalıştırıldıysa müşteri/teslimat/fatura, kargo ve takip no,
+  termin, acil, yazıcı ataması ve siparişe bağlı videolar (timelapse) tutulur. Müşteri bilgileri kişisel veridir:
+  yalnızca panel kullanıcıları görür; fatura/kargo için gerekeni gir. Sattığın ürün listeye tekrar gelirse **+3**, sattığın
   kategoriden ürünler **+1** (1-2 satış) / **+2** (3+ satış) alır. "Sattım" sayacı da sayılır (çift sayılmaz).
 - **Maliyet düzeltmesi:** siparişe gerçek baskı süresini ve filament gramını girersen, en az 3 siparişten
   sonra MakerWorld tahminiyle oranlanır ve maliyet/fiyat hesabı senin yazıcına göre düzeltilir (×0,5–×2).
@@ -272,6 +274,45 @@ modellerde tasarımcıyı açıklamaya elle eklemen gerekebilir.
   kutusu (hikâye videosu en çok 60 sn) ve kendi fotoğraflarınla **carousel** (2-10 fotoğraf; tarayıcıda
   JPEG'e çevrilir, Instagram'ın 4:5–1.91:1 oran sınırına göre ortadan kırpılır) var.
 - **Özel günler:** takvime Kadınlar Günü, 23 Nisan ve Cumhuriyet Bayramı eklendi (3 hafta önceden +5).
+
+### 6e. Yazıcı köprüsü — Bambu Lab P1S (isteğe bağlı)
+
+Panel bir web sayfası olduğu için yazıcıya doğrudan bağlanamaz. **Köprü**, evdeki bir bilgisayarda (yazıcıyla
+aynı ağda) çalışan küçük bir programdır: yazıcının durumunu (ilerleme, katman, kalan süre, sıcaklıklar, AMS)
+panele taşır, panelden istenince kameranın son 15/30/60 saniyesini klip yapıp siparişe ekler, SD karttaki
+timelapse'leri listeler/aktarır (AVI → MP4) ve baskı bitince timelapse'i otomatik olarak o siparişe ekleyip
+Telegram'a haber verir. Yazıcıya yalnızca bağlanıp **okur**; baskı başlatma/durdurma gibi komut göndermez.
+
+1. Supabase **SQL Editor** → `supabase/guncelleme_2026-11-26c_yazici_koprusu.sql` → **Run** (bir kez).
+2. Yazıcının ekranından: **IP adresi** ve **Access Code** (Ayarlar → WLAN), **seri numarası** (Ayarlar → Cihaz).
+   Yazıcıda microSD kart takılı olsun; Bambu Studio'da baskıyı gönderirken **Timelapse** kutusunu işaretleyin.
+   IP değişmesin diye modem arayüzünden yazıcıya sabit IP (DHCP rezervasyonu) verin.
+3. Bilgisayarda (proje klasöründe): `.venv\Scripts\python -m pip install -r requirements-kopru.txt`
+   ve ffmpeg (`winget install Gyan.FFmpeg`; PATH'te değilse `FFMPEG_YOLU`).
+4. `.env` dosyasına `YAZICI_IP`, `YAZICI_ERISIM_KODU`, `YAZICI_SERI` (isteğe bağlı `YAZICI_ADI`) yazın.
+   Bu bilgiler yalnızca bu bilgisayarda kalır; GitHub Secrets'a **eklemeyin**.
+5. Deneyin: `.venv\Scripts\python -m urun_bulucu.kopru --dene` → MQTT, kamera, SD kart ve ffmpeg tek tek
+   denenir. İlk çalıştırmada yazdırılan **sertifika parmak izini** `.env`'e `YAZICI_PARMAK_IZI=...` olarak
+   ekleyin: köprü bundan sonra erişim kodunu göndermeden önce yazıcının kimliğini doğrular.
+6. Çalıştırın: `.venv\Scripts\python -m urun_bulucu.kopru` (Ctrl+C ile durur). Windows açılınca arka planda
+   kendiliğinden başlasın diye proje klasöründe PowerShell'de bir kez:
+   ```powershell
+   $p = (Get-Location).Path
+   $a = New-ScheduledTaskAction -Execute "$p\.venv\Scripts\pythonw.exe" -Argument "-m urun_bulucu.kopru --gunluk" -WorkingDirectory $p
+   $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+   Register-ScheduledTask -TaskName "3D Yazici Koprusu" -Action $a -Trigger (New-ScheduledTaskTrigger -AtLogOn) -Settings $s
+   ```
+   Günlük: `data\kopru.log`. Kaldırmak için: `Unregister-ScheduledTask -TaskName "3D Yazici Koprusu"`.
+
+Panelde: siparişe yazılan yazıcı adı `YAZICI_ADI` ile aynı olmalı (tek yazıcı varsa "Baskıya başla" deyince
+otomatik atanır). Köprü çalışırken Siparişler sekmesinde "Canlı • Katman 42/120", çekmecede sıcaklık/katman/AMS,
+video penceresinde "Yazıcıdan Anlık Video Çek" ve "MicroSD'yi Yenile" çalışır. Köprü 1 dakikadan uzun süre
+sinyal göndermezse panel "Köprü kapalı" gösterir ve süre tahminine döner.
+
+> Bambu'nun bazı yeni firmware sürümleri üçüncü parti yerel erişimi kısıtlıyor. `--dene` MQTT'de rapor
+> alamıyorsa yazıcıda **LAN modu / Geliştirici modu** seçeneğine bakın (bu, Bambu Handy uzaktan erişimini
+> etkileyebilir). Kamera ve SD kart genellikle yalnızca LAN erişim koduyla da çalışır; `--dene` hangisinin
+> çalıştığını ayrı ayrı gösterir.
 
 ### 7. Web paneli
 

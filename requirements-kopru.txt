@@ -1,0 +1,3 @@
+# Yazıcı köprüsü (python -m urun_bulucu.kopru) için; yalnızca köprünün çalıştığı evdeki bilgisayarda gerekir.
+-r requirements.txt
+paho-mqtt>=2.1,<3
