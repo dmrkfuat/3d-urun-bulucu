@@ -8,6 +8,9 @@ Günlük analizin tersi: MakerWorld'de popüler olandan değil, Türkiye'de SATI
    güçlü işareti, aynı ürünü KAÇ FARKLI SATICININ satmasıdır (satıcılar satan ürünü kopyalar).
    Satıcı başlıktaki markadan anlaşılır; bir satıcının her renk için açtığı ilanlar tek sayılır,
    tek mağazanın ürünü (en az KESIF_EN_AZ_SATICI satıcı yoksa) listelenmez.
+   Kümeleme başlıktaki ayırt edici kelimelerle yapılır: marka, "çok amaçlı / kişiye özel / yılbaşı"
+   gibi genel kelimeler ürünü tanımlamaz; ürün tipi farklıysa (lamba ≠ vazo ≠ kalemlik) ortak kelime
+   olsa da ilanlar birleşmez. Kümenin adı ve görseli, kümeyi en iyi temsil eden ilandan alınır.
 3. En çok ilanı olan kümelerin görseliyle Google Lens: (a) aynı ürünü satan diğer Türk pazar
    yeri ilanları sayılır, (b) sonuçlarda MakerWorld/Printables model sayfası çıkarsa o modelin
    kaynağıdır ("görsel eşleşme"; birebir model).
@@ -59,6 +62,33 @@ GENEL |= {"saksı", "saksısı", "saksi", "lamba", "lambası", "gece", "aplik", 
           "masa", "ofis", "ev", "duvar", "dekorasyon", "aydınlatma", "minimal", "çanta", "standı", "stand",
           "tutucu", "kutu", "kutusu", "tepsi", "tepsisi", "pilli", "ledli", "led", "üretim", "şeklinde",
           "seklinde", "üretilmiş", "uretilmis", "boyutlu", "yazıcı", "renkli"}
+# Zayıf niteleyiciler: ürünü tanımlamaz ("Çok Amaçlı Organizer Tepsisi" ile "Çok Amaçlı Estetik Obje"
+# yalnızca "çok amaçlı" ortak diye aynı ürün sayılmamalı; "Kişiye Özel Figür" ile "Kişiye Özel Anahtarlık" da).
+GENEL |= {"çok", "amaçlı", "kullanımlı", "fonksiyonlu", "işlevli", "kişiye", "şekilli", "formlu", "temalı",
+          "görünümlü", "figürlü", "estetik", "pratik", "kullanışlı", "taşınabilir", "eğlenceli"}
+# Tema/sezon kelimeleri de ürünü tanımlamaz: "Yılbaşı Geyik Süsü", "Yılbaşı Dekor Seti" ve
+# "Yılbaşı Ürünleri" yalnızca "yılbaşı" ortak diye tek ürün sayılmamalı.
+GENEL |= {"yılbaşı", "noel", "christmas", "ürün", "ürünü", "ürünleri"}
+# Ürün tipi öbekleri: iki başlığın ikisi de tip belirtiyor ve tipleri farklıysa farklı üründür
+# ("Spiral Oyuncak" ≠ "Spiral Lamba" ≠ "Spiral Vazo"; "Kalp Şekilli Kalemlik" ≠ "Kalp Şekilli Lamba").
+TIP_OBEKLERI = {
+    "lamba": ["lamba", "lambası", "aplik", "abajur", "aydınlatma", "avize"],
+    "organizer": ["organizer", "düzenleyici", "kalemlik", "tepsi", "tepsisi"],
+    "saksı": ["saksı", "saksısı"],
+    "vazo": ["vazo", "vazosu"],
+    "anahtarlık": ["anahtarlık", "anahtarlığı"],
+    "kutu": ["kutu", "kutusu", "kumbara"],
+    "stand": ["stand", "standı", "tutucu", "askı", "askısı", "askılık"],
+    "figür": ["figür", "figürü", "biblo", "heykel", "heykeli", "obje", "oyuncak", "oyuncağı", "süs", "süsü"],
+    "mumluk": ["mumluk"],
+    "kalıp": ["kalıp", "kalıbı"],
+    "kase": ["kase", "kasesi", "çerezlik", "şekerlik", "sunumluk", "tabak", "tabağı"],
+    "magnet": ["magnet", "mıknatıs", "mıknatısı"],
+    "saat": ["saat", "saati"],
+    "çerçeve": ["çerçeve", "çerçevesi"],
+    "ayraç": ["ayraç", "ayracı"],
+    "bardak": ["bardak", "bardağı", "kupa", "kupası", "altlık", "altlığı"],
+}
 # Pazar yerlerinin markasız ürünler için kullandığı ad: satıcı değildir.
 GENEL_MARKALAR = {"genel", "markalar", "markasız", "markasiz", "diğer", "diger", "no", "brand", "tr"}
 DURAK |= {"genel", "markalar", "markasız", "fiyatı", "fiyati", "pttavm"}   # kümelemede de yok sayılır
@@ -128,6 +158,24 @@ def _kok(kelime: str) -> str:
     return kelime
 
 
+TIP = {b: obek for obek, kelimeler_ in TIP_OBEKLERI.items()
+       for k in kelimeler_ for b in (_n(k), _kok(_n(k)))}
+
+
+def tipler(kel: list[str] | set[str]) -> set[str]:
+    """Başlıktaki ürün tipleri (öbek adıyla): ["kalp", "sekilli", "kalemlik"] → {"organizer"}."""
+    return {TIP[x] for k in kel for x in (k, _kok(k)) if x in TIP}
+
+
+def genel_bilesik(kel: list[str] | set[str]) -> str | None:
+    """Ayırt edici kelimesi olmayan başlığın kimliği: genel kelimelerin tamamı tek anahtar olur
+    ("Çok Amaçlı Organizer Tepsisi" → "amacl+cok+organizer+tepsi"). Böylece birebir aynı adla satılan
+    ürün kümelenir ama ortak bir-iki genel kelime farklı ürünleri birleştirmez. 3 kelimeden azsa
+    ("fidget oyuncak") hangi ürün olduğu belli değildir: None."""
+    genel = sorted({_kok(k) for k in kel if not k.isdigit() and (k in GENEL or _kok(k) in GENEL)})
+    return "+".join(genel) if len(genel) >= 3 else None
+
+
 def _bas(baslik: str) -> str:
     """Başlığın ürün adı kısmı: ' - ', ' | ', '(' veya ',' sonrası (renk, açıklama) atılır."""
     bas = re.split(r"\s[-–—|]\s|\(|,|\s/\s", baslik or "")[0]
@@ -182,22 +230,78 @@ def satici(ilan: dict, cekirdek: set[str]) -> str:
     return f"{site.lower()}:{' '.join(govde)[:80]}"
 
 
-def marka_kelimeleri(ilan: dict, cekirdek: set[str] | None = None) -> list[str] | None:
-    """Başlığın başındaki marka/satıcı kelimeleri (en çok 3); yoksa None."""
+def _marka_ayir(ilan: dict, cekirdek: set[str] | None = None) -> tuple[list[str] | None, str | None]:
+    """(başlığın başındaki marka kelimeleri, markayı bitiren kelime)."""
     cekirdek = cekirdek or set()
     site_kel = set(re.findall(r"[a-z0-9]+", _n(_kucuk(site_adi(ilan.get("site"))))))
     kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
     on: list[str] = []
+    durduran = None
     for k in kel:
         if k in site_kel and not on:
             continue   # "PTTAVM: Northcity 3D Baskı ..." → site adı atlanır
         if (k in ("3d", "3", "boyutlu") or k.isdigit() or k in DURAK or k in GENEL or k in cekirdek
                 or _kok(k) in cekirdek):
+            durduran = k
             break
         on.append(k)
     if not on or len(on) > 3 or on[0] in GENEL_MARKALAR:
-        return None
-    return on
+        return None, durduran
+    return on, durduran
+
+
+def marka_kelimeleri(ilan: dict, cekirdek: set[str] | None = None) -> list[str] | None:
+    """Başlığın başındaki marka/satıcı kelimeleri (en çok 3); yoksa None."""
+    return _marka_ayir(ilan, cekirdek)[0]
+
+
+def _ham_kel(ilan: dict) -> list[str]:
+    """Başlığın bütün kelimeleri (karşılaştırma biçiminde); baştaki site adı ("PTTAVM: ...") atlanır."""
+    site_kel = set(re.findall(r"[a-z0-9]+", _n(_kucuk(site_adi(ilan.get("site"))))))
+    kel = [_n(k) for k in re.findall(r"[a-zçğıöşü0-9]+", _kucuk(ilan.get("ham_baslik") or ilan.get("title") or ""))]
+    while kel and kel[0] in site_kel:
+        kel = kel[1:]
+    return kel
+
+
+def marka_on_eki(ilan: dict, markalar: set[tuple[str, ...]]) -> tuple[str, ...]:
+    """Başlığın başındaki bilinen marka (en uzunu); yoksa ()."""
+    kel = _ham_kel(ilan)
+    return max((m for m in markalar if tuple(kel[: len(m)]) == m), key=len, default=())
+
+
+def kesin_markalar(ilanlar: list[dict]) -> set[tuple[str, ...]]:
+    """Kümelemeden ÖNCE güvenle marka sayılabilen başlık ön ekleri: "Bezos 3D Baskı ..." kalıbında
+    "3D"den önce gelen ve hiçbir ilanda başlığın içinde (ürün adı olarak) geçmeyen kelimeler. Marka
+    ayırt edici sayılırsa bir satıcının ilgisiz ürünleri ("UCSESUAR ... Organizer", "UCSESUAR ... Masa
+    Lambası") tek ürün gibi kümelenir. "Pikachu 3D Baskı Lamba" + "3D Baskı Pikachu Lamba" → pikachu
+    marka değil. Bir kez marka olduğu anlaşılan ön ek, "3D" ile devam etmeyen başlıklarda da tanınır
+    ("MK DESIGN STUDIO 3D Baskı ..." → "MK DESIGN STUDIO Melek ..." da aynı markadır)."""
+    aday: set[tuple[str, ...]] = set()
+    for i in ilanlar:
+        on, durduran = _marka_ayir(i)
+        if on and (durduran in ("3d", "3", "boyutlu") or (durduran or "").isdigit()):
+            aday.add(tuple(on))
+    icte: set[str] = set()
+    for i in ilanlar:
+        icte |= set(_ham_kel(i)[len(marka_on_eki(i, aday)):])
+    return {m for m in aday if not set(m) & icte}
+
+
+def urun_kelimeleri(kel: list[str], marka_: tuple[str, ...] = ()) -> set[str]:
+    """Başlığı kümelemede temsil eden kelimeler: ayırt edici kelimeler (baştaki kesin marka hariç); hiç
+    yoksa genel kelimelerin bileşik anahtarı (genel_bilesik). Marka atılınca geriye 2'den az kelime
+    kalıyorsa marka atılmaz ("Pikachu 3D Baskı Figür": pikachu ürünün kendisidir)."""
+    kalan = list(kel)
+    while kalan and kalan[0] in marka_:
+        kalan = kalan[1:]
+    if len(kalan) < 2:
+        kalan = kel
+    ayirt = ayirt_edici(kalan)
+    if ayirt:
+        return ayirt
+    bilesik = genel_bilesik(kalan)
+    return {bilesik} if bilesik else set()
 
 
 def marka(ilan: dict) -> str | None:
@@ -311,23 +415,36 @@ def benzer(a: set[str], b: set[str]) -> bool:
     if ortak == 0:
         return False
     kucuk = min(len(a), len(b))
-    return ortak / len(a | b) >= 0.5 or (kucuk >= 2 and ortak == kucuk)
+    oran = ortak / len(a | b)
+    # Alt küme kuralı ("Dokunsal Cetvel" ⊂ "Bezos Dokunsal Cetvel ...") çok uzun başlıkla eşleşmesin.
+    return oran >= 0.5 or (kucuk >= 2 and ortak == kucuk and oran >= 1 / 3)
+
+
+def ayni_urun(a: dict, b: dict) -> bool:
+    """İki üye ({"ayirt", "tip"}) aynı ürün mü: kelimeleri benzer ve ürün tipleri çakışmıyor."""
+    if a["tip"] and b["tip"] and not (a["tip"] & b["tip"]):
+        return False
+    return benzer(a["ayirt"], b["ayirt"])
 
 
 def kumele(ilanlar: list[dict]) -> list[dict]:
-    """Aynı ürünün ilanlarını toplar. Küme: ad, anahtar, ilanlar, görsel, siteler, fiyatlar."""
+    """Aynı ürünün ilanlarını toplar. Küme: ad, anahtar, ilanlar, görsel, ayirt, tipler, cekirdek."""
+    def bas(i: dict) -> str:
+        return i.get("ham_baslik") or i.get("title") or ""
+
+    markalar = kesin_markalar(ilanlar)
     kumeler: list[dict] = []
     for ilan in ilanlar:
-        kel = kelimeler(ilan.get("ham_baslik") or ilan.get("title") or "")
-        ayirt = ayirt_edici(kel)
-        if not ayirt:
+        kel = kelimeler(bas(ilan))
+        uye = {"ayirt": urun_kelimeleri(kel, marka_on_eki(ilan, markalar)), "tip": tipler(kel),
+               "kel": kel, "ilan": ilan}
+        if not uye["ayirt"]:
             continue   # yalnızca "fidget oyuncak" gibi genel başlık: hangi ürün olduğu belli değil
-        hedef = next((k for k in kumeler if any(benzer(ayirt, u) for u in k["_uyeler"])), None)
+        hedef = next((k for k in kumeler if any(ayni_urun(uye, u) for u in k["_uyeler"])), None)
         if hedef is None:
-            hedef = {"_uyeler": [], "ilanlar": [], "_kelimeler": []}
+            hedef = {"_uyeler": [], "ilanlar": []}
             kumeler.append(hedef)
-        hedef["_uyeler"].append(ayirt)
-        hedef["_kelimeler"].append(kel)
+        hedef["_uyeler"].append(uye)
         if all(i["link"] != ilan["link"] for i in hedef["ilanlar"]):
             hedef["ilanlar"].append(ilan)
     # Sıra bağımlılığını gider: "Bezos ... Cetveli" ile "Nexora ... Cetveli" doğrudan benzemez ama
@@ -338,36 +455,50 @@ def kumele(ilanlar: list[dict]) -> list[dict]:
         for i in range(len(kumeler)):
             for j in range(len(kumeler) - 1, i, -1):
                 a, b = kumeler[i], kumeler[j]
-                if any(benzer(x, y) for x in a["_uyeler"] for y in b["_uyeler"]):
+                if any(ayni_urun(x, y) for x in a["_uyeler"] for y in b["_uyeler"]):
                     a["_uyeler"] += b["_uyeler"]
-                    a["_kelimeler"] += b["_kelimeler"]
                     a["ilanlar"] = _birlestir(a["ilanlar"], b["ilanlar"])
                     del kumeler[j]
                     birlesti = True
     for k in kumeler:
-        # Ad: en kısa (markasız olma ihtimali en yüksek) başlık.
-        def bas(i: dict) -> str:
-            return i.get("ham_baslik") or i.get("title") or ""
-        temsil = min(k["ilanlar"], key=lambda i: (len(kelimeler(bas(i))), len(bas(i))))
-        k["anahtar"] = " ".join(sorted(ayirt_edici(kelimeler(bas(temsil)))))[:120]
-        k["kelimeler"] = kelimeler(bas(temsil))
-        k["ayirt"] = set().union(*k["_uyeler"])
+        uyeler = k.pop("_uyeler")
+        k["ayirt"] = set().union(*(u["ayirt"] for u in uyeler))
+        k["tipler"] = set().union(*(u["tip"] for u in uyeler))
         # Çekirdek (ürün kelimeleri): FARKLI kelimeyle başlayan en az 2 başlıkta geçen kelimeler.
         # Marka yalnızca kendi ilanlarında geçer ("WORK3D Kartal...", "WORK3D Pilli Kartal..." →
         # work3d çekirdek değil; "kartal" hem "Kartal Şeklinde..." hem "WORK3D Kartal..." → çekirdek).
         baslar: dict[str, set[str]] = {}
-        for ayirt_, kel_ in zip(k["_uyeler"], k["_kelimeler"]):
-            for x in ayirt_:
-                baslar.setdefault(x, set()).add(kel_[0] if kel_ else "")
-        k["cekirdek"] = {x for x, b in baslar.items() if len(b) >= 2}
-        k["ad"] = gorunen_ad(bas(temsil), temsil.get("site"), k["cekirdek"])
-        k["gorsel"] = next((i.get("thumbnail") for i in k["ilanlar"] if i.get("thumbnail")), None)
-        del k["_uyeler"], k["_kelimeler"]
+        for u in uyeler:
+            for x in u["ayirt"]:
+                baslar.setdefault(x, set()).add(u["kel"][0] if u["kel"] else "")
+        cekirdek = k["cekirdek"] = {x for x, b in baslar.items() if len(b) >= 2}
+        # Temsilci: kümenin ortak ürününü en iyi anlatan ilan. Önce kelimeleri çekirdekle en çok örtüşen
+        # (aykırı ya da markalı olmayan, çekirdeğin de çoğunu içeren), sonra Türkçe harfleri bozulmamış,
+        # sonra en kısa başlık. Ad, anahtar ve GÖRSEL bu sırayla seçilir; kümenin ilk ilanı aykırı bir
+        # ürünse onun fotoğrafı kümeyi temsil etmesin.
+        def uyum(u: dict) -> float:
+            ortak = len(u["ayirt"] & cekirdek)
+            return ortak / len(u["ayirt"]) * ortak / len(cekirdek) if cekirdek else 0.0
+
+        def duz_yazim(u: dict) -> bool:   # "cok Bolmeli Masaustu": pazar yerinin Türkçe harfsiz kopyası
+            return not re.search(r"[çğıöşüÇĞİÖŞÜ]", bas(u["ilan"]))
+        sirali = sorted(uyeler, key=lambda u: (-uyum(u), duz_yazim(u), len(u["kel"]), len(bas(u["ilan"]))))
+        temsil = sirali[0]
+        k["anahtar"] = " ".join(sorted(temsil["ayirt"]))[:120]
+        k["kelimeler"] = temsil["kel"]
+        k["ad"] = gorunen_ad(bas(temsil["ilan"]), temsil["ilan"].get("site"), cekirdek)
+        k["gorsel"] = next((u["ilan"]["thumbnail"] for u in sirali if u["ilan"].get("thumbnail")), None)
     return sorted(kumeler, key=lambda k: (-satici_sayisi(k), -len(k["ilanlar"])))
 
 
-def _ilgili(baslik: str | None, ayirt: set[str]) -> bool:
-    return bool(ayirt_edici(kelimeler(baslik or "")) & ayirt)
+def kumeye_uyar(baslik: str | None, kume: dict) -> bool:
+    """Başka kaynaktan (Lens, önceki keşif) gelen ilan bu kümenin ürünü mü: ayırt edici bir kelimesi
+    (ya da genel bileşik anahtarı) ortak ve ürün tipi çakışmıyor."""
+    kel = kelimeler(baslik or "")
+    tip, kume_tip = tipler(kel), kume.get("tipler") or set()
+    if tip and kume_tip and not (tip & kume_tip):
+        return False
+    return bool(ayirt_edici(kel) & kume["ayirt"]) or genel_bilesik(kel) in kume["ayirt"]
 
 
 def lens_incele(yanit: dict, kume: dict) -> tuple[list[dict], list[dict]]:
@@ -385,7 +516,7 @@ def lens_incele(yanit: dict, kume: dict) -> tuple[list[dict], list[dict]]:
         else:
             site = pazar.site_bul(link, x.get("source"))
             # Aynı şartlar: 3D baskı işareti olmalı (plastik enjeksiyon saksı vb. sayılmaz), dosya satışı değil.
-            if (site and _ilgili(x.get("title"), kume["ayirt"]) and not pazar.dijital_site_mi(link)
+            if (site and kumeye_uyar(x.get("title"), kume) and not pazar.dijital_site_mi(link)
                     and pazar.uc_d_mi(x.get("title"), x.get("source"), link)):
                 f = x.get("price") if isinstance(x.get("price"), dict) else {}
                 fiyat = f.get("extracted_value")
@@ -568,7 +699,10 @@ def kesfet(depo, api_key: str, bugun: date, kaynak: mw.MakerWorldKaynak | None =
         modeller: list[dict] = []
         if eski and eski.get("lens_yapildi"):
             k["lens_yapildi"] = True
-            k["ilanlar"] = _birlestir(k["ilanlar"], eski.get("ilanlar") or [])
+            # Önceki keşfin yalnızca Lens ilanları eklenir ve yeniden denetlenir: eski kümede yanlışlıkla
+            # duran ilgisiz ilanlar (aynı anahtarla) geri gelmesin.
+            k["ilanlar"] = _birlestir(k["ilanlar"], [i for i in eski.get("ilanlar") or []
+                                                     if i.get("kaynak") == "görsel" and kumeye_uyar(i.get("title"), k)])
             modeller = eski.get("diger_kaynaklar") or []
         elif lens_hakki > 0 and k.get("gorsel"):
             lens_hakki -= 1

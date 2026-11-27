@@ -240,3 +240,68 @@ def test_turkce_harf_ve_genel_marka_kumelemeyi_bozmaz():
     assert len(kartal["ilanlar"]) == 3 and kesif.satici_sayisi(kartal) == 2     # WORK3D tek satıcı
     assert kartal["ad"].startswith("Kartal") and "Genel" not in kartal["ad"]
     assert not any("baykus" in a and "kartal" in a for a in k)                     # baykuş ayrı ürün
+
+
+def test_kumele_genel_kelime_marka_veya_tip_farkli_urunleri_birlestirmez():
+    """2026-11-25 keşfindeki hatalı kümeler: "çok amaçlı" ortak diye tepsiyle birleşen ilgisiz ürünler
+    (ve kümenin görseli olarak ilk sıradaki ilgisiz ilanın fotoğrafı), marka adıyla ya da tek ortak
+    kelimeyle ("spiral", "kalp") birleşen farklı tipte ürünler."""
+    tepsi = "3D Baskı Çok Amaçlı Dekoratif Organizer Tepsisi - Masaüstü Düzenleyici, Banyo ve Mutfak Saklama Tepsisi"
+    ilanlar = [
+        _ilan("BETHA Çok Amaçlı Estetik Obje 3D Baskı- Pembe", "Trendyol", 1, 250),        # ilk sırada, başka ürün
+        _ilan(tepsi, "Hepsiburada", 2, 748),
+        _ilan("Bezos " + tepsi, "Hepsiburada", 3, 685),
+        _ilan("Astraltech " + tepsi, "Hepsiburada", 4, 748),
+        _ilan(tepsi.replace("3D Baskı", "3d Baskı"), "Çiçeksepeti", 5, 1006),
+        _ilan("Bezos 3D Baskı Yin Yang Formlu Çok Amaçlı Kase Takı ve Anahtar Tepsisi Masaüstü Düzenleyici",
+              "Hepsiburada", 6, 392),
+        _ilan("Mays3Dstudio 3D Baski cok Amacli Masaustu Organizer – Airbrush & Firca Standi", "Trendyol", 7, 2299),
+        _ilan("UCSESUAR 3’lü Modüler Masaüstü Organizer Seti 3D Baskı Kalemlik ve Ofis Düzenleyici", "Trendyol", 8),
+        _ilan("UCSESUAR 3D Baskı Mini Dekoratif Masa Lambası", "Trendyol", 9),
+        _ilan("Genel Markalar 3D Baskı Dönen Spiral Oyuncak – Yıldız Fidget Toy", "Trendyol", 10),
+        _ilan("3D Baskı Spiral Tasarım Masa Lambası, Sarmal Dokulu Gece Lambası.", "anatoliacandles", 11),
+        _ilan("KÖK 3D Baskı Spiral LED Gece Lambası – Modern Dekoratif Masa Lambası", "Trendyol", 12),
+        _ilan("reformix 3D Baskı Spiral Tasarım Dekor Vazo", "Trendyol", 13),
+        _ilan("3d Baskı Kalp Şekilli Kalemlik - Masaüstü Organizer - Gri", "Çiçeksepeti", 14),
+        _ilan("Alvera Kalp Şekilli Kalemlik – 3D Baskı Masaüstü Organizer - Bej", "Hepsiburada", 15),
+        _ilan("DR Neon Kalp sekilli 3D Baski Dekoratif LED Lamba – 220V", "Trendyol", 16),
+        _ilan("Genel Markalar yilbasi urunleri - orgu Dokulu 3D Baski Yilbasi Dekorasyon Seti", "Trendyol", 17),
+        _ilan("Genel Markalar Yilbasi Dekor Seti – 3D Baski orgu Dokulu Noel Baba", "Trendyol", 18),
+        _ilan("MK DESIGN STUDIO 5’li Yilbasi Geyik Susu Seti – Noel Agaci Icin", "Trendyol", 19),
+    ]
+    kumeler = kesif.kumele(ilanlar)
+
+    def kumesi(n):
+        return next(k for k in kumeler if any(i["thumbnail"].endswith(f"/{n}.jpg") for i in k["ilanlar"]))
+
+    def numaralar(k):
+        return sorted(int(i["thumbnail"].rsplit("/", 1)[1].split(".")[0]) for i in k["ilanlar"])
+
+    t = kumesi(2)
+    assert numaralar(t) == [2, 3, 4, 5] and kesif.satici_sayisi(t) == 4
+    assert t["ad"] == "Çok Amaçlı Dekoratif Organizer Tepsisi" and t["gorsel"] == "https://t.example/2.jpg"
+    assert numaralar(kumesi(11)) == [11, 12] and kumesi(11)["tipler"] == {"lamba"}     # oyuncak ve vazo ayrı
+    assert numaralar(kumesi(14)) == [14, 15]                                           # kalp lamba ayrı
+    for tek in (1, 6, 7, 8, 9, 10, 13, 16, 19):
+        assert numaralar(kumesi(tek)) == [tek]
+    # yalnızca genel kelimelerden oluşan ve 3 kelimeyi bulmayan başlık ("yılbaşı ürünleri") kümelenmez
+    assert not any(17 in numaralar(k) and len(k["ilanlar"]) > 1 for k in kumeler)
+
+    # Lens'ten ya da önceki keşiften gelen ilan: aynı adlı ürün kabul, ilgisiz ürün ya da başka tip ret.
+    assert kesif.kumeye_uyar("Budos 3D Baskı Çok Amaçlı Dekoratif Organizer Tepsisi - Masaüstü Düzenleyici", t)
+    assert not kesif.kumeye_uyar("BETHA Çok Amaçlı Estetik Obje 3D Baskı- Pembe", t)
+    assert kesif.kumeye_uyar("Birsence 3D Baskı Kalp Şekilli Kalemlik - Masaüstü Organizer", kumesi(14))
+    assert not kesif.kumeye_uyar("DR Neon Kalp sekilli 3D Baski Dekoratif LED Lamba", kumesi(14))
+
+
+def test_kesin_markalar_on_eki_tanir_urun_adini_marka_saymaz():
+    mk = [_ilan("MK DESIGN STUDIO 3D Baski Yilbasi Agaci Susu 4 Adet Karisik Yildiz Seti", "Trendyol", 1),
+          _ilan("MK DESIGN STUDIO Melek Yilbasi Agaci ve Masa ustu Susu – Ipli Dekoratif Noel", "Trendyol", 2),
+          _ilan("MK DESIGN STUDIO 5’li Yilbasi Geyik Susu Seti – Noel Agaci Icin", "Trendyol", 3)]
+    assert kesif.kesin_markalar(mk) == {("mk", "design", "studio")}
+    assert kesif.marka_on_eki(mk[1], kesif.kesin_markalar(mk)) == ("mk", "design", "studio")
+    assert all(len(k["ilanlar"]) == 1 for k in kesif.kumele(mk))          # aynı mağazanın üç ayrı ürünü
+    # "3D"den önce gelen kelime başka bir ilanda başlığın içinde geçiyorsa ürün adıdır, marka değil.
+    pika = [_ilan("Pikachu 3D Baskı Gece Lambası", "Trendyol", 4), _ilan("3D Baskı Pikachu Gece Lambası", "n11", 5)]
+    assert kesif.kesin_markalar(pika) == set()
+    assert [len(k["ilanlar"]) for k in kesif.kumele(pika)] == [2]
