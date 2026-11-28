@@ -526,3 +526,40 @@ def test_ilgisiz_ilan_benzer_urun_sayilmaz():
     eski = {**o, "results": [{k: v for k, v in r.items() if k != "ilgili"} for r in o["results"]]}
     assert len(pazar.benzer_urunler(eski)) == 3
     assert len(pazar.benzer_urunler(pazar.yeniden_ozetle(eski, ad))) == 1
+
+
+def test_genel_kelime_tek_basina_ilgili_saymaz():
+    """28 Kasım 2026 günlük çalışması: arama metni zayıf kalınca tek bir genel kelimeyle ("sevimli",
+    "yılbaşı", "stand") eşleşen alakasız ilanlar benzer ürün sayılıyor, ürün Türkiye kontrolünü geçiyordu."""
+    ilgili = pazar.ilanla_ilgili
+    # tema / sıfat tek başına yetmez
+    ad, sorgu = "Renna Natalizia a Maglia: Cute Edition NO AMS", "sevimli 3d baskı"
+    assert not ilgili("3D Baskı Sevimli Ayıcık Biblo – Kalpli Dekoratif Hediyelik Fiyatı", ad, sorgu)
+    assert not ilgili("lina hobby 1 Adet 3D Baskı Sevimli Ahtapot Anahtarlık", ad, sorgu)
+    # geniş tip tek başına yetmez
+    ad, sorgu = "GTA 6 (GTA VI) PS5 DualSense Controller Stand", "stand 3d baskı"
+    assert not ilgili("3D Baskı Takı Standı – Küpe, Kolye ve Yüzük Organizeri", ad, sorgu)
+    assert ilgili("PS5 DualSense Stand 3D Baskı", ad, sorgu)                               # ayırt edici kelime
+    # belirli tip yeter; tema + tema yetmez
+    ad, sorgu = "Christmas Light Slinky • Christmas Fidget • No AMS", "yılbaşı lamba fidget 3d baskı"
+    assert ilgili("Tetra's 3D Baskı Zincirli Fidget Spinner Stres Oyuncağı Fiyatı", ad, sorgu)
+    assert not ilgili("Yılbaşı Tombala Fiyatı, Taksit Seçenekleri ile Satın Al", ad, sorgu)
+    assert not ilgili("Antilop 3'lü 3D Baskı Noel Baba Yılbaşı Masaüstü Dekoratif", ad, sorgu)
+    assert ilgili("Pitbull Anahtarlık 3D Baskı", "Mini Sliding Photo Book Keychain - 2×3 & 3×4 cm", "anahtarlık 3d baskı")
+    # geniş tip, yanında ikinci bir genel kavramla yeter
+    ad, sorgu = "Cute Christmas Snoopy - Multi-Part (No AMS Needed)", "sevimli yılbaşı süsü 3d baskı"
+    assert ilgili("3D Baskı Sevimli Yılbaşı Süsü", ad, sorgu)
+    assert not ilgili("Sevimli Bacaklı 3D Baskı Yılbaşı Ağacı Figürleri", ad, sorgu)
+    # çok kelimeli kavramda genel kelime aranmaz; iyelik eki ve İngilizce çoğul serbest
+    ad, sorgu = "Christmas Tree Cake Holder Hype Chain Locket", "yılbaşı ağacı tutucu 3d baskı"
+    assert ilgili("Noel Ağacı 3D Baskı", ad, sorgu) and ilgili("Minimal 3’lü Yılbaşı Ağaç Dekor Seti", ad, sorgu)
+    assert not ilgili("Evrensel Yılbaşı Süs Askısı 3D Baskı", ad, sorgu)
+    assert ilgili("Yıldız Tealight Mum Tutucu Seti", "Winter Windowsill Village for LED Tealights", "köy tealight mumluk 3d baskı")
+    assert ilgili("Kardan Adam Figürü", "Goofy series – SNOWMAN", "kardan adam figür 3d baskı")
+    assert not ilgili("Kurabiye Adam Figürü", "Goofy series – SNOWMAN", "kardan adam figür 3d baskı")
+    # ürünün bilinen tek kavramı genelse o kavram yeter
+    assert ilgili("Dekoratif Süs 3D Baskı", "Ornament", "süs 3d baskı")
+    assert not ilgili("Dekoratif Biblo 3D Baskı", "Ornament", "süs 3d baskı")
+    # pazar yerinin kategori / arama sayfası ilan değildir
+    assert not ilgili("Sayfa 40 – yılbaşı geyiği", "Knitted Reindeer", "örgü geyik 3d baskı")
+    assert not ilgili("3D Hediyelikler 🎁 - Sevdiklerinizi Mutlu Edin - Sayfa 8", "Knitted Reindeer", "örgü geyik 3d baskı")

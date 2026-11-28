@@ -17,6 +17,7 @@ SERPAPI_KEY yoksa hiçbir şey yapılmaz. Sonuçlar "benzer ürün" olarak okunm
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 import statistics
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus, urlparse
@@ -609,23 +610,40 @@ def _norm(metin: str | None) -> str:
 _GENEL_N = {_norm(k) for k in GENEL_KAVRAMLAR}
 _GURULTU_N = {_norm(k) for k in GURULTU}
 
+# İlanın ürünle ilgisi (ilanla_ilgili) için genel kavramlar üçe ayrılır:
+# - tema ve sıfat (aşağıdaki küme): ürünün ne olduğunu söylemez ("yılbaşı", "sevimli", "hediye");
+# - belirli tip (BELIRLI_TIPLER): tek başına ürün türünü söyler ("anahtarlık", "fidget", "vazo");
+# - geniş tip (GENEL_KAVRAMLAR'ın kalanı): çok farklı ürünleri kapsar ("figür", "süs", "stand", "kutu").
+TEMA_KAVRAMLAR = {
+    "christmas", "xmas", "holiday", "holidays", "festive", "winter", "halloween", "easter", "valentine",
+    "yılbaşı", "noel", "yeni", "yıl", "sezon", "kış", "cadılar", "bayramı", "gift", "gifts", "hediye",
+    "hediyelik", "personalized", "personalised", "custom", "customizable", "kişiye", "özel", "cute", "tiny",
+    "little", "sevimli", "minik", "ultimate", "simple", "fun", "cool", "funny", "satisfying", "flexible",
+    "articulated", "flexi", "eklemli", "hareketli", "mechanical", "mekanik", "sensory", "tactile", "dokunsal",
+    "stress", "relief", "stres", "giderici", "dark", "black", "white", "red", "green", "blue", "decorative",
+    "dekoratif", "home", "kids", "art", "collection", "desk", "masa", "masaüstü", "kit", "seti", "game",
+}
+BELIRLI_TIPLER = {"fidget", "spinner", "anahtarlık", "lamba", "vazo", "saksı", "tepsi", "askı", "çerçeve",
+                  "mumluk"}
+_TEMA_N = {_norm(k) for k in TEMA_KAVRAMLAR}
+_BELIRLI_N = {_norm(k) for k in BELIRLI_TIPLER}
+
 
 def _genel(ifade: str) -> bool:
     return all(k in _GENEL_N or k in _GURULTU_N for k in _norm(ifade).split())
 
 
-def kavramlar(ad: str | None) -> list[set[str]]:
-    """Model adının ayırt edici kavramları; her kavram İngilizce ve Türkçe biçimleriyle
-    (ör. "Personalized Reindeer Sweater Ornament" → [{reindeer, geyik}, {sweater, kazak}]).
-    Tamamı büyük harfle yazılmış bilinmeyen kelimeler (çoğunlukla tasarımcı/marka, "MYLITOS") atılır."""
+def _kavram_ayir(ad: str | None) -> tuple[list[set[str]], list[set[str]]]:
+    """Model adının kavramları, (ayırt edici, genel) olarak; her kavram İngilizce ve Türkçe biçimleriyle.
+    Genel kavramlar GENEL_KAVRAMLAR'daki tema/tip sözcükleridir ("christmas"/"yılbaşı", "stand")."""
     ham = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", ad or "")
     metin = " ".join(k.lower() for k in ham)
     sonuc: list[set[str]] = []
+    genel: list[set[str]] = []
     for ifade, tr in IFADELER.items():
         if re.search(rf"\b{ifade}\b", metin):
             metin = re.sub(rf"\b{ifade}\b", " ", metin)
-            if not (_genel(ifade) and _genel(tr)):
-                sonuc.append({_norm(ifade), _norm(tr)})
+            (genel if _genel(ifade) and _genel(tr) else sonuc).append({_norm(ifade), _norm(tr)})
     kalan = set(metin.split())
     for orijinal in ham:
         k = orijinal.lower()
@@ -635,12 +653,18 @@ def kavramlar(ad: str | None) -> list[set[str]]:
         tr = CEVIRI.get(k) or CEVIRI.get(k.rstrip("s"))
         if tr is None and orijinal.isupper() and len(orijinal) > 1:
             continue   # bilinmeyen BÜYÜK HARF kelime: marka/tasarımcı
-        if _genel(k) or (tr and _genel(tr)):
-            continue
         bicimler = {_norm(k)} | ({_norm(tr)} if tr else set())
-        if not any(bicimler & s for s in sonuc):
-            sonuc.append(bicimler)
-    return sonuc
+        hedef = genel if _genel(k) or (tr and _genel(tr)) else sonuc
+        if not any(bicimler & s for s in hedef):
+            hedef.append(bicimler)
+    return sonuc, genel
+
+
+def kavramlar(ad: str | None) -> list[set[str]]:
+    """Model adının ayırt edici kavramları; her kavram İngilizce ve Türkçe biçimleriyle
+    (ör. "Personalized Reindeer Sweater Ornament" → [{reindeer, geyik}, {sweater, kazak}]).
+    Tamamı büyük harfle yazılmış bilinmeyen kelimeler (çoğunlukla tasarımcı/marka, "MYLITOS") atılır."""
+    return _kavram_ayir(ad)[0]
 
 
 def _kelime_uyar(bicim: str, kelime: str) -> bool:
@@ -710,21 +734,80 @@ def gorselle_kontrol(sonuclar: list[dict], urun: dict, dogrulayici) -> tuple[lis
     return yeni, True
 
 
+# Pazar yerinin kategori/arama sayfası ("Sayfa 40 – yılbaşı geyiği", "3D Hediyelikler - Sayfa 8"): ilan değil.
+SAYFA = re.compile(r"(?:^|[-–—|]\s*)sayfa\s+\d+\b", re.I)
+
+
+@lru_cache(maxsize=512)
+def ilgi_kavramlari(ad: str | None, sorgu: str | None) -> tuple[list[set[str]], list[set[str]]]:
+    """İlanın ürünle ilgisini gösteren kavramlar, (ayırt edici, genel) olarak: model adının kavramları ve
+    Türkçe arama metninin adda karşılığı olmayan kelimeleri (etiketlerden gelen ürün tipi, Lens'in bulduğu
+    Türkçe kelimeler). Genel olanlar tema ve tip sözcükleridir ("yılbaşı", "sevimli", "stand", "figür")."""
+    ayirt, genel = _kavram_ayir(ad)
+    ayirt, genel = list(ayirt), list(genel)
+    bilinen = {k for kavram in ayirt + genel for bicim in kavram for k in bicim.split()}
+    for govde in (sorgu or "").lower().split("·"):
+        for parca in _parcalar(re.sub(r"\b3d\s+bask[ıi]\b", " ", govde)):
+            kelimeler = [k for k in parca.split() if k not in GURULTU and k not in TR_DURAK]
+            n = _norm(" ".join(kelimeler))
+            if not n or all(k in bilinen for k in n.split()):
+                continue
+            (genel if _genel(n) else ayirt).append({n})
+            bilinen |= set(n.split())
+    return ayirt, genel
+
+
+def _ilan_kelime_uyar(bicim: str, kelime: str) -> bool:
+    """_kelime_uyar + iyelik ekli ya da İngilizce çoğul biçimin yalın hâli ("ağacı" → "ağaç", "standı" →
+    "stand", "tealights" → "tealight")."""
+    return _kelime_uyar(bicim, kelime) or (len(bicim) >= 5 and bicim[-1] in "ius" and kelime.startswith(bicim[:-1]))
+
+
+def _kavram_gecer(kavram: set[str], kelimeler: list[str]) -> bool:
+    """Kavramın bir biçimi başlıkta geçiyor mu? Çok kelimeli biçimde kelimelerin hepsi aranır ("kardan
+    adam": ikisi de). Yanında ayırt edici uzun bir kelime varsa genel kelimeler ("yılbaşı ağacı" → "Noel
+    Ağacı" da uyar, "kablo düzenleyici" → "Kablo Tutucu") ve 4 harften kısa kelimeler ("kurabiye ev") aranmaz."""
+    for bicim in kavram:
+        parca = bicim.split()
+        uzun = [p for p in parca if len(p) >= 4]
+        aranan = [p for p in uzun if p not in _GENEL_N] or uzun or parca
+        if all(any(_ilan_kelime_uyar(p, k) for k in kelimeler) for p in aranan):
+            return True
+    return False
+
+
+def _belirli_tip_gecer(kavram: set[str], kelimeler: list[str]) -> bool:
+    """Kavramdaki belirli tip kelimesi ("fidget oyuncak" → "fidget") başlıkta geçiyor mu?"""
+    return any(_ilan_kelime_uyar(p, k) for bicim in kavram for p in bicim.split() if p in _BELIRLI_N
+               for k in kelimeler)
+
+
+def _tema(kavram: set[str]) -> bool:
+    return all(k in _TEMA_N or k in _GURULTU_N for bicim in kavram for k in bicim.split())
+
+
 def ilanla_ilgili(baslik: str | None, ad: str | None, sorgu: str | None) -> bool:
     """Satış ilanı ürünle ilgili mi (aynı ürün ya da aynı tipte benzer ürün): 3D yazıcı, sarf malzemesi,
-    parça ya da dosya değil ve başlığında model adının ya da Türkçe arama metninin bir kelimesi (Türkçe
-    eklerle: "geyik" → "geyiği") geçiyor. Arama metni zayıf kaldığında gelen alakasız ilanlar ("örgü 3d
-    baskı" → 3D yazıcılar) benzer ürün sayılmasın ve Türkiye kontrolünü geçirmesin diye."""
+    parça, dosya ya da kategori sayfası değil ve başlığında (Türkçe eklerle: "geyik" → "geyiği")
+    - ürünü ayırt eden bir kavram (model adından ya da Türkçe arama metninden: "geyik", "kardan adam"), ya da
+    - ürünün belirli tipi ("anahtarlık", "fidget"), ya da
+    - geniş bir tip, yanında ikinci bir genel kavramla ("yılbaşı" + "süsü", "fidget" + "oyuncak") geçiyor.
+    Tema/sıfat ya da geniş tip tek başına yetmez: arama metni zayıf kaldığında ("sevimli 3d baskı",
+    "stand 3d baskı") gelen alakasız ilanlar benzer ürün sayılmasın ve Türkiye kontrolünü geçirmesin
+    diye. Ürünün bilinen tek kavramı genelse ("figür 3d baskı") o kavram yeter."""
     baslik = baslik or ""
-    if DIJITAL.search(baslik) or PARCA.search(baslik) or makine_mi(baslik):
+    if DIJITAL.search(baslik) or PARCA.search(baslik) or makine_mi(baslik) or SAYFA.search(baslik):
         return False
-    bicimler = {_norm(k) for k in anahtar_kelimeler(ad, (sorgu or "").replace("·", " "))} - {"3d", "baski"}
-    # Model adının bugünkü sözlükle Türkçe karşılıkları da sayılır (kayıtlı arama metni eski olabilir).
-    bicimler |= {k for kavram in kavramlar(ad) for bicim in kavram for k in bicim.split()}
-    if not bicimler:
+    ayirt, genel = ilgi_kavramlari(ad, sorgu)
+    if not ayirt and not genel:
         return True   # ne arandığı bilinmiyor: karar verilemez, ilan tutulur
     kelimeler = re.findall(r"[a-z0-9]+", _norm(baslik))
-    return any(_kelime_uyar(b, k) for b in bicimler for k in kelimeler)
+    if any(_kavram_gecer(k, kelimeler) for k in ayirt) or any(_belirli_tip_gecer(k, kelimeler) for k in ayirt + genel):
+        return True
+    gecen = [k for k in genel if _kavram_gecer(k, kelimeler)]
+    if not ayirt and len(genel) == 1:
+        return bool(gecen)
+    return len(gecen) >= 2 and not all(_tema(k) for k in gecen)
 
 
 def isaretle(sonuclar: list[dict], ad: str | None, sorgu: str | None = None) -> list[dict]:
