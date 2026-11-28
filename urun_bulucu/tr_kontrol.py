@@ -54,10 +54,15 @@ def _satildi(u: dict, satis_ozeti: dict | None) -> int:
 
 def aranacaklar(urunler: list[dict], kayitlar: dict[int, dict], adet: int,
                 satis_ozeti: dict | None = None, simdi: datetime | None = None) -> list[dict]:
-    """Kontrol gereken, taze kaydı olmayan ürünler; en çok indirilen önce, en çok `adet`."""
+    """Kontrol gereken, taze kaydı olmayan ürünler; en çok indirilen önce, en çok `adet`.
+    Kaydı taze ama arama metni değişmiş ürünler de aranır (pazar.sorgu_degisti), kaydı olmayanlardan sonra."""
+    def taze(u: dict) -> bool:
+        return taze_mi(kayitlar.get(u["id"]), simdi)
+
     adaylar = [u for u in urunler if gerekli_mi(u) and u.get("id") is not None and u.get("name")
-               and not _satildi(u, satis_ozeti) and not taze_mi(kayitlar.get(u["id"]), simdi)]
-    adaylar.sort(key=lambda u: (u.get("trend_rank") is None, -(u.get("downloads") or 0)))
+               and not _satildi(u, satis_ozeti)
+               and (not taze(u) or pazar.sorgu_degisti(kayitlar.get(u["id"]), u))]
+    adaylar.sort(key=lambda u: (taze(u), u.get("trend_rank") is None, -(u.get("downloads") or 0)))
     return adaylar[:max(0, adet)]
 
 
@@ -122,6 +127,7 @@ def calistir(depo, urunler: list[dict], kayitlar: dict[int, dict], ayarlar: conf
             except (pazar.PazarHatasi, httpx.HTTPError) as e:
                 print(f"UYARI: Türkiye pazar kontrolü durdu ({u.get('name')}): {e}")
                 break
+            sonuclar = pazar.gorselleri_tasi(sonuclar, kayitlar.get(u["id"]), config.TR_KONTROL_YENILEME_GUN)
             yeni[u["id"]] = pazar.ozetle(u["id"], sonuclar, sorgu, u.get("name") or "")
         if yeni:
             depo.pazar_kaydet(list(yeni.values()))

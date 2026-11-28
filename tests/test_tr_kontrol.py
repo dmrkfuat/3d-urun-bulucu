@@ -82,6 +82,17 @@ def test_isaretle_ve_secim_disi_birakma():
     assert "3D baskı satış ilanı" in s1["reason"] and s1["urun"]["score_detail"]["turkiye"]
 
 
+def test_aranacaklar_sorgusu_degisen_yeniden_aranir():
+    taze = datetime.now(timezone.utc).isoformat()
+    renna = {"id": 1, "name": "Renna Natalizia a Maglia", "genel": True, "downloads": 900}
+    yeni = {"id": 2, "name": "Knitted Angel", "genel": True, "downloads": 10}
+    ayni = {"id": 3, "name": "Knitted Jesus", "genel": True, "downloads": 500}
+    kayitlar = {1: {"checked_at": taze, "results": [{"title": "x", "sorgu": "sevimli 3d baskı"}]},
+                3: {"checked_at": taze, "results": [{"title": "x", "sorgu": "örgü isa 3d baskı"}]}}
+    hedef = tr_kontrol.aranacaklar([renna, yeni, ayni], kayitlar, 5)
+    assert [u["id"] for u in hedef] == [2, 1]      # önce kaydı olmayan, sonra metni değişen; aynı metin atlanır
+
+
 def test_aranacaklar_taze_kayit_ve_satilan_atlanir():
     a = urun(1, "A", 1, 500, genel=True)
     b = urun(2, "B", 1, 900, genel=True)

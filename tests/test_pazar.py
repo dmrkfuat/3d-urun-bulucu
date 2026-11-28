@@ -216,14 +216,16 @@ def test_arama_metni_yabanci_ad_eksik_kelime_ve_etiket_destegi():
     assert a("Renna Natalizia a Maglia: Cute Edition NO AMS") == "geyik yılbaşı örgü 3d baskı"
     assert a("Pupazzo di Neve Natalizio a Maglia No Ams") == "kardan adam yılbaşı örgü figür 3d baskı"
     assert a("Fensterhaken Weihnachten Dekoration aufhängen") == "pencere askı yılbaşı 3d baskı"
-    assert a("Leuchtende Weihnachtsfiguren – 5er-Set", None, ["Christmas", "led tealight"])         == "ışıklı yılbaşı figür 3d baskı"                    # ad üç terim veriyor: etiket eklenmez
+    assert (a("Leuchtende Weihnachtsfiguren – 5er-Set", None, ["Christmas", "led tealight"])
+            == "ışıklı yılbaşı figür 3d baskı")               # ad üç terim veriyor: etiket eklenmez
     # Sözlükte olmayan kelime yüzünden yalnızca genel kelime ("stand", "sevimli") kalmaz.
     assert a("GTA 6 (GTA VI) PS5 DualSense Controller Stand") == "oyun kolu standı gta dualsense 3d baskı"
     assert a("Cute Christmas Snoopy - Multi-Part (No AMS Needed)") == "sevimli yılbaşı snoopy figür 3d baskı"
     assert a("Christmas Candy Cane Tealight Holders Set - NO AMS") == "mumluk baston şeker yılbaşı 3d baskı"  # çoğul ifade
     assert a("Goofy series – BAUBLE Movable Eyes NOAMS CHRISTMAS") == "yılbaşı topu 3d baskı"   # kelime iki kez yazılmaz
     # Ad ürünü söylemiyorsa etiketlerdeki ayırt edici kelimeler kullanılır...
-    assert a("UPDATED PocketPal - Hollow Head (Alan Becker)", None, ["stickman", "stick", "man", "figure"])         == "çöp adam figür 3d baskı"
+    assert (a("UPDATED PocketPal - Hollow Head (Alan Becker)", None, ["stickman", "stick", "man", "figure"])
+            == "çöp adam figür 3d baskı")
     assert a("Roly Poly Flexi Fidget", None, ["fidget", "flexi", "bug", "roly poly"]) == "böcek eklemli fidget 3d baskı"
     # ...ad söylüyorsa etiketler karışmaz ("santa claus" etiketi Grinch'i Noel Baba yapmasın).
     assert a("MYLITOS MINI GRINCH", None, ["grinch", "navidad", "santa claus"]) == "grinch mini figür 3d baskı"
@@ -243,6 +245,40 @@ def test_secilecekler_ve_eski_kural(monkeypatch):
     tarihler = {1: "2026-11-10T00:00:00+00:00",      # yeni kuralla arandı → atlanır
                 3: "2026-11-09T17:05:00+00:00"}      # eski kuralla arandı → yeniden aranır
     assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3)] == [3, 4, 5]   # sıraya göre; 1 yakında arandı, 2 görselsiz
+
+
+def test_sorgusu_degisen_urun_yeniden_aranir(monkeypatch):
+    monkeypatch.setattr(config, "PAZAR_KURAL_TARIHI", "2026-01-01T00:00:00+00:00")
+    monkeypatch.setattr(config, "PAZAR_SORGU_TARIHI", "2026-11-28T20:00:00+00:00")
+    simdi = datetime(2026, 11, 29, tzinfo=timezone.utc)
+
+    def kayit(sorgu, tarih="2026-11-27T00:00:00+00:00", sonuc=True):
+        return {"checked_at": tarih, "results": [{**_s("Bir ilan"), "sorgu": sorgu}] if sonuc else []}
+
+    renna = {"name": "Renna Natalizia a Maglia: Cute Edition NO AMS", "tags": [], "image_url": "u"}
+    kutu = {"name": "Thermoformed Christmas gift box", "tags": [], "image_url": "u"}
+    assert pazar.sorgu_degisti(kayit("sevimli 3d baskı"), renna)                    # eski metin ürünü söylemiyor
+    assert not pazar.sorgu_degisti(kayit("geyik yılbaşı örgü 3d baskı"), renna)
+    assert not pazar.sorgu_degisti(kayit("örgü yılbaşı geyik süsü ahşap 3d baskı · geyik 3d baskı"), renna)  # sıra, Lens kelimeleri
+    assert not pazar.sorgu_degisti(kayit("yılbaşı hediye kutu dekoratif 3d baskı"), kutu)   # "kutu" / "kutusu"
+    assert pazar.sorgu_degisti(kayit(None, sonuc=False), renna)                     # eski sonuçsuz kayıt: metin bilinmiyor
+    assert not pazar.sorgu_degisti(kayit(None, "2026-11-28T21:00:00+00:00", sonuc=False), renna)
+    assert not pazar.sorgu_degisti(None, renna)
+
+    secimler = [{"rank": i, "product_id": i, "urun": u} for i, u in enumerate([renna, kutu, renna], 1)]
+    kayitlar = {1: kayit("sevimli 3d baskı"), 2: kayit("yılbaşı hediye kutu 3d baskı")}   # 3: hiç aranmadı
+    tarihler = {pid: o["checked_at"] for pid, o in kayitlar.items()}
+    assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3)] == [3]
+    assert [s["product_id"] for s in pazar.secilecekler(secimler, tarihler, simdi, adet=3, kayitlar=kayitlar)] \
+        == [3, 1]                                              # önce hiç aranmamış, sonra metni değişen
+
+    # Lens'siz yenilemede eski görsel eşleşmeler ve sosyal medya sonuçları korunur.
+    eski = {"checked_at": datetime.now(timezone.utc).isoformat(), "results": [
+        _s("Örgü Geyik", "görsel"), _s("Eski metin ilanı"), {"kaynak": "sosyal", "site": "Instagram", "link": "x"}]}
+    yeni = pazar.gorselleri_tasi([_s("Yeni ilan")], eski, 14)
+    assert [r.get("title") for r in yeni] == ["Örgü Geyik", "Yeni ilan", None]
+    assert pazar.gorselleri_tasi([_s("Yeni ilan")], {**eski, "checked_at": "2026-01-02T00:00:00+00:00"}, 14) \
+        == [_s("Yeni ilan")]                                   # süresi dolmuş kayıttan taşınmaz
 
 
 def test_calistir_iki_arama_ve_tekrar_aranmaz(tmp_path, monkeypatch):

@@ -96,7 +96,7 @@ def test_serpapi_hakki_yokken_serper_ile_arar():
     class Depo:
         kaydedilen = []
 
-        def pazar_kontrol_tarihleri(self, ids):
+        def pazar_kayitlari(self, ids):
             return {}
 
         def pazar_kaydet(self, satirlar):

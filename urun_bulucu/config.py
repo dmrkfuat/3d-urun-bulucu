@@ -108,6 +108,9 @@ PAZAR_EN_DUSUK_FIYAT_TL = 20     # bunun altı (dosya satışı, hatalı fiyat) 
 # Bu tarihten önce yapılmış aramalar eski kurallarla yapıldı (3D şartı, sosyal medya ve görselden
 # kelime yokken, Lens yalnız görselle ararken); yeniden aranır.
 PAZAR_KURAL_TARIHI = "2026-11-09T17:49:00+00:00"
+# Arama metni bugünkünden farklı olan kayıtlar süresi dolmadan yeniden aranır (pazar.sorgu_degisti).
+# Sonuçsuz kayıtta arama metni saklanmaz: bu tarihten önceki sonuçsuz kayıtlar da yeniden aranır.
+PAZAR_SORGU_TARIHI = "2026-11-28T20:00:00+00:00"
 
 # --- Görsel doğrulama (gorsel.py): ilan fotoğrafı MakerWorld modeliyle aynı ürün mü? (Claude API) ---
 # ANTHROPIC_API_KEY yoksa yapılmaz; o zaman yalnızca başlıktaki kelimelere bakılır (pazar.ayni_urun_mu).

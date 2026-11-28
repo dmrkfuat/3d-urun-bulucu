@@ -1245,11 +1245,61 @@ def gecerli_mi(o: dict | None) -> bool:
         return False
 
 
+def kayit_sorgusu(o: dict | None) -> str | None:
+    """Kaydın yapıldığı arama metni (sonuçlarda saklanır; sonuçsuz kayıtta yoktur)."""
+    return next((r.get("sorgu") for r in (o or {}).get("results") or [] if r.get("sorgu")), None)
+
+
+def _sorgu_kelimeleri(metin: str) -> list[str]:
+    return _norm(re.sub(r"\b3d\s+bask[ıi]\b", " ", metin.split("·")[0], flags=re.I)).split()
+
+
+def _ayni_kelime(a: str, b: str) -> bool:
+    return a == b or (min(len(a), len(b)) >= 3 and (a.startswith(b) or b.startswith(a)))
+
+
+def sorgu_degisti(o: dict | None, urun: dict) -> bool:
+    """Kayıt, ürün için bugün üretilenden farklı bir arama metniyle mi yapılmış (sözlük gelişti)?
+    Bugünkü metnin her kelimesi kayıtlı metinde varsa değişmemiştir: kayıtlı metindeki fazla kelimeler
+    (Lens'ten gelenler), kelime sırası ve ek farkı ("kutu" / "kutusu") değişiklik sayılmaz.
+    Sonuçsuz kayıtta metin saklanmadığından PAZAR_SORGU_TARIHI'nden önceki sonuçsuz kayıtlar değişmiş
+    sayılır (bir kez; yeniden arama da sonuçsuz kalırsa tarihi yenilenir)."""
+    yeni = arama_metni(urun.get("name"), None, urun.get("tags"))
+    if not o or not yeni:
+        return False
+    eski = kayit_sorgusu(o)
+    if not eski:
+        try:
+            return _zaman(o["checked_at"]) < _zaman(config.PAZAR_SORGU_TARIHI)
+        except (KeyError, TypeError, ValueError):
+            return False
+    eski_kelimeler = _sorgu_kelimeleri(eski)
+    return not all(any(_ayni_kelime(y, e) for e in eski_kelimeler) for y in _sorgu_kelimeleri(yeni))
+
+
+def gorselleri_tasi(sonuclar: list[dict], o: dict | None, gun: int) -> list[dict]:
+    """Görselle arama (Lens) yapılmadan yenilenen aramada, süresi dolmamış eski kaydın görsel eşleşmeleri
+    ve sosyal medya sonuçları korunur: arama metnine bağlı değiller ve yeniden bulunamazlar."""
+    try:
+        if not gecerli_mi(o) or _zaman(o["checked_at"]) < datetime.now(timezone.utc) - timedelta(days=gun):
+            return sonuclar
+    except (KeyError, TypeError, ValueError):
+        return sonuclar
+    eski = o.get("results") or []
+    gorsel = [r for r in eski if r.get("kaynak") == "görsel"]
+    sosyal = [r for r in eski if r.get("kaynak") == "sosyal"]
+    if not gorsel and not sosyal:
+        return sonuclar
+    return birlestir(gorsel, sonuclar, en_fazla=20) + sosyal
+
+
 # ---------------------------------------------------------------- akış
 def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi: datetime | None = None,
-                 adet: int | None = None) -> list[dict]:
+                 adet: int | None = None, kayitlar: dict[int, dict] | None = None) -> list[dict]:
     """Bugün aranacak ürünler: özetteki sıraya göre (1. ürün önce); yakında aranmışlar atlanır.
-    PAZAR_KURAL_TARIHI'nden önceki aramalar (eski kurallarla yapılmış) eskimiş sayılır."""
+    PAZAR_KURAL_TARIHI'nden önceki aramalar (eski kurallarla yapılmış) eskimiş sayılır.
+    `kayitlar` verilirse yakında aranmış ama arama metni değişmiş ürünler de aranır (sorgu_degisti);
+    hiç aranmamış ve süresi dolmuş ürünler onlardan önce gelir."""
     simdi = simdi or datetime.now(timezone.utc)
     adet = config.PAZAR_GUNLUK_ADET if adet is None else adet
     sinir = max(simdi - timedelta(days=config.PAZAR_YENILEME_GUN),
@@ -1259,8 +1309,12 @@ def secilecekler(secimler: list[dict], kontrol_tarihleri: dict[int, str], simdi:
         t = kontrol_tarihleri.get(pid)
         return bool(t) and datetime.fromisoformat(str(t).replace("Z", "+00:00")) >= sinir
 
-    adaylar = [s for s in secimler if s["urun"].get("image_url") and not taze(s["product_id"])]
-    adaylar.sort(key=lambda s: s["rank"])
+    def degisti(s: dict) -> bool:
+        return kayitlar is not None and sorgu_degisti(kayitlar.get(s["product_id"]), s["urun"])
+
+    adaylar = [s for s in secimler
+               if s["urun"].get("image_url") and (not taze(s["product_id"]) or degisti(s))]
+    adaylar.sort(key=lambda s: (taze(s["product_id"]), s["rank"]))
     return adaylar[:adet]
 
 
@@ -1321,9 +1375,11 @@ def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | No
     """Seçilen ürünleri arar (varsa ilanları görselle de kontrol eder), veritabanına yazar;
     {product_id: özet} döndürür (bugün aranmış olanlar). `adet`: bugünkü bütçe (kota.gunluk_urun).
     `api_key` boş ve `serper_key` verilmişse yalnızca Serper ile aranır (serper_urun_ara; Lens yok).
-    Bir ürünün araması hata verirse (ör. hak bitti) o ana kadar arananlar yine kaydedilir."""
-    hedefler = secilecekler(secimler, depo.pazar_kontrol_tarihleri([s["product_id"] for s in secimler]),
-                            adet=adet)
+    Bir ürünün araması hata verirse (ör. hak bitti) o ana kadar arananlar yine kaydedilir.
+    Arama metni değişen ürünler süresi dolmadan yeniden aranır (bkz. secilecekler, gorselleri_tasi)."""
+    kayitlar = depo.pazar_kayitlari([s["product_id"] for s in secimler])
+    hedefler = secilecekler(secimler, {pid: o.get("checked_at") for pid, o in kayitlar.items()},
+                            adet=adet, kayitlar=kayitlar)
     ozetler = {}
     for s in hedefler:
         try:
@@ -1331,6 +1387,7 @@ def calistir(depo, secimler: list[dict], api_key: str, client: httpx.Client | No
                 sonuclar, sorgu = urun_ara(api_key, s["urun"], client)
             else:
                 sonuclar, sorgu = serper_urun_ara(serper_key, s["urun"], client)
+                sonuclar = gorselleri_tasi(sonuclar, kayitlar.get(s["product_id"]), config.PAZAR_YENILEME_GUN)
         except (PazarHatasi, httpx.HTTPError) as e:
             print(f"UYARI: E-ticaret araması durdu ({s['urun'].get('name')}): {e}")
             break

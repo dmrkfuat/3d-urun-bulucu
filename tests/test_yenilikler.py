@@ -85,7 +85,7 @@ class _PazarDepo:
     def __init__(self):
         self.kaydedilen = []
 
-    def pazar_kontrol_tarihleri(self, ids):
+    def pazar_kayitlari(self, ids):
         return {}
 
     def pazar_kaydet(self, satirlar):
