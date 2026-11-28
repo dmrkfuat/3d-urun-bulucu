@@ -201,13 +201,35 @@ def test_turkce_sorgu():
     assert pazar.sorgu_olustur("Impossible Thread - Print-in-Place Fidget (no AMS)") == "imkansız vida fidget"
     assert pazar.sorgu_olustur("Custom Text Embosser | Print-in-Place Hinged Press") == "kabartma mühür pres"
     assert pazar.sorgu_olustur("MYLITOS MINI GRINCH") == "grinch"            # marka adı atılır
-    assert pazar.sorgu_olustur("Gnomo Nordico Natalizio Stile Maglia NO AMS") == "cüce"
+    assert pazar.sorgu_olustur("Gnomo Nordico Natalizio Stile Maglia NO AMS") == "cüce yılbaşı örgü"
     assert pazar.sorgu_olustur("Zorblax Thing") == "zorblax thing"           # sözlükte yoksa ilk 2 kelime
     assert pazar.sorgu_olustur("ZORBLAX") is None                            # tamamı büyük harf: marka sayılır
     assert pazar.sorgu_olustur("Christmas Cable Car") == "teleferik yılbaşı"
     assert pazar.sorgu_olustur("Desk Organizer with Pen Holder") == "kalemlik masa düzenleyici"
     assert pazar.sorgu_olustur("Zorblax") == "zorblax"
     assert pazar.sorgu_olustur("") is None
+
+
+def test_arama_metni_yabanci_ad_eksik_kelime_ve_etiket_destegi():
+    a = pazar.arama_metni
+    # İtalyanca / Almanca ad: ürünün adı düşmez; bitişik yazılmış kelimeler ve "ä" ayrılır.
+    assert a("Renna Natalizia a Maglia: Cute Edition NO AMS") == "geyik yılbaşı örgü 3d baskı"
+    assert a("Pupazzo di Neve Natalizio a Maglia No Ams") == "kardan adam yılbaşı örgü figür 3d baskı"
+    assert a("Fensterhaken Weihnachten Dekoration aufhängen") == "pencere askı yılbaşı 3d baskı"
+    assert a("Leuchtende Weihnachtsfiguren – 5er-Set", None, ["Christmas", "led tealight"])         == "ışıklı yılbaşı figür 3d baskı"                    # ad üç terim veriyor: etiket eklenmez
+    # Sözlükte olmayan kelime yüzünden yalnızca genel kelime ("stand", "sevimli") kalmaz.
+    assert a("GTA 6 (GTA VI) PS5 DualSense Controller Stand") == "oyun kolu standı gta dualsense 3d baskı"
+    assert a("Cute Christmas Snoopy - Multi-Part (No AMS Needed)") == "sevimli yılbaşı snoopy figür 3d baskı"
+    assert a("Christmas Candy Cane Tealight Holders Set - NO AMS") == "mumluk baston şeker yılbaşı 3d baskı"  # çoğul ifade
+    assert a("Goofy series – BAUBLE Movable Eyes NOAMS CHRISTMAS") == "yılbaşı topu 3d baskı"   # kelime iki kez yazılmaz
+    # Ad ürünü söylemiyorsa etiketlerdeki ayırt edici kelimeler kullanılır...
+    assert a("UPDATED PocketPal - Hollow Head (Alan Becker)", None, ["stickman", "stick", "man", "figure"])         == "çöp adam figür 3d baskı"
+    assert a("Roly Poly Flexi Fidget", None, ["fidget", "flexi", "bug", "roly poly"]) == "böcek eklemli fidget 3d baskı"
+    # ...ad söylüyorsa etiketler karışmaz ("santa claus" etiketi Grinch'i Noel Baba yapmasın).
+    assert a("MYLITOS MINI GRINCH", None, ["grinch", "navidad", "santa claus"]) == "grinch mini figür 3d baskı"
+    k = lambda ad: [sorted(x) for x in pazar.kavramlar(ad)]   # noqa: E731
+    assert k("Renna Natalizia a Maglia") == [["geyik", "renna"], ["maglia", "orgu"]]
+    assert k("Fensterhaken Weihnachten") == [["pencere"]]
 
 
 def test_secilecekler_ve_eski_kural(monkeypatch):

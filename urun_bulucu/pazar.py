@@ -106,6 +106,55 @@ IFADELER = {
     "text embosser": "kabartma mühür", "paper embosser": "kabartma mühür",
     "wall art": "duvar dekoru", "night light": "gece lambası", "business card": "kartvizitlik",
     "gingerbread house": "kurabiye ev", "gingerbread man": "kurabiye adam",
+    "paper towel holder": "kağıt havluluk", "towel holder": "havluluk", "controller stand": "oyun kolu standı",
+    "controller holder": "oyun kolu standı", "laptop stand": "laptop standı", "tablet stand": "tablet standı",
+    "candy cane": "baston şeker", "mrs claus": "noel anne", "balloon dog": "balon köpek",
+    "photo book": "fotoğraf albümü", "photo album": "fotoğraf albümü", "stick man": "çöp adam",
+    "nativity scene": "doğuş sahnesi", "hot dog": "sosisli", "piggy bank": "kumbara", "money box": "kumbara",
+    "tissue box": "peçetelik", "napkin holder": "peçetelik", "soap dish": "sabunluk", "bag clip": "poşet klipsi",
+    "cup holder": "bardak tutucu", "bird feeder": "kuş yemliği", "bird house": "kuş evi",
+    "jewelry box": "takı kutusu", "gift box": "hediye kutusu",
+}
+# MakerWorld'de sık görülen İtalyanca / İspanyolca / Portekizce / Almanca / Fransızca ifade ve kelimeler.
+# Ayrı tutulur: Türkçe → İngilizce çeviren keşif sözlüğüne (kesif._tr_en) karışmasın.
+YABANCI_IFADELER = {
+    "pupazzo di neve": "kardan adam", "babbo natale": "noel baba", "albero di natale": "yılbaşı ağacı",
+    "papa noel": "noel baba", "papá noel": "noel baba", "papai noel": "noel baba",
+    "muñeco de nieve": "kardan adam", "muneco de nieve": "kardan adam", "boneco de neve": "kardan adam",
+    "bonhomme de neige": "kardan adam", "père noël": "noel baba", "pere noel": "noel baba",
+    "árbol de navidad": "yılbaşı ağacı", "arbol de navidad": "yılbaşı ağacı",
+    "árvore de natal": "yılbaşı ağacı", "arvore de natal": "yılbaşı ağacı",
+    "porte clés": "anahtarlık", "porte cles": "anahtarlık", "porte clé": "anahtarlık",
+}
+YABANCI = {
+    # İtalyanca
+    "natalizio": "yılbaşı", "natalizia": "yılbaşı", "natalizi": "yılbaşı", "natalizie": "yılbaşı",
+    "renna": "geyik", "albero": "ağaç", "stella": "yıldız", "angelo": "melek", "gatto": "kedi",
+    "drago": "ejderha", "cuore": "kalp", "regalo": "hediye", "maglia": "örgü", "vaso": "vazo",
+    "lampada": "lamba", "portapenne": "kalemlik", "giocattolo": "oyuncak", "decorazione": "süs",
+    "addobbo": "süs", "pallina": "yılbaşı topu", "scatola": "kutu", "babbo": "noel baba",
+    # İspanyolca / Portekizce
+    "árbol": "ağaç", "arbol": "ağaç", "estrella": "yıldız", "reno": "geyik", "gato": "kedi", "perro": "köpek",
+    "dragón": "ejderha", "corazón": "kalp", "corazon": "kalp", "caja": "kutu", "soporte": "stand",
+    "juguete": "oyuncak", "adorno": "süs", "lámpara": "lamba", "lampara": "lamba", "navideño": "yılbaşı",
+    "navideña": "yılbaşı", "navideno": "yılbaşı", "árvore": "ağaç", "arvore": "ağaç", "rena": "geyik",
+    "enfeite": "süs", "suporte": "stand", "brinquedo": "oyuncak", "caixa": "kutu", "natalino": "yılbaşı",
+    "natalina": "yılbaşı",
+    # Almanca
+    "weihnachten": "yılbaşı", "weihnacht": "yılbaşı", "weihnachtlich": "yılbaşı", "weihnachtliche": "yılbaşı",
+    "weihnachtsmann": "noel baba", "weihnachtsbaum": "yılbaşı ağacı", "tannenbaum": "yılbaşı ağacı",
+    "christbaum": "yılbaşı ağacı", "weihnachtskugel": "yılbaşı topu", "christbaumkugel": "yılbaşı topu",
+    "schneemann": "kardan adam", "rentier": "geyik", "engel": "melek", "stern": "yıldız", "baum": "ağaç",
+    "figur": "figür", "figuren": "figür", "deko": "süs", "dekoration": "süs", "fenster": "pencere",
+    "haken": "askı", "halter": "tutucu", "ständer": "stand", "schlüsselanhänger": "anahtarlık",
+    "lampe": "lamba", "teelicht": "tealight mumluk", "kerze": "mum", "kerzenhalter": "mumluk",
+    "krippe": "doğuş sahnesi", "haus": "ev", "lebkuchen": "zencefilli kurabiye", "lebkuchenhaus": "kurabiye ev",
+    "katze": "kedi", "hund": "köpek", "drache": "ejderha", "geschenk": "hediye", "leuchtend": "ışıklı",
+    "leuchtende": "ışıklı", "leuchtender": "ışıklı", "spielzeug": "oyuncak", "schachtel": "kutu",
+    "wichtel": "cüce", "zwerg": "cüce", "herz": "kalp", "blume": "çiçek",
+    # Fransızca
+    "noël": "yılbaşı", "sapin": "yılbaşı ağacı", "renne": "geyik", "étoile": "yıldız", "etoile": "yıldız",
+    "ange": "melek", "cadeau": "hediye", "chien": "köpek", "jouet": "oyuncak", "boîte": "kutu", "boite": "kutu",
 }
 CEVIRI = {
     "magnetic": "manyetik", "swing": "salıncak", "diorama": "diorama", "gnome": "cüce", "gnomo": "cüce",
@@ -146,15 +195,125 @@ CEVIRI = {
     "reindeer": "geyik", "deer": "geyik", "snowflake": "kar tanesi", "angel": "melek", "elf": "elf",
     "cake": "kek", "chain": "zincir", "locket": "madalyon", "pendant": "kolye ucu", "knit": "örgü",
     "gingerbread": "zencefilli kurabiye", "jesus": "isa",
+    # ürün ve tip adları
+    "controller": "oyun kolu", "gamepad": "oyun kolu", "figure": "figür", "figurine": "figür",
+    "statue": "heykel", "sculpture": "heykel", "bust": "büst", "bauble": "yılbaşı topu", "wreath": "çelenk",
+    "stocking": "çorap", "sleigh": "kızak", "nutcracker": "fındıkkıran", "nativity": "doğuş sahnesi",
+    "bell": "çan", "candy": "şeker", "balloon": "balon", "photo": "fotoğraf", "album": "albüm",
+    "book": "kitap", "cupcake": "cupcake", "container": "kutu", "window": "pencere",
+    "windowsill": "pencere önü", "scraper": "spatula", "stickman": "çöp adam", "slinky": "slinky",
+    "wiener": "sosis", "sausage": "sosis", "giftbox": "hediye kutusu", "glowing": "ışıklı",
+    "illuminated": "ışıklı", "egg": "yumurta", "ball": "top", "crown": "taç", "shield": "kalkan",
+    "helmet": "kask", "basket": "sepet", "bucket": "kova", "funnel": "huni", "ruler": "cetvel",
+    "calendar": "takvim", "medal": "madalya", "magnet": "mıknatıs", "lock": "kilit", "key": "anahtar",
+    "clip": "klips", "mirror": "ayna", "bottle": "şişe", "cup": "bardak", "mug": "kupa", "jewelry": "takı",
+    "chess": "satranç", "dice": "zar", "maze": "labirent", "whistle": "düdük", "tower": "kule",
+    "robot": "robot", "rocket": "roket", "airplane": "uçak", "plane": "uçak", "ship": "gemi", "boat": "tekne",
+    "truck": "kamyon", "tractor": "traktör", "bike": "bisiklet", "bicycle": "bisiklet",
+    "motorcycle": "motosiklet", "helicopter": "helikopter", "submarine": "denizaltı", "tank": "tank",
+    "guitar": "gitar", "violin": "keman", "leaf": "yaprak", "cloud": "bulut", "rainbow": "gökkuşağı",
+    "sunflower": "ayçiçeği", "mushroom": "mantar", "cactus": "kaktüs",
+    # hayvanlar ve yaratıklar
+    "kitty": "kedi", "kitten": "kedi", "puppy": "köpek", "bug": "böcek", "insect": "böcek",
+    "penguin": "penguen", "fox": "tilki", "unicorn": "unicorn", "duck": "ördek", "chicken": "tavuk",
+    "crab": "yengeç", "whale": "balina", "dolphin": "yunus", "elephant": "fil", "lion": "aslan",
+    "tiger": "kaplan", "monkey": "maymun", "cow": "inek", "pig": "domuz", "sheep": "koyun",
+    "snail": "salyangoz", "bee": "arı", "ladybug": "uğur böceği", "crocodile": "timsah",
+    "alligator": "timsah", "sloth": "tembel hayvan", "panda": "panda", "koala": "koala",
+    "capybara": "kapibara", "hedgehog": "kirpi", "squirrel": "sincap", "raccoon": "rakun", "bat": "yarasa",
+    "hamster": "hamster", "giraffe": "zürafa", "llama": "lama", "seahorse": "denizatı",
+    "jellyfish": "denizanası", "starfish": "denizyıldızı", "lobster": "ıstakoz", "scorpion": "akrep",
+    "caterpillar": "tırtıl", "dragonfly": "yusufçuk", "parrot": "papağan", "eagle": "kartal",
+    "ghost": "hayalet", "witch": "cadı", "pirate": "korsan", "knight": "şövalye", "wizard": "büyücü",
+    "fairy": "peri", "mermaid": "deniz kızı", "alien": "uzaylı", "astronaut": "astronot", "zombie": "zombi",
+    "ninja": "ninja", "samurai": "samuray", "viking": "viking", "monster": "canavar", "princess": "prenses",
+    # karakter ve marka adları (Türk satıcılar da aynen yazar)
+    "snoopy": "snoopy", "mickey": "mickey", "minnie": "minnie", "bluey": "bluey", "charmander": "charmander",
+    "bulbasaur": "bulbasaur", "eevee": "eevee", "gengar": "gengar", "snorlax": "snorlax",
+    "squirtle": "squirtle", "luigi": "luigi", "yoshi": "yoshi", "bowser": "bowser", "zelda": "zelda",
+    "kirby": "kirby", "grogu": "grogu", "mandalorian": "mandalorian", "vader": "darth vader",
+    "stormtrooper": "stormtrooper", "ironman": "iron man", "deadpool": "deadpool", "wolverine": "wolverine",
+    "hulk": "hulk", "venom": "venom", "joker": "joker", "superman": "superman", "dobby": "dobby",
+    "toothless": "toothless", "kuromi": "kuromi", "labubu": "labubu", "shrek": "shrek", "minion": "minion",
+    "totoro": "totoro", "naruto": "naruto", "goku": "goku", "godzilla": "godzilla", "garfield": "garfield",
+    "batarang": "batarang", "dualsense": "dualsense", "gta": "gta", "playstation": "playstation",
+    "xbox": "xbox", "nintendo": "nintendo", "lego": "lego", "tesla": "tesla", "cybertruck": "cybertruck",
+    "disney": "disney", "marvel": "marvel",
 }
 GURULTU = {
     "print", "printed", "printing", "in", "place", "pip", "no", "ams", "tpu", "the", "a", "an", "for", "with",
     "and", "of", "to", "3d", "mini", "v2", "v3", "version", "remix", "easy", "super", "ultra", "satisfying",
     "free", "sell", "support", "supports", "without", "multi", "color", "colour", "plate", "set", "kit",
     "custom", "extra", "long", "big", "small", "large", "new", "best", "my", "your", "simple", "cool",
-    "stile", "maglia", "natalizio", "style", "edition", "model", "design", "project", "file", "files",
-    "glue", "needed", "required", "part", "parts", "piece", "pieces",
+    "stile", "style", "edition", "model", "design", "project", "file", "files",
+    "glue", "needed", "required", "part", "parts", "piece", "pieces", "series", "inspired", "updated",
+    "update", "xxl", "amp", "mit", "für", "und", "zum", "aufhängen", "con", "per", "del", "des", "les", "pour",
 }
+# Kelime: Latin harfleri (Türkçe, Almanca, İtalyanca...: "aufhängen" bölünmez); rakam ve "×" ayırır.
+HARF = r"[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ]+"
+_IFADE_DESENLERI = [(re.compile(rf"\b{ifade}s?\b"), ifade, tr)
+                    for ifade, tr in {**IFADELER, **YABANCI_IFADELER}.items()]
+
+
+def _sozluk(k: str) -> str | None:
+    return CEVIRI.get(k) or YABANCI.get(k)
+
+
+def _bilesik(k: str) -> list[str]:
+    """Bitişik yazılmış iki bilinen kelime ("fensterhaken" → pencere + askı, "weihnachtskrippe",
+    "christmasgnome"); araya giren "s" ve çoğul "s" serbest. Kısa kelimelerde denenmez."""
+    if len(k) < 8:
+        return []
+    for i in range(3, len(k) - 2):
+        bas, son = k[:i], k[i:]
+        b = _sozluk(bas) or (_sozluk(bas[:-1]) if bas.endswith("s") and len(bas) > 3 else None)
+        t = _sozluk(son) or (_sozluk(son[:-1]) if son.endswith("s") and len(son) > 3 else None)
+        if b and t:
+            return [b] if b == t else [b, t]
+    return []
+
+
+def _cevir(k: str) -> list[str]:
+    """Kelimenin Türkçesi: sözlük, çoğul "s" ya da bitişik yazılmış iki kelime; bilinmiyorsa boş."""
+    tr = _sozluk(k) or _sozluk(k.rstrip("s"))
+    return [tr] if tr else _bilesik(k)
+
+
+def _terimler(ad: str | None) -> tuple[list[str], list[str]]:
+    """Metindeki (bilinen, bilinmeyen) kelimeler: sözlükteki ifade ve kelimelerin Türkçesi (ifadeler
+    önce, sonra metindeki sırayla) ve sözlükte olmayan kelimeler. Gürültü atılır; tamamı büyük harfle
+    yazılmış bilinmeyen kelimeler (çoğunlukla marka/tasarımcı adı, ör. "MYLITOS") hiç kullanılmaz."""
+    ham = re.findall(HARF, ad or "")
+    hepsi_buyuk = bool(ham) and all(k.isupper() for k in ham if len(k) > 1)
+    metin = " ".join(k.lower() for k in ham)
+    bilinen: list[str] = []
+    bilinmeyen: list[str] = []
+    for desen, _, tr in _IFADE_DESENLERI:
+        if desen.search(metin):
+            metin = desen.sub(" ", metin)
+            if tr not in bilinen:
+                bilinen.append(tr)
+    kalan = set(metin.split())
+    for orijinal in ham:
+        k = orijinal.lower()
+        if k not in kalan or k in GURULTU or len(k) < 3:
+            continue
+        ceviriler = _cevir(k)
+        for tr in ceviriler:
+            if tr not in bilinen:
+                bilinen.append(tr)
+        if not ceviriler and not orijinal.isupper() and not hepsi_buyuk and k not in bilinmeyen:
+            bilinmeyen.append(k)
+    return bilinen, bilinmeyen
+
+
+def _yaz(terimler: list[str]) -> str | None:
+    """Terimler tek metin olur; aynı kelime iki kez yazılmaz ("yılbaşı topu" + "yılbaşı")."""
+    kelimeler: list[str] = []
+    for k in " ".join(terimler).split():
+        if k not in kelimeler:
+            kelimeler.append(k)
+    return " ".join(kelimeler) or None
 
 
 def sorgu_olustur(ad: str | None, en_fazla_kelime: int = 3) -> str | None:
@@ -164,29 +323,8 @@ def sorgu_olustur(ad: str | None, en_fazla_kelime: int = 3) -> str | None:
     bilinen kelime yoksa kullanılır; tamamı büyük harfle yazılmış bilinmeyen kelimeler (çoğunlukla
     marka/tasarımcı adı, ör. "MYLITOS") hiçbir zaman kullanılmaz.
     """
-    ham = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", ad or "")
-    hepsi_buyuk = bool(ham) and all(k.isupper() for k in ham if len(k) > 1)
-    metin = " ".join(k.lower() for k in ham)
-    sonuc: list[str] = []
-    for ifade, tr in IFADELER.items():
-        if re.search(rf"\b{ifade}\b", metin):
-            sonuc.append(tr)
-            metin = re.sub(rf"\b{ifade}\b", " ", metin)
-    kalan = set(metin.split())
-    bilinmeyen: list[str] = []
-    for orijinal in ham:
-        k = orijinal.lower()
-        if k not in kalan or k in GURULTU or len(k) < 3:
-            continue
-        tr = CEVIRI.get(k) or CEVIRI.get(k.rstrip("s"))
-        if tr:
-            if tr not in sonuc:
-                sonuc.append(tr)
-        elif not orijinal.isupper() and not hepsi_buyuk and k not in bilinmeyen:
-            bilinmeyen.append(k)
-    if not sonuc:
-        sonuc = bilinmeyen[:2]
-    return " ".join(sonuc[:en_fazla_kelime]) or None
+    bilinen, bilinmeyen = _terimler(ad)
+    return _yaz((bilinen or bilinmeyen[:2])[:en_fazla_kelime])
 
 
 # Ürün tipi: Türk satıcılar ilanı ürünün ne olduğuyla yazar ("Grinch Figür", "Yılbaşı Süsü").
@@ -201,11 +339,17 @@ TIP_KURALLARI = [
     (("lamp", "night light", "lithophane"), "lamba"),
 ]
 KARAKTERLER = {"grinch", "pikachu", "pokemon", "creeper", "batman", "stitch", "mario", "sonic", "groot",
-               "yoda", "coraline", "harry potter", "örümcek adam", "noel baba", "kardan adam"}
+               "yoda", "coraline", "harry potter", "örümcek adam", "noel baba", "kardan adam", "noel anne",
+               "snoopy", "mickey", "minnie", "bluey", "charmander", "bulbasaur", "eevee", "gengar", "snorlax",
+               "squirtle", "luigi", "yoshi", "bowser", "kirby", "grogu", "darth vader", "stormtrooper",
+               "iron man", "deadpool", "wolverine", "hulk", "venom", "joker", "superman", "dobby", "toothless",
+               "kuromi", "labubu", "shrek", "minion", "totoro", "naruto", "goku", "godzilla", "garfield"}
 TIP_ISIMLERI = {tip for _, tip in TIP_KURALLARI} | {
     "anahtarlık", "kalemlik", "isimlik", "mumluk", "yüzük", "bileklik", "kolye", "küpe", "oyuncak", "stand",
     "standı", "tutucu", "düzenleyici", "kutu", "çerçeve", "askı", "raf", "tepsi", "kase", "tabak", "süsü",
-    "kartvizitlik", "açacak", "altlığı", "kulesi", "çanta", "cüzdan", "tarak", "maske", "kılıç", "fırlatıcı"}
+    "kartvizitlik", "açacak", "altlığı", "kulesi", "çanta", "cüzdan", "tarak", "maske", "kılıç", "fırlatıcı",
+    "heykel", "büst", "havluluk", "albümü", "topu", "kumbara", "peçetelik", "sabunluk", "klipsi", "yemliği",
+    "evi", "kabı", "kutusu", "spatula", "sahnesi", "çelenk", "takvim"}
 BOYUT = re.compile(r"\b(?:mini|tiny|little|small)\b")
 
 
@@ -256,7 +400,8 @@ def genis_metin(sorgu: str | None) -> str | None:
 
 def _parcalar(govde: str) -> list[str]:
     """Sorguyu bölünmemesi gereken ifadeleriyle parçalar ("noel baba", "yılbaşı ağacı" tek parça)."""
-    ifadeler = sorted({v for v in [*IFADELER.values(), *CEVIRI.values(), *KARAKTERLER, *ES_ANLAMLI.values(),
+    ifadeler = sorted({v for v in [*IFADELER.values(), *CEVIRI.values(), *YABANCI_IFADELER.values(),
+                                   *YABANCI.values(), *KARAKTERLER, *ES_ANLAMLI.values(),
                                    "yılbaşı süsü", "mini figür"] if " " in v}, key=len, reverse=True)
     parcalar, kalan = [], govde.split()
     while kalan:
@@ -301,9 +446,20 @@ def lens_kelimeleri(lens_yaniti: dict, en_fazla: int = 2) -> list[str]:
 
 def arama_metni(ad: str | None, lens_yaniti: dict | None = None,
                 etiketler: list[str] | None = None) -> str | None:
-    """İsimden üretilen metin (isimden çıkmazsa etiketlerden) + ürün tipi + (varsa) Lens'teki Türkçe
-    3D baskı başlıklarından kelimeler + '3d baskı'."""
-    temel = sorgu_olustur(ad) or sorgu_olustur(" ".join(str(e) for e in (etiketler or [])[:6]))
+    """İsimden üretilen metin + ürün tipi + (varsa) Lens'teki Türkçe 3D baskı başlıklarından kelimeler +
+    '3d baskı'. Ad ürünü ayırt eden bilinen bir kelime vermiyorsa (yabancı dilde ya da uydurma ad;
+    yalnızca "sevimli", "stand" gibi genel kelimeler) etiketlerdeki ayırt edici kelimeler boş kalan
+    yerlere (en çok 3 terim) eklenir."""
+    bilinen, bilinmeyen = _terimler(ad)
+    etiket_metni = " ".join(str(e) for e in (etiketler or [])[:6])
+    if not any(not _genel(t) for t in bilinen):
+        etiket_bilinen = _terimler(etiket_metni)[0]
+        ayirt = [t for t in etiket_bilinen if not _genel(t)]
+        if bilinen:
+            bilinen = ayirt[:max(0, 3 - len(bilinen))] + bilinen
+        elif ayirt:
+            bilinen = etiket_bilinen
+    temel = _yaz((bilinen or bilinmeyen[:2])[:3]) or sorgu_olustur(etiket_metni)
     kelimeler = temel.split() if temel else []
     tip = urun_tipi(ad, etiketler, temel) if kelimeler else None
     for k in (tip or "").split():
@@ -596,6 +752,7 @@ GENEL_KAVRAMLAR = {
     "dekorasyon", "figür", "figürü", "biblo", "heykel", "tutucu", "standı", "kutu", "kutusu",
     "düzenleyici", "masa", "masaüstü", "kişiye", "özel", "sevimli", "minik", "anahtarlık", "lamba",
     "vazo", "saksı", "tepsi", "askı", "çerçeve", "seti", "eklemli", "hareketli", "dokunsal", "mekanik",
+    "ışıklı",
 }
 
 
@@ -622,6 +779,7 @@ TEMA_KAVRAMLAR = {
     "articulated", "flexi", "eklemli", "hareketli", "mechanical", "mekanik", "sensory", "tactile", "dokunsal",
     "stress", "relief", "stres", "giderici", "dark", "black", "white", "red", "green", "blue", "decorative",
     "dekoratif", "home", "kids", "art", "collection", "desk", "masa", "masaüstü", "kit", "seti", "game",
+    "ışıklı",
 }
 BELIRLI_TIPLER = {"fidget", "spinner", "anahtarlık", "lamba", "vazo", "saksı", "tepsi", "askı", "çerçeve",
                   "mumluk"}
@@ -636,13 +794,13 @@ def _genel(ifade: str) -> bool:
 def _kavram_ayir(ad: str | None) -> tuple[list[set[str]], list[set[str]]]:
     """Model adının kavramları, (ayırt edici, genel) olarak; her kavram İngilizce ve Türkçe biçimleriyle.
     Genel kavramlar GENEL_KAVRAMLAR'daki tema/tip sözcükleridir ("christmas"/"yılbaşı", "stand")."""
-    ham = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", ad or "")
+    ham = re.findall(HARF, ad or "")
     metin = " ".join(k.lower() for k in ham)
     sonuc: list[set[str]] = []
     genel: list[set[str]] = []
-    for ifade, tr in IFADELER.items():
-        if re.search(rf"\b{ifade}\b", metin):
-            metin = re.sub(rf"\b{ifade}\b", " ", metin)
+    for desen, ifade, tr in _IFADE_DESENLERI:
+        if desen.search(metin):
+            metin = desen.sub(" ", metin)
             (genel if _genel(ifade) and _genel(tr) else sonuc).append({_norm(ifade), _norm(tr)})
     kalan = set(metin.split())
     for orijinal in ham:
@@ -650,9 +808,16 @@ def _kavram_ayir(ad: str | None) -> tuple[list[set[str]], list[set[str]]]:
         if k not in kalan or len(k) < 3 or _norm(k) in _GURULTU_N:
             continue
         kalan.discard(k)
-        tr = CEVIRI.get(k) or CEVIRI.get(k.rstrip("s"))
-        if tr is None and orijinal.isupper() and len(orijinal) > 1:
+        ceviriler = _cevir(k)
+        if not ceviriler and orijinal.isupper() and len(orijinal) > 1:
             continue   # bilinmeyen BÜYÜK HARF kelime: marka/tasarımcı
+        if len(ceviriler) > 1:   # bitişik yazılmış iki kelime: her biri ayrı kavram
+            for parca in ceviriler:
+                hedef = genel if _genel(parca) else sonuc
+                if not any(_norm(parca) in b for b in hedef):
+                    hedef.append({_norm(parca)})
+            continue
+        tr = ceviriler[0] if ceviriler else None
         bicimler = {_norm(k)} | ({_norm(tr)} if tr else set())
         hedef = genel if _genel(k) or (tr and _genel(tr)) else sonuc
         if not any(bicimler & s for s in hedef):
